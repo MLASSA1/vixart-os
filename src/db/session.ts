@@ -18,7 +18,7 @@ import { getDb, type Database } from './index';
 
 export interface UserContext {
   id: string;
-  role: 'admin' | 'member';
+  role: 'admin' | 'moderator' | 'member';
   name: string;
 }
 
@@ -57,6 +57,18 @@ export async function withAdmin<T>(
   return withUser(async (tx, user) => {
     if (user.role !== 'admin') {
       throw new Error('Management only');
+    }
+    return work(tx, user);
+  });
+}
+
+/** Admin or the work moderator — assigning tasks, shaping projects. */
+export async function withModerator<T>(
+  work: (tx: Tx, user: UserContext) => Promise<T>,
+): Promise<T> {
+  return withUser(async (tx, user) => {
+    if (user.role !== 'admin' && user.role !== 'moderator') {
+      throw new Error('Moderators only');
     }
     return work(tx, user);
   });

@@ -86,7 +86,7 @@ export default async function SystemPage() {
 
       <div className="grid grid-cols-1 gap-x-10 md:grid-cols-2">
         <div>
-          <h2 className="meta border-b border-void pb-2">Engine</h2>
+          <h2 className="label border-b border-void pb-2">Engine</h2>
           <div className="mt-2">
             <Field label="PostgreSQL" value={engine?.version} />
             <Field label="Database" value={engine?.database} />
@@ -97,7 +97,7 @@ export default async function SystemPage() {
         </div>
 
         <div className="mt-10 md:mt-0">
-          <h2 className="meta border-b border-void pb-2">Records</h2>
+          <h2 className="label border-b border-void pb-2">Records</h2>
           <div className="mt-2">
             <Field label="Clients" value={counters?.clients} />
             <Field label="Contacts" value={counters?.contacts} />
@@ -130,10 +130,10 @@ export default async function SystemPage() {
           <table className="w-full border-collapse text-left">
             <thead>
               <tr className="border-b-2 border-void">
-                <th className="meta py-2.5 pr-4">Key</th>
-                <th className="meta py-2.5 pr-4">Rate</th>
-                <th className="meta py-2.5 pr-4">In force from</th>
-                <th className="meta py-2.5">Note</th>
+                <th className="label py-2.5 pr-4">Key</th>
+                <th className="label py-2.5 pr-4">Rate</th>
+                <th className="label py-2.5 pr-4">In force from</th>
+                <th className="label py-2.5">Note</th>
               </tr>
             </thead>
             <tbody>
@@ -142,11 +142,11 @@ export default async function SystemPage() {
                   key={`${rate.key}-${rate.effective_from}`}
                   className="border-b border-void/10 align-top"
                 >
-                  <td className="amount py-3 pr-4">{rate.key}</td>
-                  <td className="amount py-3 pr-4 whitespace-nowrap">
+                  <td className="code py-3 pr-4">{rate.key}</td>
+                  <td className="code py-3 pr-4 whitespace-nowrap">
                     {(rate.rate_bp / 100).toString().replace('.', ',')} %
                   </td>
-                  <td className="amount py-3 pr-4">{rate.effective_from}</td>
+                  <td className="code py-3 pr-4">{rate.effective_from}</td>
                   <td className="py-3 text-[15px]" style={{ opacity: 0.68 }}>
                     {rate.note}
                   </td>

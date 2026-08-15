@@ -17,14 +17,14 @@ export default async function SignInPage({
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6 py-16">
       <header className="border-b-2 border-void pb-6">
-        <p className="meta" style={{ opacity: 0.52 }}>
+        <p className="label" style={{ opacity: 0.52 }}>
           SOCIETE VIXART SARL — Agadir
         </p>
         <h1 className="mt-3 text-4xl font-bold tracking-tight">VIXART OS</h1>
       </header>
 
       {changed && (
-        <p className="meta mt-6 border border-void px-4 py-3">
+        <p className="label mt-6 border border-void px-4 py-3">
           Password changed — sign in again
         </p>
       )}

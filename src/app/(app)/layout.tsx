@@ -28,7 +28,7 @@ export default async function AppLayout({
     return (
       <main className="mx-auto max-w-2xl px-6 py-16">
         <header className="border-b-2 border-void pb-5">
-          <p className="meta" style={{ opacity: 0.52 }}>
+          <p className="label" style={{ opacity: 0.52 }}>
             {user.name}
           </p>
           <h1 className="mt-2 text-3xl font-bold tracking-tight">

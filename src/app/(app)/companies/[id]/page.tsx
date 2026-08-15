@@ -3,14 +3,14 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { auth } from '@/auth';
 import { ButtonLink, Empty, Field, PageHeader, Section, Status } from '@/components/ui';
-import { client, contact, interaction } from '@/db/schema';
-import { CLIENT_STATUSES, INTERACTION_KIND_LABELS } from '@/lib/labels';
+import { company, contact, interaction } from '@/db/schema';
+import { COMPANY_STAGES, INTERACTION_KIND_LABELS } from '@/lib/labels';
 import { withUser } from '@/db/session';
 import { forDateTimeField, formatDateTime, paragraphs, whatsappLink } from '@/lib/format';
 import {
   createContactAction,
   createInteractionAction,
-  deleteClientAction,
+  deleteCompanyAction,
   deleteContactAction,
   deleteInteractionAction,
   setStatusAction,
@@ -32,20 +32,20 @@ export default async function ClientPage({
   const currentUserId = session?.user.id;
 
   const data = await withUser(async (tx) => {
-    const rows = await tx.select().from(client).where(eq(client.id, id)).limit(1);
+    const rows = await tx.select().from(company).where(eq(company.id, id)).limit(1);
     const record = rows[0];
     if (!record) return null;
 
     const contacts = await tx
       .select()
       .from(contact)
-      .where(eq(contact.clientId, id))
+      .where(eq(contact.companyId, id))
       .orderBy(desc(contact.isPrimary), asc(contact.fullName));
 
     const timeline = await tx
       .select()
       .from(interaction)
-      .where(eq(interaction.clientId, id))
+      .where(eq(interaction.companyId, id))
       .orderBy(desc(interaction.occurredAt));
 
     return { record, contacts, timeline };
@@ -64,7 +64,7 @@ export default async function ClientPage({
         title={record.name}
         actions={
           <>
-            <ButtonLink href={`/clients/${record.id}/edit`} inverse>
+            <ButtonLink href={`/companies/${record.id}/edit`} inverse>
               Edit
             </ButtonLink>
             <ButtonLink href="/clients" inverse>
@@ -77,12 +77,12 @@ export default async function ClientPage({
       {/* --- Stage: one click to move along the pipeline --------------------- */}
       <div className="flex flex-wrap items-center gap-3">
         <Status value={record.status} />
-        <span className="meta" style={{ opacity: 0.52 }}>
+        <span className="label" style={{ opacity: 0.52 }}>
           move to
         </span>
-        {CLIENT_STATUSES.filter((s) => s.value !== record.status).map((s) => (
+        {COMPANY_STAGES.filter((s) => s.value !== record.status).map((s) => (
           <form key={s.value} action={setStatusAction}>
-            <input type="hidden" name="clientId" value={record.id} />
+            <input type="hidden" name="companyId" value={record.id} />
             <input type="hidden" name="status" value={s.value} />
             <button type="submit" className="btn btn-inverse">
               {s.label}
@@ -98,7 +98,7 @@ export default async function ClientPage({
       {/* --- Identity ------------------------------------------------------- */}
       <div className="mt-10 grid grid-cols-1 gap-x-10 md:grid-cols-2">
         <div>
-          <h2 className="meta border-b border-void pb-2">Identity</h2>
+          <h2 className="label border-b border-void pb-2">Identity</h2>
           <div className="mt-2">
             <Field label="Registered name" value={record.legalName} />
             <Field label="City" value={record.city} />
@@ -122,7 +122,7 @@ export default async function ClientPage({
         </div>
 
         <div className="mt-10 md:mt-0">
-          <h2 className="meta border-b border-void pb-2">Legal identifiers</h2>
+          <h2 className="label border-b border-void pb-2">Legal identifiers</h2>
           <div className="mt-2">
             <Field label="ICE" value={record.ice} />
             <Field label="Tax ID (IF)" value={record.identifiantFiscal} />
@@ -155,7 +155,7 @@ export default async function ClientPage({
                     <div>
                       <span className="font-semibold">{person.fullName}</span>
                       {person.isPrimary && (
-                        <span className="meta ml-3 border border-void px-2 py-0.5">
+                        <span className="label ml-3 border border-void px-2 py-0.5">
                           Primary
                         </span>
                       )}
@@ -170,18 +170,18 @@ export default async function ClientPage({
                       {person.email && (
                         <a
                           href={`mailto:${person.email}`}
-                          className="amount underline underline-offset-4"
+                          className="code underline underline-offset-4"
                         >
                           {person.email}
                         </a>
                       )}
-                      {person.phone && <span className="amount">{person.phone}</span>}
+                      {person.phone && <span className="code">{person.phone}</span>}
                       {wa && (
                         <a
                           href={wa}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="meta border border-void px-2 py-1 hover:bg-void hover:text-pure"
+                          className="label border border-void px-2 py-1 hover:bg-void hover:text-pure"
                         >
                           WhatsApp
                         </a>
@@ -196,7 +196,7 @@ export default async function ClientPage({
                   )}
 
                   <details className="mt-2">
-                    <summary className="meta cursor-pointer" style={{ opacity: 0.52 }}>
+                    <summary className="label cursor-pointer" style={{ opacity: 0.52 }}>
                       Edit
                     </summary>
                     <div className="border-l border-void/20 pl-4">
@@ -206,7 +206,7 @@ export default async function ClientPage({
                         submitLabel="Save contact"
                       />
                       <form action={deleteContactAction} className="mt-4">
-                        <input type="hidden" name="clientId" value={record.id} />
+                        <input type="hidden" name="companyId" value={record.id} />
                         <input type="hidden" name="contactId" value={person.id} />
                         <button type="submit" className="btn btn-inverse">
                           Delete this contact
@@ -251,11 +251,11 @@ export default async function ClientPage({
                     className="absolute top-2 -left-[29px] h-2 w-2 border border-void bg-pure"
                   />
                   <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-                    <span className="meta">{INTERACTION_KIND_LABELS[entry.kind] ?? entry.kind}</span>
-                    <span className="amount" style={{ opacity: 0.52 }}>
+                    <span className="label">{INTERACTION_KIND_LABELS[entry.kind] ?? entry.kind}</span>
+                    <span className="code" style={{ opacity: 0.52 }}>
                       {formatDateTime(entry.occurredAt)}
                     </span>
-                    <span className="meta" style={{ opacity: 0.52 }}>
+                    <span className="label" style={{ opacity: 0.52 }}>
                       {entry.authorName}
                     </span>
                   </div>
@@ -270,11 +270,11 @@ export default async function ClientPage({
 
                   {(mine || isAdmin) && (
                     <form action={deleteInteractionAction} className="mt-2">
-                      <input type="hidden" name="clientId" value={record.id} />
+                      <input type="hidden" name="companyId" value={record.id} />
                       <input type="hidden" name="interactionId" value={entry.id} />
                       <button
                         type="submit"
-                        className="meta cursor-pointer underline underline-offset-4"
+                        className="label cursor-pointer underline underline-offset-4"
                         style={{ opacity: 0.52 }}
                       >
                         Delete
@@ -307,11 +307,11 @@ export default async function ClientPage({
             {timeline.length} timeline entries. This cannot be undone. Restore from a
             backup is the only way back.
           </p>
-          <form action={deleteClientAction} className="mt-4 flex flex-wrap items-end gap-3">
-            <input type="hidden" name="clientId" value={record.id} />
+          <form action={deleteCompanyAction} className="mt-4 flex flex-wrap items-end gap-3">
+            <input type="hidden" name="companyId" value={record.id} />
             <input type="hidden" name="expected" value={record.name} />
             <label className="block" htmlFor="confirmation">
-              <span className="meta block" style={{ opacity: 0.68 }}>
+              <span className="label block" style={{ opacity: 0.68 }}>
                 Type “{record.name}” to confirm
               </span>
               <input
@@ -330,7 +330,7 @@ export default async function ClientPage({
       )}
 
       <p className="mt-16 border-t border-void/10 pt-6">
-        <Link href="/clients" className="meta underline underline-offset-4">
+        <Link href="/clients" className="label underline underline-offset-4">
           Back to pipeline
         </Link>
       </p>

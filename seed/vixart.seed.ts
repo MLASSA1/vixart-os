@@ -1,7 +1,7 @@
 /**
  * VIXART OS — database seed.
  *
- * IDEMPOTENT. It only runs when the `client` table is empty, and every insert
+ * IDEMPOTENT. It only runs when the `company` table is empty, and every insert
  * is guarded by ON CONFLICT DO NOTHING. Re-running this script against a
  * database holding real records changes and overwrites nothing.
  *
@@ -13,7 +13,7 @@
 import { hash } from 'bcryptjs';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { Client as PgClient } from 'pg';
-import { appUser, client, fiscalRate } from '../src/db/schema';
+import { appUser, company, fiscalRate } from '../src/db/schema';
 import { SEED_RATES } from '../src/lib/fiscal';
 
 // ---------------------------------------------------------------------------
@@ -53,7 +53,8 @@ const TEAM = [
     email: 'mohamed.amine@vixart.ma',
     fullName: 'Mohamed Amine',
     jobTitle: 'Creative Director & Designer',
-    role: 'member' as const,
+    // Moderates the work: assigns tasks, tracks progress, signs off completion.
+    role: 'moderator' as const,
   },
 ];
 
@@ -153,12 +154,12 @@ async function main() {
     const db = drizzle(pg, { casing: 'snake_case' });
 
     // --- Idempotence guard: the seed only runs against a blank database ---
-    const { rows } = await pg.query<{ n: string }>('SELECT count(*)::text AS n FROM client');
+    const { rows } = await pg.query<{ n: string }>('SELECT count(*)::text AS n FROM company');
     const existing = Number(rows[0]?.n ?? 0);
 
     if (existing > 0) {
       console.log(
-        `[seed] ${existing} client(s) already present — seed skipped, no data touched.`,
+        `[seed] ${existing} company record(s) already present — seed skipped, no data touched.`,
       );
       return;
     }
@@ -193,7 +194,7 @@ async function main() {
 
     // --- Pipeline ---
     for (const record of PIPELINE) {
-      await db.insert(client).values(record).onConflictDoNothing();
+      await db.insert(company).values(record).onConflictDoNothing();
     }
 
     const byStatus = PIPELINE.reduce<Record<string, number>>((acc, r) => {
@@ -201,7 +202,7 @@ async function main() {
       return acc;
     }, {});
     console.log(
-      `[seed] ${PIPELINE.length} client records — ` +
+      `[seed] ${PIPELINE.length} company records — ` +
         Object.entries(byStatus)
           .map(([s, n]) => `${n} ${s}`)
           .join(', '),

@@ -1,33 +1,27 @@
 @import 'tailwindcss';
 
 /* =============================================================================
-   VIXART OS — brand standard applied to the interface.
+   VIXART OS — interface styles.
 
-   TWO COLOURS. Void Black #0B0B0F, Pure White #FFFFFF. Nothing else.
-   No gradient, no grey palette, no coloured badge, no red for a negative, no
-   green for paid. De-emphasis is achieved with achromatic opacity. A financial
-   or workflow state is read in the weight, the case, the border thickness and
-   the position — never in the hue.
+   TYPOGRAPHY (revised): Inter everywhere, normal sentence case.
 
-   Stated assumption: white ground, black ink. Both directions satisfy the
-   standard; white wins here because this application is dense financial tables
-   read all day and printed on A4.
+   The earlier version set every label, button and heading in IBM Plex Mono,
+   uppercase, letter-spaced. That is a poster treatment, not an interface one —
+   it is slow to read and it made a dense application feel cold. Mono is now
+   reserved for what it is actually good at: figures that must line up in a
+   column, and codes that get copied (ICE, tax IDs, document numbers).
+
+   COLOUR: still two. Void Black #0B0B0F, Pure White #FFFFFF, plus achromatic
+   opacity for de-emphasis. No coloured status badges, no red for negative, no
+   green for paid — state is carried by weight, fill and border.
    ============================================================================= */
 
 @theme {
   --color-void: #0b0b0f;
   --color-pure: #ffffff;
 
-  /* The only de-emphasis values allowed. */
-  --opacity-secondary: 0.68;
-  --opacity-meta: 0.52;
-
   --font-sans: var(--font-interface), system-ui, sans-serif;
-  --font-mono: var(--font-metadata), monospace;
-
-  /* Minimum body size 15px — never smaller, metadata included. */
-  --text-meta: 0.9375rem;
-  --text-base: 0.9375rem;
+  --font-mono: var(--font-figures), ui-monospace, monospace;
 }
 
 :root {
@@ -48,36 +42,59 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-/* --- Typographic roles -----------------------------------------------------
-   Inter          → headings, body, UI. Numerals are always Inter 700.
-   IBM Plex Mono  → metadata, KPI labels, document numbers, ICE/IF codes,
-                    dates, amounts. Uppercase, 0.04em letter-spacing.
+/* --- Labels and metadata --------------------------------------------------
+   Inter, sentence case, one step down in size and weight. Readable at a
+   glance instead of shouted.
    -------------------------------------------------------------------------- */
 
-.meta {
-  font-family: var(--font-mono);
+.label {
+  font-size: 13px;
   font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  font-size: var(--text-meta);
+  letter-spacing: 0.005em;
+  color: color-mix(in srgb, var(--color-void) 62%, transparent);
 }
 
-/* Any displayed figure: Inter 700, tabular so columns line up. */
-.numeral {
-  font-weight: 700;
+/* Column headers in tables. */
+.th {
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: color-mix(in srgb, var(--color-void) 55%, transparent);
+}
+
+/* Small caption under a field or beside a heading. */
+.hint {
+  font-size: 13px;
+  color: color-mix(in srgb, var(--color-void) 55%, transparent);
+}
+
+/* --- Figures ---------------------------------------------------------------
+   Tabular so columns align. Mono only where alignment or copying matters.
+   -------------------------------------------------------------------------- */
+
+.figure {
   font-variant-numeric: tabular-nums;
   font-feature-settings: 'tnum' 1;
+  font-weight: 600;
 }
 
-/* Amounts: mono for decimal alignment down a column, weight 500. */
-.amount {
+/* Amounts, ICE / tax IDs, document numbers — copied and compared. */
+.code {
   font-family: var(--font-mono);
-  font-weight: 500;
   font-variant-numeric: tabular-nums;
-  letter-spacing: 0.02em;
+  font-size: 13.5px;
+  letter-spacing: -0.01em;
 }
 
-/* Line length: 68 characters maximum. */
+/* Big KPI number on the dashboard. */
+.kpi {
+  font-size: clamp(1.75rem, 3vw, 2.25rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
 .prose-vixart {
   max-width: 68ch;
 }
@@ -89,20 +106,19 @@ body {
   outline-offset: 2px;
 }
 
-/* --- Buttons: solid inversion, two directions only ------------------------ */
+/* --- Buttons: solid inversion, sentence case ------------------------------ */
 
 .btn {
-  font-family: var(--font-mono);
+  font-family: inherit;
+  font-size: 14px;
   font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  font-size: var(--text-meta);
-  padding: 0.625rem 1.125rem;
+  padding: 0.5rem 1rem;
   border: 1px solid var(--color-void);
   background-color: var(--color-void);
   color: var(--color-pure);
   cursor: pointer;
   display: inline-block;
+  white-space: nowrap;
 }
 
 .btn:hover {
@@ -120,14 +136,38 @@ body {
   color: var(--color-pure);
 }
 
+.btn-small {
+  font-size: 13px;
+  padding: 0.3rem 0.7rem;
+}
+
 .btn:focus-visible {
-  border-width: 3px;
-  padding: calc(0.625rem - 2px) calc(1.125rem - 2px);
+  border-width: 2px;
+  padding: calc(0.5rem - 1px) calc(1rem - 1px);
 }
 
 .btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+/* --- Inputs --------------------------------------------------------------- */
+
+.input {
+  margin-top: 0.35rem;
+  width: 100%;
+  border: 1px solid color-mix(in srgb, var(--color-void) 30%, transparent);
+  background-color: var(--color-pure);
+  padding: 0.5rem 0.7rem;
+  font-size: 15px;
+  font-family: inherit;
+}
+
+.input:focus {
+  border-color: var(--color-void);
+  border-width: 2px;
+  padding: calc(0.5rem - 1px) calc(0.7rem - 1px);
+  outline: none;
 }
 
 ::selection {

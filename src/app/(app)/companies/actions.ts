@@ -4,9 +4,9 @@ import { and, eq } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
-import { client, contact, interaction } from '@/db/schema';
+import { company, contact, interaction } from '@/db/schema';
 import { withUser } from '@/db/session';
-import { EMPTY_STATE, type FormState } from './form-state';
+import { EMPTY_STATE, type FormState } from '@/lib/form-state';
 
 /**
  * Every write goes through `withUser`, so it runs inside a transaction that
@@ -37,6 +37,7 @@ const clientSchema = z.object({
   name: z.string().trim().min(1, 'The name is required.'),
   legalName: optionalText,
   status: z.enum(['lead', 'prospect', 'client', 'dormant']),
+  relationship: z.enum(['client', 'supplier', 'partner', 'other']),
   ice: iceSchema,
   identifiantFiscal: taxIdSchema,
   registreCommerce: optionalText,
@@ -48,11 +49,12 @@ const clientSchema = z.object({
   notes: optionalText,
 });
 
-function readClientForm(formData: FormData) {
+function readCompanyForm(formData: FormData) {
   return clientSchema.safeParse({
     name: formData.get('name') ?? '',
     legalName: formData.get('legalName') ?? '',
     status: formData.get('status') ?? 'lead',
+    relationship: formData.get('relationship') ?? 'client',
     ice: formData.get('ice') ?? '',
     identifiantFiscal: formData.get('identifiantFiscal') ?? '',
     registreCommerce: formData.get('registreCommerce') ?? '',
@@ -68,13 +70,13 @@ function readClientForm(formData: FormData) {
 /** Turns a database error into something a human can act on. */
 function readableError(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
-  if (message.includes('client_name_key')) {
+  if (message.includes('company_name_key')) {
     return 'A record with this name already exists.';
   }
-  if (message.includes('client_ice_shape')) {
+  if (message.includes('company_ice_shape')) {
     return 'The ICE must be exactly 15 digits.';
   }
-  if (message.includes('client_if_shape')) {
+  if (message.includes('company_if_shape')) {
     return 'The tax ID (IF) must be 6 to 9 digits.';
   }
   if (message.includes('contact_unique_primary')) {
@@ -96,11 +98,11 @@ function readableError(error: unknown): string {
 // Clients
 // ---------------------------------------------------------------------------
 
-export async function createClientAction(
+export async function createCompanyAction(
   _previous: FormState,
   formData: FormData,
 ): Promise<FormState> {
-  const parsed = readClientForm(formData);
+  const parsed = readCompanyForm(formData);
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? 'Invalid form.' };
   }
@@ -108,7 +110,7 @@ export async function createClientAction(
   let newId: string;
   try {
     newId = await withUser(async (tx) => {
-      const [row] = await tx.insert(client).values(parsed.data).returning({ id: client.id });
+      const [row] = await tx.insert(company).values(parsed.data).returning({ id: company.id });
       if (!row) throw new Error('Record could not be created.');
       return row.id;
     });
@@ -116,31 +118,31 @@ export async function createClientAction(
     return { error: readableError(error) };
   }
 
-  revalidatePath('/clients');
-  redirect(`/clients/${newId}`);
+  revalidatePath('/companies');
+  redirect(`/companies/${newId}`);
 }
 
-export async function updateClientAction(
-  clientId: string,
+export async function updateCompanyAction(
+  companyId: string,
   _previous: FormState,
   formData: FormData,
 ): Promise<FormState> {
-  const parsed = readClientForm(formData);
+  const parsed = readCompanyForm(formData);
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? 'Invalid form.' };
   }
 
   try {
     await withUser(async (tx) => {
-      await tx.update(client).set(parsed.data).where(eq(client.id, clientId));
+      await tx.update(company).set(parsed.data).where(eq(company.id, companyId));
     });
   } catch (error) {
     return { error: readableError(error) };
   }
 
-  revalidatePath('/clients');
-  revalidatePath(`/clients/${clientId}`);
-  redirect(`/clients/${clientId}`);
+  revalidatePath('/companies');
+  revalidatePath(`/companies/${companyId}`);
+  redirect(`/companies/${companyId}`);
 }
 
 /**
@@ -148,19 +150,19 @@ export async function updateClientAction(
  * Reserved to management by the `client_delete_admin` policy — a member's
  * attempt simply deletes nothing.
  */
-export async function deleteClientAction(formData: FormData): Promise<void> {
-  const clientId = String(formData.get('clientId') ?? '');
+export async function deleteCompanyAction(formData: FormData): Promise<void> {
+  const companyId = String(formData.get('companyId') ?? '');
   const confirmation = String(formData.get('confirmation') ?? '').trim();
   const expected = String(formData.get('expected') ?? '').trim();
 
-  if (!clientId || confirmation !== expected || expected === '') return;
+  if (!companyId || confirmation !== expected || expected === '') return;
 
   await withUser(async (tx) => {
-    await tx.delete(client).where(eq(client.id, clientId));
+    await tx.delete(company).where(eq(company.id, companyId));
   });
 
-  revalidatePath('/clients');
-  redirect('/clients');
+  revalidatePath('/companies');
+  redirect('/companies');
 }
 
 // ---------------------------------------------------------------------------
@@ -190,7 +192,7 @@ function readContactForm(formData: FormData) {
 }
 
 export async function createContactAction(
-  clientId: string,
+  companyId: string,
   _previous: FormState,
   formData: FormData,
 ): Promise<FormState> {
@@ -207,20 +209,20 @@ export async function createContactAction(
         await tx
           .update(contact)
           .set({ isPrimary: false })
-          .where(and(eq(contact.clientId, clientId), eq(contact.isPrimary, true)));
+          .where(and(eq(contact.companyId, companyId), eq(contact.isPrimary, true)));
       }
-      await tx.insert(contact).values({ ...parsed.data, clientId });
+      await tx.insert(contact).values({ ...parsed.data, companyId });
     });
   } catch (error) {
     return { error: readableError(error) };
   }
 
-  revalidatePath(`/clients/${clientId}`);
+  revalidatePath(`/companies/${companyId}`);
   return EMPTY_STATE;
 }
 
 export async function updateContactAction(
-  clientId: string,
+  companyId: string,
   contactId: string,
   _previous: FormState,
   formData: FormData,
@@ -236,7 +238,7 @@ export async function updateContactAction(
         await tx
           .update(contact)
           .set({ isPrimary: false })
-          .where(and(eq(contact.clientId, clientId), eq(contact.isPrimary, true)));
+          .where(and(eq(contact.companyId, companyId), eq(contact.isPrimary, true)));
       }
       await tx.update(contact).set(parsed.data).where(eq(contact.id, contactId));
     });
@@ -244,20 +246,20 @@ export async function updateContactAction(
     return { error: readableError(error) };
   }
 
-  revalidatePath(`/clients/${clientId}`);
+  revalidatePath(`/companies/${companyId}`);
   return EMPTY_STATE;
 }
 
 export async function deleteContactAction(formData: FormData): Promise<void> {
-  const clientId = String(formData.get('clientId') ?? '');
+  const companyId = String(formData.get('companyId') ?? '');
   const contactId = String(formData.get('contactId') ?? '');
-  if (!clientId || !contactId) return;
+  if (!companyId || !contactId) return;
 
   await withUser(async (tx) => {
     await tx.delete(contact).where(eq(contact.id, contactId));
   });
 
-  revalidatePath(`/clients/${clientId}`);
+  revalidatePath(`/companies/${companyId}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -272,7 +274,7 @@ const interactionSchema = z.object({
 });
 
 export async function createInteractionAction(
-  clientId: string,
+  companyId: string,
   _previous: FormState,
   formData: FormData,
 ): Promise<FormState> {
@@ -296,7 +298,7 @@ export async function createInteractionAction(
   try {
     await withUser(async (tx, user) => {
       await tx.insert(interaction).values({
-        clientId,
+        companyId,
         // Enforced again by the RLS policy: an entry is always signed by its
         // author, never by a colleague.
         authorId: user.id,
@@ -311,14 +313,14 @@ export async function createInteractionAction(
     return { error: readableError(error) };
   }
 
-  revalidatePath(`/clients/${clientId}`);
+  revalidatePath(`/companies/${companyId}`);
   return EMPTY_STATE;
 }
 
 export async function deleteInteractionAction(formData: FormData): Promise<void> {
-  const clientId = String(formData.get('clientId') ?? '');
+  const companyId = String(formData.get('companyId') ?? '');
   const interactionId = String(formData.get('interactionId') ?? '');
-  if (!clientId || !interactionId) return;
+  if (!companyId || !interactionId) return;
 
   // A member can only delete their own entries; management can delete any.
   // The `interaction_delete` policy decides, not this code.
@@ -326,7 +328,7 @@ export async function deleteInteractionAction(formData: FormData): Promise<void>
     await tx.delete(interaction).where(eq(interaction.id, interactionId));
   });
 
-  revalidatePath(`/clients/${clientId}`);
+  revalidatePath(`/companies/${companyId}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -334,19 +336,19 @@ export async function deleteInteractionAction(formData: FormData): Promise<void>
 // ---------------------------------------------------------------------------
 
 export async function setStatusAction(formData: FormData): Promise<void> {
-  const clientId = String(formData.get('clientId') ?? '');
+  const companyId = String(formData.get('companyId') ?? '');
   const status = String(formData.get('status') ?? '');
   const allowed = ['lead', 'prospect', 'client', 'dormant'] as const;
-  if (!clientId || !allowed.includes(status as (typeof allowed)[number])) return;
+  if (!companyId || !allowed.includes(status as (typeof allowed)[number])) return;
 
   await withUser(async (tx) => {
     await tx
-      .update(client)
+      .update(company)
       .set({ status: status as (typeof allowed)[number] })
-      .where(eq(client.id, clientId));
+      .where(eq(company.id, companyId));
   });
 
-  revalidatePath('/clients');
-  revalidatePath(`/clients/${clientId}`);
+  revalidatePath('/companies');
+  revalidatePath(`/companies/${companyId}`);
 }
 

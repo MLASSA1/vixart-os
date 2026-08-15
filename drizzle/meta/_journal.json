@@ -43,6 +43,27 @@
       "when": 1786816607546,
       "tag": "0005_seed_text_english",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1786837354636,
+      "tag": "0006_work_module",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1786837460540,
+      "tag": "0007_work_rules",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1786837550202,
+      "tag": "0008_moderator_is_authenticated",
+      "breakpoints": true
     }
   ]
 }

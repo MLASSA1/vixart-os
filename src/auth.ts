@@ -17,7 +17,7 @@ import NextAuth, { type DefaultSession } from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
 import { getDb } from '@/db';
 
-export type UserRole = 'admin' | 'member';
+export type UserRole = 'admin' | 'moderator' | 'member';
 
 declare module 'next-auth' {
   interface Session {

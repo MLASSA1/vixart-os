@@ -29,7 +29,7 @@ export default function ErrorBoundary({
   return (
     <main className="mx-auto max-w-2xl px-6 py-16">
       <header className="border-b-2 border-void pb-5">
-        <p className="meta" style={{ opacity: 0.52 }}>
+        <p className="label" style={{ opacity: 0.52 }}>
           VIXART OS
         </p>
         <h1 className="mt-2 text-3xl font-bold tracking-tight">
@@ -53,7 +53,7 @@ export default function ErrorBoundary({
       </div>
 
       {error.digest && (
-        <p className="meta mt-10 border-t border-void/10 pt-5" style={{ opacity: 0.52 }}>
+        <p className="label mt-10 border-t border-void/10 pt-5" style={{ opacity: 0.52 }}>
           Reference {error.digest}
         </p>
       )}

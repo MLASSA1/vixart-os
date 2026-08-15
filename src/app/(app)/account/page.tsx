@@ -20,7 +20,7 @@ export default async function AccountPage() {
       </div>
 
       <section className="mt-12">
-        <h2 className="meta border-b border-void pb-2">Change password</h2>
+        <h2 className="label border-b border-void pb-2">Change password</h2>
         <p className="prose-vixart mt-4" style={{ opacity: 0.68 }}>
           You will be signed out once it is changed, and will sign in again with the
           new password.

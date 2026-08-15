@@ -1,17 +1,18 @@
 /**
  * VIXART OS — database schema.
  *
- * This file is the source of truth for `drizzle-kit generate`, which produces
- * the numbered SQL files in `drizzle/`. The genuinely critical constraints
- * (gapless numbering, immutability of issued documents, RLS) are hand-written
- * in dedicated SQL migrations: they must live in PostgreSQL, not in
- * application code.
+ * Source of truth for `drizzle-kit generate`, which produces the numbered SQL
+ * files in `drizzle/`. The genuinely critical rules (gapless numbering,
+ * immutability of issued documents, RLS, the two-step task sign-off) are
+ * hand-written in dedicated SQL migrations: they must live in PostgreSQL, not
+ * in application code.
  *
  * Money convention: every amount is a BIGINT of centimes, read as a JavaScript
  * `bigint`. Never numeric, never float. See src/lib/money.ts.
  */
 
 import {
+  bigint,
   boolean,
   date,
   index,
@@ -26,21 +27,24 @@ import {
 import { sql } from 'drizzle-orm';
 
 // ---------------------------------------------------------------------------
-// Énumérations
+// Enumerations
+//
+// `role`, `stage`, `status` and `priority` on the newer tables are text + CHECK
+// rather than PostgreSQL enums. Extending a real enum (ALTER TYPE ... ADD
+// VALUE) cannot be used in the same transaction that adds it, and the migrator
+// runs every pending migration in one transaction. Text + CHECK gives the same
+// guarantee without that trap.
 // ---------------------------------------------------------------------------
 
-/** Two roles, not three. Amin is admin, the team are members. */
-export const userRole = pgEnum('user_role', ['admin', 'member']);
-
-/** Sales pipeline: lead → prospect → client → dormant. */
-export const clientStatus = pgEnum('client_status', [
+/** Where an organisation sits in the sales pipeline. */
+export const companyStage = pgEnum('client_status', [
   'lead',
   'prospect',
   'client',
   'dormant',
 ]);
 
-/** Nature of a touchpoint recorded on a client's timeline. */
+/** Nature of a touchpoint recorded on a company timeline. */
 export const interactionKind = pgEnum('interaction_kind', [
   'note',
   'reunion',
@@ -50,8 +54,29 @@ export const interactionKind = pgEnum('interaction_kind', [
   'proposition',
 ]);
 
+/** Three roles. Amin is admin, Mohamed Amine moderates the work, rest are members. */
+export const ROLES = ['admin', 'moderator', 'member'] as const;
+export type Role = (typeof ROLES)[number];
+
+/** What an organisation is to VIXART. Independent of the pipeline stage. */
+export const RELATIONSHIPS = ['client', 'supplier', 'partner', 'other'] as const;
+
+/** An opportunity's life: proposal -> negotiation -> won / lost. */
+export const DEAL_STAGES = ['proposal', 'negotiation', 'won', 'lost'] as const;
+
+export const PROJECT_STATUSES = ['planned', 'active', 'on_hold', 'delivered'] as const;
+
+/**
+ * Task lifecycle. `submitted` is the member saying "I am done"; only a
+ * moderator or admin can move it to `completed`. That two-step is enforced by
+ * a trigger, not by hiding a button.
+ */
+export const TASK_STATUSES = ['todo', 'in_progress', 'submitted', 'completed'] as const;
+
+export const TASK_PRIORITIES = ['low', 'normal', 'high', 'urgent'] as const;
+
 // ---------------------------------------------------------------------------
-// Team — the only five accounts in the system. No public sign-up.
+// Team — the only accounts in the system. No public sign-up.
 // ---------------------------------------------------------------------------
 
 export const appUser = pgTable(
@@ -60,15 +85,10 @@ export const appUser = pgTable(
     id: uuid('id').primaryKey().defaultRandom(),
     email: text('email').notNull(),
     fullName: text('full_name').notNull(),
-    /** Displayed job title ("Cinematic Director"). */
     jobTitle: text('job_title'),
-    role: userRole('role').notNull().default('member'),
-    /** bcrypt hash. The plaintext password exists nowhere. */
+    /** 'admin' | 'moderator' | 'member' — text + CHECK, see note above. */
+    role: text('role').notNull().default('member'),
     passwordHash: text('password_hash').notNull(),
-    /**
-     * Seeded accounts share one initial password: each member must change it
-     * before reaching the rest of the application.
-     */
     mustChangePassword: boolean('must_change_password').notNull().default(true),
     isActive: boolean('is_active').notNull().default(true),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -78,18 +98,21 @@ export const appUser = pgTable(
 );
 
 // ---------------------------------------------------------------------------
-// CRM — one record per company. Single-org: no tenant_id column.
+// Companies — every organisation VIXART deals with.
+//
+// One table, three views: Companies (all), Clients (paying), Leads (not won).
+// `relationship` says what they are; `status` says where they are.
 // ---------------------------------------------------------------------------
 
-export const client = pgTable(
-  'client',
+export const company = pgTable(
+  'company',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    /** Trading name: "Laboratoire Talborjt". */
     name: text('name').notNull(),
-    /** Full registered name when it differs from the trading name. */
     legalName: text('legal_name'),
-    status: clientStatus('status').notNull().default('lead'),
+    /** 'client' | 'supplier' | 'partner' | 'other'. */
+    relationship: text('relationship').notNull().default('client'),
+    status: companyStage('status').notNull().default('lead'),
 
     // --- Moroccan legal identifiers, carried onto every issued document ---
     ice: text('ice'),
@@ -100,13 +123,9 @@ export const client = pgTable(
     city: text('city'),
     website: text('website'),
 
-    /**
-     * Does this client withhold VAT at source (art. 117 bis CGI)?
-     * Drives whether "Net to collect" is shown.
-     */
+    /** Withholds VAT at source (art. 117 bis CGI). */
     retenueSource: boolean('retenue_source').notNull().default(false),
 
-    /** Free-text summary of the current engagement, shown on the dashboard. */
     engagementSummary: text('engagement_summary'),
     notes: text('notes'),
 
@@ -114,67 +133,168 @@ export const client = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    uniqueIndex('client_name_key').on(sql`lower(${t.name})`),
-    index('client_status_idx').on(t.status),
+    uniqueIndex('company_name_key').on(sql`lower(${t.name})`),
+    index('company_status_idx').on(t.status),
+    index('company_relationship_idx').on(t.relationship),
   ],
 );
 
 // ---------------------------------------------------------------------------
-// Contacts — the people behind the company.
+// Contacts — the people behind the organisation. The email/phone directory.
 // ---------------------------------------------------------------------------
 
 export const contact = pgTable(
   'contact',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    clientId: uuid('client_id')
+    companyId: uuid('company_id')
       .notNull()
-      .references(() => client.id, { onDelete: 'cascade' }),
+      .references(() => company.id, { onDelete: 'cascade' }),
     fullName: text('full_name').notNull(),
-    /** Role in the company: "Managing director", "Head of marketing". */
     roleTitle: text('role_title'),
     email: text('email'),
     phone: text('phone'),
-    /** WhatsApp number — the agency's primary channel. */
     whatsapp: text('whatsapp'),
-    /** Primary contact: at most one per client, enforced by a partial index. */
     isPrimary: boolean('is_primary').notNull().default(false),
+    /** Excluded from marketing exports. Consent, not a preference. */
+    optedOut: boolean('opted_out').notNull().default(false),
     notes: text('notes'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    index('contact_client_idx').on(t.clientId),
+    index('contact_company_idx').on(t.companyId),
     uniqueIndex('contact_unique_primary')
-      .on(t.clientId)
+      .on(t.companyId)
       .where(sql`${t.isPrimary}`),
   ],
 );
 
 // ---------------------------------------------------------------------------
-// Timeline — the memory of the relationship. Replaces WhatsApp as source of truth.
+// Timeline — the memory of the relationship. Replaces WhatsApp as the record.
 // ---------------------------------------------------------------------------
 
 export const interaction = pgTable(
   'interaction',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    clientId: uuid('client_id')
+    companyId: uuid('company_id')
       .notNull()
-      .references(() => client.id, { onDelete: 'cascade' }),
-    /** Who recorded it. Kept even if the account is deleted later. */
+      .references(() => company.id, { onDelete: 'cascade' }),
     authorId: uuid('author_id').references(() => appUser.id, { onDelete: 'set null' }),
     authorName: text('author_name').notNull(),
     kind: interactionKind('kind').notNull().default('note'),
-    /** When the exchange happened, distinct from when it was typed in. */
     occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
     title: text('title').notNull(),
     body: text('body'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
+  (t) => [index('interaction_company_date_idx').on(t.companyId, t.occurredAt)],
+);
+
+// ---------------------------------------------------------------------------
+// Deals — an opportunity with a value. Won deals become quotes, then invoices.
+// ---------------------------------------------------------------------------
+
+export const deal = pgTable(
+  'deal',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    companyId: uuid('company_id')
+      .notNull()
+      .references(() => company.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    description: text('description'),
+    /** Estimated value in centimes. Never a float. */
+    // `sql\`0\`` rather than `0n`: drizzle-kit cannot serialise a BigInt literal
+    // into its snapshot, and the column must stay a true BIGINT of centimes.
+    valueCentimes: bigint('value_centimes', { mode: 'bigint' })
+      .notNull()
+      .default(sql`0`),
+    /** 'proposal' | 'negotiation' | 'won' | 'lost'. */
+    stage: text('stage').notNull().default('proposal'),
+    /** 0-100. Used for the weighted pipeline forecast. */
+    probability: integer('probability').notNull().default(50),
+    expectedCloseDate: date('expected_close_date'),
+    ownerId: uuid('owner_id').references(() => appUser.id, { onDelete: 'set null' }),
+    closedAt: timestamp('closed_at', { withTimezone: true }),
+    /** Why a lost deal was lost. The most useful field in the table. */
+    lostReason: text('lost_reason'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('deal_company_idx').on(t.companyId), index('deal_stage_idx').on(t.stage)],
+);
+
+// ---------------------------------------------------------------------------
+// Projects — the delivery side of a won deal.
+// ---------------------------------------------------------------------------
+
+export const project = pgTable(
+  'project',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    companyId: uuid('company_id')
+      .notNull()
+      .references(() => company.id, { onDelete: 'cascade' }),
+    /** The deal this delivers, when there is one. */
+    dealId: uuid('deal_id').references(() => deal.id, { onDelete: 'set null' }),
+    name: text('name').notNull(),
+    description: text('description'),
+    /** 'planned' | 'active' | 'on_hold' | 'delivered'. */
+    status: text('status').notNull().default('planned'),
+    startDate: date('start_date'),
+    dueDate: date('due_date'),
+    leadId: uuid('lead_id').references(() => appUser.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
   (t) => [
-    index('interaction_client_date_idx').on(t.clientId, t.occurredAt),
+    index('project_company_idx').on(t.companyId),
+    index('project_status_idx').on(t.status),
+  ],
+);
+
+// ---------------------------------------------------------------------------
+// Tasks — assigned work, with a two-step sign-off.
+//
+// A member moves their task to `submitted`. Only a moderator or admin can move
+// it to `completed`. Enforced by a trigger so it holds regardless of the UI.
+// ---------------------------------------------------------------------------
+
+export const task = pgTable(
+  'task',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => project.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    description: text('description'),
+    assigneeId: uuid('assignee_id').references(() => appUser.id, { onDelete: 'set null' }),
+    /** 'todo' | 'in_progress' | 'submitted' | 'completed'. */
+    status: text('status').notNull().default('todo'),
+    /** 'low' | 'normal' | 'high' | 'urgent'. */
+    priority: text('priority').notNull().default('normal'),
+    dueDate: date('due_date'),
+
+    createdById: uuid('created_by_id').references(() => appUser.id, { onDelete: 'set null' }),
+    /** When the assignee said it was done. */
+    submittedAt: timestamp('submitted_at', { withTimezone: true }),
+    /** When a moderator confirmed it. */
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    completedById: uuid('completed_by_id').references(() => appUser.id, {
+      onDelete: 'set null',
+    }),
+
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('task_project_idx').on(t.projectId),
+    index('task_assignee_status_idx').on(t.assigneeId, t.status),
+    index('task_due_idx').on(t.dueDate),
   ],
 );
 
@@ -186,7 +306,6 @@ export const fiscalRate = pgTable(
   'fiscal_rate',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    /** `tva_standard`, `retenue_source_tva`. See src/lib/fiscal.ts. */
     key: text('key').notNull(),
     /** Rate in basis points: 2000 = 20%. Integer, never a float. */
     rateBp: integer('rate_bp').notNull(),
@@ -202,26 +321,11 @@ export const fiscalRate = pgTable(
 // ---------------------------------------------------------------------------
 
 export type AppUser = typeof appUser.$inferSelect;
-export type NewAppUser = typeof appUser.$inferInsert;
-export type Client = typeof client.$inferSelect;
-export type NewClient = typeof client.$inferInsert;
+export type Company = typeof company.$inferSelect;
+export type NewCompany = typeof company.$inferInsert;
 export type Contact = typeof contact.$inferSelect;
-export type NewContact = typeof contact.$inferInsert;
 export type Interaction = typeof interaction.$inferSelect;
-export type NewInteraction = typeof interaction.$inferInsert;
+export type Deal = typeof deal.$inferSelect;
+export type Project = typeof project.$inferSelect;
+export type Task = typeof task.$inferSelect;
 export type FiscalRate = typeof fiscalRate.$inferSelect;
-
-
-/**
- * Interaction kinds. The stored values stay as they are in the database enum —
- * renaming an enum value would mean a migration and would break existing rows —
- * only the displayed labels are English.
- */
-export const INTERACTION_KINDS = [
-  { value: 'note', label: 'Note' },
-  { value: 'reunion', label: 'Meeting' },
-  { value: 'appel', label: 'Call' },
-  { value: 'whatsapp', label: 'WhatsApp' },
-  { value: 'email', label: 'Email' },
-  { value: 'proposition', label: 'Proposal' },
-] as const;

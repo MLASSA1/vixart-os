@@ -36,11 +36,11 @@ export default async function TeamPage() {
         <table className="w-full border-collapse text-left">
           <thead>
             <tr className="border-b-2 border-void">
-              <th className="meta py-2.5 pr-4">Name</th>
-              <th className="meta py-2.5 pr-4">Role</th>
-              <th className="meta py-2.5 pr-4">Email</th>
-              <th className="meta py-2.5 pr-4">Access</th>
-              <th className="meta py-2.5 text-right">Since</th>
+              <th className="label py-2.5 pr-4">Name</th>
+              <th className="label py-2.5 pr-4">Role</th>
+              <th className="label py-2.5 pr-4">Email</th>
+              <th className="label py-2.5 pr-4">Access</th>
+              <th className="label py-2.5 text-right">Since</th>
             </tr>
           </thead>
           <tbody>
@@ -49,7 +49,7 @@ export default async function TeamPage() {
                 <td className="py-3.5 pr-4">
                   <span className="font-semibold">{member.fullName}</span>
                   {member.mustChangePassword && (
-                    <span className="meta ml-3 border border-void px-2 py-0.5">
+                    <span className="label ml-3 border border-void px-2 py-0.5">
                       Initial password
                     </span>
                   )}
@@ -57,13 +57,13 @@ export default async function TeamPage() {
                 <td className="py-3.5 pr-4" style={{ opacity: 0.68 }}>
                   {member.jobTitle ?? '—'}
                 </td>
-                <td className="amount py-3.5 pr-4" style={{ opacity: 0.68 }}>
+                <td className="code py-3.5 pr-4" style={{ opacity: 0.68 }}>
                   {member.email}
                 </td>
                 <td className="py-3.5 pr-4">
                   {/* Management is the denser mark. No colour anywhere. */}
                   <span
-                    className={`meta inline-block px-2.5 py-1 leading-none ${
+                    className={`label inline-block px-2.5 py-1 leading-none ${
                       member.role === 'admin'
                         ? 'bg-void text-pure border-2 border-void'
                         : 'border border-void'
@@ -72,7 +72,7 @@ export default async function TeamPage() {
                     {member.role === 'admin' ? 'Management' : 'Team'}
                   </span>
                 </td>
-                <td className="amount py-3.5 text-right" style={{ opacity: 0.52 }}>
+                <td className="code py-3.5 text-right" style={{ opacity: 0.52 }}>
                   {formatDate(member.createdAt)}
                 </td>
               </tr>

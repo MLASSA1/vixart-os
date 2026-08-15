@@ -11,9 +11,9 @@ import {
   TextArea,
   TextInput,
 } from '@/components/ui';
-import type { Client } from '@/db/schema';
-import { CLIENT_STATUSES } from '@/lib/labels';
-import { EMPTY_STATE, type FormState } from './form-state';
+import type { Company } from '@/db/schema';
+import { COMPANY_STAGES, RELATIONSHIPS } from '@/lib/labels';
+import { EMPTY_STATE, type FormState } from '@/lib/form-state';
 
 function SubmitButton({ label }: { label: string }) {
   const { pending } = useFormStatus();
@@ -24,14 +24,14 @@ function SubmitButton({ label }: { label: string }) {
   );
 }
 
-export function ClientForm({
+export function CompanyForm({
   action,
   record,
   submitLabel,
   cancelHref,
 }: {
   action: (state: FormState, formData: FormData) => Promise<FormState>;
-  record?: Client;
+  record?: Company;
   submitLabel: string;
   cancelHref: string;
 }) {
@@ -42,7 +42,7 @@ export function ClientForm({
       <ErrorBanner message={state.error} />
 
       <fieldset className="mb-10">
-        <legend className="meta mb-4 w-full border-b border-void pb-2">Identity</legend>
+        <legend className="label mb-4 w-full border-b border-void pb-2">Identity</legend>
         <FormGrid>
           <TextInput
             name="name"
@@ -58,11 +58,20 @@ export function ClientForm({
             hint="Only if it differs from the trading name."
           />
           <Select
+            name="relationship"
+            label="Relationship"
+            required
+            defaultValue={record?.relationship ?? 'client'}
+            options={RELATIONSHIPS.map((r) => ({ value: r.value, label: r.label }))}
+            hint="What this organisation is to VIXART."
+          />
+          <Select
             name="status"
             label="Pipeline stage"
             required
             defaultValue={record?.status ?? 'lead'}
-            options={CLIENT_STATUSES.map((s) => ({ value: s.value, label: s.label }))}
+            options={COMPANY_STAGES.map((s) => ({ value: s.value, label: s.label }))}
+            hint="Where they are in the pipeline."
           />
           <TextInput name="city" label="City" defaultValue={record?.city} />
           <TextInput
@@ -83,7 +92,7 @@ export function ClientForm({
       </fieldset>
 
       <fieldset className="mb-10">
-        <legend className="meta mb-4 w-full border-b border-void pb-2">
+        <legend className="label mb-4 w-full border-b border-void pb-2">
           Legal identifiers
         </legend>
         <p className="prose-vixart mb-4 text-[15px]" style={{ opacity: 0.52 }}>
@@ -122,7 +131,7 @@ export function ClientForm({
       </fieldset>
 
       <fieldset className="mb-10">
-        <legend className="meta mb-4 w-full border-b border-void pb-2">Engagement</legend>
+        <legend className="label mb-4 w-full border-b border-void pb-2">Engagement</legend>
         <FormGrid>
           <TextArea
             name="engagementSummary"

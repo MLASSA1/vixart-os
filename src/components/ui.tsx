@@ -37,7 +37,7 @@ const STATUS_LABELS: Record<string, string> = {
 export function Status({ value }: { value: string }) {
   return (
     <span
-      className={`meta inline-block whitespace-nowrap px-2.5 py-1 leading-none ${
+      className={`label inline-block whitespace-nowrap px-2.5 py-1 leading-none ${
         STATUS_STYLES[value] ?? STATUS_STYLES.lead
       }`}
     >
@@ -63,7 +63,7 @@ export function PageHeader({
     <header className="mb-10 flex flex-wrap items-end justify-between gap-4 border-b-2 border-void pb-5">
       <div>
         {eyebrow && (
-          <p className="meta" style={{ opacity: 0.52 }}>
+          <p className="label" style={{ opacity: 0.52 }}>
             {eyebrow}
           </p>
         )}
@@ -86,7 +86,7 @@ export function Section({
   return (
     <section className="mt-12">
       <div className="flex items-center justify-between gap-4 border-b border-void pb-2">
-        <h2 className="meta">{title}</h2>
+        <h2 className="label">{title}</h2>
         {action}
       </div>
       <div className="mt-4">{children}</div>
@@ -98,10 +98,10 @@ export function Section({
 export function Field({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="flex items-baseline justify-between gap-6 border-b border-void/10 py-2.5">
-      <span className="meta shrink-0" style={{ opacity: 0.52 }}>
+      <span className="label shrink-0" style={{ opacity: 0.52 }}>
         {label}
       </span>
-      <span className="amount text-right break-words">{value || '—'}</span>
+      <span className="code text-right break-words">{value || '—'}</span>
     </div>
   );
 }
@@ -109,7 +109,7 @@ export function Field({ label, value }: { label: string; value: ReactNode }) {
 export function Empty({ message, action }: { message: string; action?: ReactNode }) {
   return (
     <div className="border border-dashed border-void/30 px-6 py-10 text-center">
-      <p className="meta" style={{ opacity: 0.52 }}>
+      <p className="label" style={{ opacity: 0.52 }}>
         {message}
       </p>
       {action && <div className="mt-4 flex justify-center">{action}</div>}
@@ -122,7 +122,7 @@ export function ErrorBanner({ message }: { message?: string | null }) {
   if (!message) return null;
   return (
     <div className="mb-6 border-2 border-void bg-void px-4 py-3 text-pure">
-      <p className="meta">Error</p>
+      <p className="label">Error</p>
       <p className="prose-vixart mt-1">{message}</p>
     </div>
   );
@@ -171,7 +171,7 @@ function Wrapper({
 }: BaseInput & { children: ReactNode }) {
   return (
     <label className={`block ${fullWidth ? 'sm:col-span-2' : ''}`} htmlFor={name}>
-      <span className="meta block" style={{ opacity: 0.68 }}>
+      <span className="label block" style={{ opacity: 0.68 }}>
         {label}
         {required && <span aria-hidden="true"> *</span>}
       </span>
@@ -266,7 +266,7 @@ export function Checkbox({
         className="mt-1 h-4 w-4 shrink-0 accent-[#0B0B0F]"
       />
       <span>
-        <span className="meta block">{label}</span>
+        <span className="label block">{label}</span>
         {hint && (
           <span className="mt-0.5 block text-[15px]" style={{ opacity: 0.52 }}>
             {hint}

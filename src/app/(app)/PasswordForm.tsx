@@ -22,13 +22,13 @@ export function PasswordForm({ label = 'Change password' }: { label?: string }) 
     <form action={formAction} className="mt-6 max-w-md space-y-5">
       {state.error && (
         <div role="alert" className="border-2 border-void bg-void px-4 py-3 text-pure">
-          <p className="meta">Refused</p>
+          <p className="label">Refused</p>
           <p className="mt-1">{state.error}</p>
         </div>
       )}
 
       <label className="block" htmlFor="password">
-        <span className="meta block" style={{ opacity: 0.68 }}>
+        <span className="label block" style={{ opacity: 0.68 }}>
           New password
         </span>
         <input
@@ -46,7 +46,7 @@ export function PasswordForm({ label = 'Change password' }: { label?: string }) 
       </label>
 
       <label className="block" htmlFor="confirmation">
-        <span className="meta block" style={{ opacity: 0.68 }}>
+        <span className="label block" style={{ opacity: 0.68 }}>
           Confirm password
         </span>
         <input

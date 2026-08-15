@@ -4,7 +4,7 @@ import { useActionState, useRef } from 'react';
 import { useFormStatus } from 'react-dom';
 import { ErrorBanner, FormGrid, Select, TextArea, TextInput } from '@/components/ui';
 import { INTERACTION_KINDS } from '@/lib/labels';
-import { EMPTY_STATE, type FormState } from '../form-state';
+import { EMPTY_STATE, type FormState } from '@/lib/form-state';
 
 function SubmitButton() {
   const { pending } = useFormStatus();
