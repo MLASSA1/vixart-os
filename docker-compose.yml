@@ -1,0 +1,93 @@
+# VIXART OS — stack de production, hôte unique (VPS contrôlé par VIXART).
+#
+# ⚠️  LES TROIS VOLUMES CI-DESSOUS CONTIENNENT TOUTES LES DONNÉES DE L'ENTREPRISE.
+#     `docker compose down`     → sûr, les volumes survivent.
+#     `docker compose down -v`  → DÉTRUIT LA BASE, LES FICHIERS ET LES SAUVEGARDES.
+#     Ne jamais taper `-v` sur cette stack. Voir README « Sauvegarde et restauration ».
+
+name: vixart
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: vixart_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      # Collation française pour les tris (noms de clients, libellés de services).
+      POSTGRES_INITDB_ARGS: "--locale=C.UTF-8 --encoding=UTF8"
+      TZ: ${TZ:-Africa/Casablanca}
+    volumes:
+      # Volume nommé — PAS un bind mount, PAS du stockage interne au conteneur.
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      # Exposé sur la boucle locale uniquement, pour psql / drizzle-kit depuis l'hôte.
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vixart_app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      TZ: ${TZ:-Africa/Casablanca}
+      # Rôle propriétaire : migrations + seed uniquement (au démarrage).
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      # Rôle applicatif : soumis au Row Level Security, utilisé par toutes les requêtes.
+      APP_DATABASE_URL: postgres://${APP_DB_USER}:${APP_DB_PASSWORD}@db:5432/${POSTGRES_DB}
+      APP_DB_USER: ${APP_DB_USER}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD}
+      AUTH_SECRET: ${AUTH_SECRET}
+      AUTH_TRUST_HOST: "true"
+      SEED_DEFAULT_PASSWORD: ${SEED_DEFAULT_PASSWORD}
+      UPLOADS_DIR: /app/uploads
+    volumes:
+      - uploads:/app/uploads
+    ports:
+      - "${APP_PORT:-3000}:3000"
+
+  backup:
+    image: postgres:16-alpine
+    container_name: vixart_backup
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGHOST: db
+      PGPORT: "5432"
+      PGDATABASE: ${POSTGRES_DB}
+      PGUSER: ${POSTGRES_USER}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      TZ: ${TZ:-Africa/Casablanca}
+      BACKUP_DIR: /backups
+      BACKUP_HOUR: ${BACKUP_HOUR:-3}   # 03h00, heure de Casablanca
+      BACKUP_RETENTION: ${BACKUP_RETENTION:-30}
+    volumes:
+      - backups:/backups
+      - ./scripts/backup.sh:/usr/local/bin/backup.sh:ro
+      - ./scripts/backup-daemon.sh:/usr/local/bin/backup-daemon.sh:ro
+    entrypoint: ["/bin/sh", "/usr/local/bin/backup-daemon.sh"]
+
+volumes:
+  # Les données vivent ici. Trois volumes nommés, gérés par Docker,
+  # indépendants du cycle de vie des conteneurs.
+  pgdata:
+    name: vixart_pgdata
+  uploads:
+    name: vixart_uploads
+  backups:
+    name: vixart_backups

@@ -1,0 +1,130 @@
+@import 'tailwindcss';
+
+/* =============================================================================
+   VIXART OS — standard de marque appliqué à l'interface.
+
+   DEUX COULEURS. Void Black #0B0B0F, Pure White #FFFFFF. Rien d'autre.
+   Pas de dégradé, pas de palette de gris, pas de badge coloré, pas de rouge
+   pour un négatif, pas de vert pour un payé. La désaccentuation se fait par
+   l'opacité achromatique. Un état financier se lit dans la graisse, la casse,
+   l'épaisseur du filet et la position — jamais dans la teinte.
+
+   Hypothèse assumée : fond blanc, encre noire. Les deux sens sont conformes au
+   standard ; le blanc l'emporte ici parce que l'application est faite de
+   tableaux financiers denses lus toute la journée et imprimés en A4.
+   ============================================================================= */
+
+@theme {
+  --color-void: #0b0b0f;
+  --color-pure: #ffffff;
+
+  /* Les seules valeurs de désaccentuation autorisées. */
+  --opacity-secondary: 0.68;
+  --opacity-meta: 0.52;
+
+  --font-sans: var(--police-interface), system-ui, sans-serif;
+  --font-mono: var(--police-mono), monospace;
+
+  /* Corps minimum 15 px — jamais plus petit, y compris pour les métadonnées. */
+  --text-meta: 0.9375rem;
+  --text-base: 0.9375rem;
+}
+
+:root {
+  color-scheme: light;
+}
+
+html,
+body {
+  background-color: var(--color-pure);
+  color: var(--color-void);
+}
+
+body {
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* --- Rôles typographiques --------------------------------------------------
+   Inter        → titres, corps, interface. Les chiffres sont toujours en 700.
+   IBM Plex Mono → métadonnées, libellés d'indicateurs, numéros de document,
+                   codes ICE/IF, dates, montants. Capitales, interlettrage 0.04em.
+   -------------------------------------------------------------------------- */
+
+.meta {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: var(--text-meta);
+}
+
+/* Tout chiffre affiché : Inter 700, chasse fixe pour que les colonnes s'alignent. */
+.chiffre {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+
+/* Montants : mono pour l'alignement décimal en colonne, graisse 500. */
+.montant {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+/* Longueur de ligne : 68 caractères maximum. */
+.prose-vixart {
+  max-width: 68ch;
+}
+
+/* --- Focus : l'épaisseur change, jamais la couleur ------------------------- */
+
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-void);
+  outline-offset: 2px;
+}
+
+/* --- Boutons : inversion pleine, deux sens seulement ----------------------- */
+
+.btn {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: var(--text-meta);
+  padding: 0.625rem 1.125rem;
+  border: 1px solid var(--color-void);
+  background-color: var(--color-void);
+  color: var(--color-pure);
+  cursor: pointer;
+}
+
+.btn:hover {
+  background-color: var(--color-pure);
+  color: var(--color-void);
+}
+
+.btn-inverse {
+  background-color: var(--color-pure);
+  color: var(--color-void);
+}
+
+.btn-inverse:hover {
+  background-color: var(--color-void);
+  color: var(--color-pure);
+}
+
+.btn:focus-visible {
+  border-width: 3px;
+  padding: calc(0.625rem - 2px) calc(1.125rem - 2px);
+}
+
+::selection {
+  background-color: var(--color-void);
+  color: var(--color-pure);
+}

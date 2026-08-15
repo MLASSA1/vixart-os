@@ -1,0 +1,28 @@
+# Dépendances
+node_modules/
+.pnp
+.pnp.js
+
+# Next.js
+/.next/
+/out/
+next-env.d.ts
+*.tsbuildinfo
+
+# Secrets — jamais committés
+.env
+.env.local
+.env*.local
+
+# Sauvegardes locales éventuelles (les vraies vivent dans le volume Docker)
+/backups/
+*.sql.gz
+
+# Fichiers téléversés (les vrais vivent dans le volume Docker)
+/uploads/
+
+# Système
+.DS_Store
+*.log
+npm-debug.log*
+coverage/
