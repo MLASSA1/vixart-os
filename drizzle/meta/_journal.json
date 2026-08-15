@@ -15,6 +15,34 @@
       "when": 1786812073052,
       "tag": "0001_foundation_rules",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1786813433804,
+      "tag": "0002_crm",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1786813440636,
+      "tag": "0003_crm_rules",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1786816001537,
+      "tag": "0004_english_messages",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1786816607546,
+      "tag": "0005_seed_text_english",
+      "breakpoints": true
     }
   ]
 }

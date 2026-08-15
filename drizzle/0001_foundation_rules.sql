@@ -1,18 +1,18 @@
 -- =============================================================================
--- 0001 — Règles de fondation : contexte de session, RLS, horodatage, contrôles.
+-- 0001 — Foundation rules: session context, RLS, timestamps, checks.
 --
--- Tout ce qui se trouve ici est écrit à la main : ce sont les garde-fous qui
--- doivent survivre à une erreur de code applicatif. PostgreSQL est la dernière
--- ligne de défense, pas l'interface.
+-- Everything here is hand-written: these are the guard rails that must survive
+-- a bug in application code. PostgreSQL is the last line of defence, not the
+-- interface.
 -- =============================================================================
 
 -- -----------------------------------------------------------------------------
--- 1. Contexte de session applicatif
+-- 1. Application session context
 --
--- L'application pose `app.user_id` et `app.user_role` au début de chaque
--- transaction (SET LOCAL). Les politiques RLS lisent ces réglages. `SET LOCAL`
--- garantit que le contexte meurt avec la transaction, même si la connexion est
--- recyclée par le pool.
+-- The application sets `app.user_id` and `app.user_role` at the start of every
+-- transaction (SET LOCAL). RLS policies read those settings. SET LOCAL means
+-- the context dies with the transaction, even when the pool recycles the
+-- connection.
 -- -----------------------------------------------------------------------------
 
 CREATE SCHEMA IF NOT EXISTS app;
@@ -36,7 +36,7 @@ LANGUAGE sql STABLE AS $$
 $$;
 --> statement-breakpoint
 
--- Toute session authentifiée : admin ou member. `anonymous` ne voit rien.
+-- Any signed-in session: admin or member. `anonymous` sees nothing.
 CREATE OR REPLACE FUNCTION app.is_authenticated() RETURNS boolean
 LANGUAGE sql STABLE AS $$
   SELECT app.current_user_role() IN ('admin', 'member');
@@ -47,7 +47,7 @@ GRANT USAGE ON SCHEMA app TO PUBLIC;
 --> statement-breakpoint
 
 -- -----------------------------------------------------------------------------
--- 2. Horodatage automatique — `updated_at` ne dépend pas du code applicatif.
+-- 2. Automatic timestamps — `updated_at` does not depend on application code.
 -- -----------------------------------------------------------------------------
 
 CREATE OR REPLACE FUNCTION app.touch_updated_at() RETURNS trigger
@@ -70,22 +70,22 @@ CREATE TRIGGER client_touch_updated_at
 --> statement-breakpoint
 
 -- -----------------------------------------------------------------------------
--- 3. Contrôles d'intégrité métier
+-- 3. Business integrity checks
 -- -----------------------------------------------------------------------------
 
--- Un taux est un entier de points de base, positif, plafonné à 100 %.
+-- A rate is a positive integer of basis points, capped at 100%.
 ALTER TABLE "fiscal_rate"
   ADD CONSTRAINT fiscal_rate_bp_range CHECK ("rate_bp" >= 0 AND "rate_bp" <= 10000);
 --> statement-breakpoint
 
--- Un paramètre fiscal ne s'écrase pas : on ajoute une version datée.
--- Toute tentative de modification d'une version existante est refusée.
+-- A tax parameter is never overwritten: a dated version is appended.
+-- Any attempt to modify an existing version is refused.
 CREATE OR REPLACE FUNCTION app.forbid_fiscal_rate_update() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
   RAISE EXCEPTION
-    'Un paramètre fiscal est versionné et immuable (clé « % », en vigueur au %). '
-    'Insérez une nouvelle version avec une date effective_from postérieure.',
+    'A tax parameter is versioned and immutable (key "%", in force from %). '
+    'Insert a new version with a later effective_from date instead.',
     OLD.key, OLD.effective_from
     USING ERRCODE = 'restrict_violation';
 END;
@@ -97,19 +97,19 @@ CREATE TRIGGER fiscal_rate_immutable
   FOR EACH ROW EXECUTE FUNCTION app.forbid_fiscal_rate_update();
 --> statement-breakpoint
 
--- Un e-mail d'équipe doit ressembler à un e-mail.
+-- A team email must look like an email.
 ALTER TABLE "app_user"
   ADD CONSTRAINT app_user_email_shape CHECK ("email" ~ '^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$');
 --> statement-breakpoint
 
--- L'ICE marocain fait 15 chiffres. Colonne facultative (un prospect peut ne pas
--- l'avoir communiqué), mais si elle est remplie, elle doit être valide : un ICE
--- faux sur une facture est un problème fiscal.
+-- A Moroccan ICE is 15 digits. The column is optional (a prospect may not have
+-- given it yet) but must be valid when filled: a wrong ICE on an invoice is a
+-- tax problem.
 ALTER TABLE "client"
   ADD CONSTRAINT client_ice_shape CHECK ("ice" IS NULL OR "ice" ~ '^[0-9]{15}$');
 --> statement-breakpoint
 
--- L'identifiant fiscal marocain est numérique, 7 à 8 chiffres.
+-- The Moroccan tax ID is numeric, 6 to 9 digits.
 ALTER TABLE "client"
   ADD CONSTRAINT client_if_shape CHECK ("identifiant_fiscal" IS NULL OR "identifiant_fiscal" ~ '^[0-9]{6,9}$');
 --> statement-breakpoint
@@ -117,13 +117,12 @@ ALTER TABLE "client"
 -- -----------------------------------------------------------------------------
 -- 4. Row Level Security
 --
--- FORCE ROW LEVEL SECURITY : les politiques s'appliquent même au propriétaire
--- des tables. Sans ce FORCE, une erreur de configuration faisant tourner
--- l'application sous le rôle propriétaire désactiverait silencieusement toute
--- la sécurité. On ferme cette porte maintenant.
+-- FORCE ROW LEVEL SECURITY: the policies apply even to the table owner.
+-- Without FORCE, a misconfiguration running the application under the owner
+-- role would silently disable all of this. That door is closed now.
 --
--- Phase 0 : les trois tables de fondation. La frontière Finance (admin seul)
--- arrive avec les tables correspondantes, en phase 2 et 4.
+-- Step 1: the three foundation tables. The Finance boundary (management only)
+-- arrives with its own tables, at steps 3 and 5.
 -- -----------------------------------------------------------------------------
 
 ALTER TABLE "app_user" ENABLE ROW LEVEL SECURITY;
@@ -131,13 +130,13 @@ ALTER TABLE "app_user" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "app_user" FORCE ROW LEVEL SECURITY;
 --> statement-breakpoint
 
--- Toute l'équipe voit l'annuaire de l'équipe (nécessaire pour assigner une tâche).
+-- The whole team sees the team directory (needed to assign a task).
 CREATE POLICY app_user_select ON "app_user"
   FOR SELECT USING (app.is_authenticated());
 --> statement-breakpoint
 
--- Seul l'admin crée ou supprime un compte. Un membre ne modifie que sa propre
--- fiche, et ne peut pas s'auto-promouvoir : le rôle est verrouillé côté RLS.
+-- Only an admin creates or deletes an account. A member edits only their own
+-- row and cannot self-promote: the role is locked by the policy itself.
 CREATE POLICY app_user_insert_admin ON "app_user"
   FOR INSERT WITH CHECK (app.is_admin());
 --> statement-breakpoint
@@ -160,8 +159,8 @@ ALTER TABLE "client" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "client" FORCE ROW LEVEL SECURITY;
 --> statement-breakpoint
 
--- L'équipe entière travaille sur le client actif : tout le monde le voit.
--- Ce qui est cloisonné, c'est l'argent (phase 2 et 4), pas la relation client.
+-- The whole team works the active client: everyone sees it.
+-- What is fenced off is the money (steps 3 and 5), not the relationship.
 CREATE POLICY client_select ON "client"
   FOR SELECT USING (app.is_authenticated());
 --> statement-breakpoint
@@ -172,7 +171,7 @@ CREATE POLICY client_update ON "client"
   FOR UPDATE USING (app.is_authenticated()) WITH CHECK (app.is_authenticated());
 --> statement-breakpoint
 
--- Supprimer une fiche client efface son historique : réservé à l'admin.
+-- Deleting a client record erases its history: management only.
 CREATE POLICY client_delete_admin ON "client"
   FOR DELETE USING (app.is_admin());
 --> statement-breakpoint
@@ -182,8 +181,8 @@ ALTER TABLE "fiscal_rate" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "fiscal_rate" FORCE ROW LEVEL SECURITY;
 --> statement-breakpoint
 
--- Les taux sont lisibles par l'application (calcul des documents) mais seul
--- l'admin peut publier une nouvelle version.
+-- Rates are readable by the application (document maths) but only management
+-- can publish a new version.
 CREATE POLICY fiscal_rate_select ON "fiscal_rate"
   FOR SELECT USING (app.is_authenticated());
 --> statement-breakpoint
@@ -192,13 +191,13 @@ CREATE POLICY fiscal_rate_insert_admin ON "fiscal_rate"
 --> statement-breakpoint
 
 -- -----------------------------------------------------------------------------
--- 5. Exemption pour les tâches de démarrage
+-- 5. Exemption for start-up tasks
 --
--- Migrations et seed tournent hors contexte de session (aucun app.user_id).
--- Ils s'exécutent sous le rôle propriétaire, qui est soumis au FORCE RLS
--- ci-dessus. On leur ouvre une porte explicite et nommée plutôt que de
--- désactiver le RLS : `app.bootstrap = on` n'est posé que par scripts/migrate.ts
--- et seed/vixart.seed.ts, jamais par une route HTTP.
+-- Migrations and the seed run with no session context (no app.user_id). They
+-- execute under the owner role, which is subject to the FORCE RLS above. They
+-- get an explicit, named door rather than RLS being switched off:
+-- `app.bootstrap = on` is set only by scripts/migrate.ts and
+-- seed/vixart.seed.ts, never by an HTTP route.
 -- -----------------------------------------------------------------------------
 
 CREATE OR REPLACE FUNCTION app.is_bootstrap() RETURNS boolean

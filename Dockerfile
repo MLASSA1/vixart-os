@@ -1,11 +1,11 @@
 # syntax=docker/dockerfile:1
-# VIXART OS — image applicative. Build multi-étapes, sortie Next.js « standalone ».
+# VIXART OS — application image. Multi-stage build, Next.js standalone output.
 
 FROM node:22-alpine AS base
 RUN apk add --no-cache libc6-compat tzdata
 WORKDIR /app
 
-# ---------- dépendances ----------
+# ---------- dependencies ----------
 FROM base AS deps
 COPY package.json package-lock.json* ./
 RUN npm ci
@@ -26,12 +26,12 @@ ENV HOSTNAME=0.0.0.0
 
 RUN addgroup -g 1001 -S nodejs && adduser -S nextjs -u 1001
 
-# Serveur autonome Next.js
+# Next.js standalone server
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 
-# Migrations, seed et outillage exécutés au démarrage du conteneur.
+# Migrations, seed and tooling run at container start-up.
 COPY --from=builder --chown=nextjs:nodejs /app/drizzle ./drizzle
 COPY --from=builder --chown=nextjs:nodejs /app/scripts ./scripts
 COPY --from=builder --chown=nextjs:nodejs /app/seed ./seed
@@ -41,7 +41,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nextjs:nodejs /app/package.json ./package.json
 COPY --from=builder --chown=nextjs:nodejs /app/tsconfig.json ./tsconfig.json
 
-# Volume des pièces jointes (volume nommé monté ici par docker-compose).
+# Attachments volume (named volume mounted here by docker-compose).
 RUN mkdir -p /app/uploads && chown -R nextjs:nodejs /app/uploads
 
 USER nextjs

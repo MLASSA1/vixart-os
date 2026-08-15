@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # =============================================================================
-# VIXART OS — RESTAURATION DE LA BASE
+# VIXART OS — DATABASE RESTORE
 #
-# ⚠️  OPÉRATION DESTRUCTIVE ⚠️
-# Ce script ÉCRASE la base de données actuelle par le contenu d'une sauvegarde.
-# Tout ce qui a été saisi APRÈS la date de la sauvegarde choisie sera PERDU.
-# Il demande une confirmation écrite avant d'agir.
+# ⚠️  DESTRUCTIVE OPERATION ⚠️
+# This script OVERWRITES the current database with the contents of a backup.
+# Anything entered AFTER the date of the chosen backup will be LOST.
+# It asks for written confirmation before doing anything.
 #
-#   Lister les sauvegardes :  bash scripts/restore.sh
-#   Restaurer              :  bash scripts/restore.sh vixart_2026-08-15_030000.sql.gz
+#   List backups :  bash scripts/restore.sh
+#   Restore      :  bash scripts/restore.sh vixart_2026-08-15_030000.sql.gz
 # =============================================================================
 set -euo pipefail
 
@@ -19,18 +19,18 @@ if [[ -f .env ]]; then
   source .env; set +a
 fi
 
-POSTGRES_DB="${POSTGRES_DB:?POSTGRES_DB manquant (fichier .env)}"
-POSTGRES_USER="${POSTGRES_USER:?POSTGRES_USER manquant (fichier .env)}"
+POSTGRES_DB="${POSTGRES_DB:?POSTGRES_DB missing (.env file)}"
+POSTGRES_USER="${POSTGRES_USER:?POSTGRES_USER missing (.env file)}"
 
 DC="docker compose"
 
 list_backups() {
-  echo "Sauvegardes disponibles (volume vixart_backups) :"
+  echo "Available backups (volume vixart_backups):"
   echo
   $DC exec -T backup sh -c 'ls -1sh /backups/vixart_*.sql.gz 2>/dev/null || true' </dev/null \
     | sed 's/^/  /'
   echo
-  echo "Pour restaurer :  bash scripts/restore.sh <nom-du-fichier>"
+  echo "To restore:  bash scripts/restore.sh <file-name>"
 }
 
 if [[ $# -lt 1 ]]; then
@@ -42,7 +42,7 @@ FILE="$(basename "$1")"
 ASSUME_YES="${2:-}"
 
 if ! $DC exec -T backup sh -c "test -f /backups/'$FILE'" </dev/null; then
-  echo "ERREUR : /backups/$FILE introuvable." >&2
+  echo "ERROR: /backups/$FILE not found." >&2
   echo >&2
   list_backups >&2
   exit 1
@@ -52,49 +52,49 @@ cat <<BANNER
 
   ############################################################
   #                                                          #
-  #   ATTENTION — RESTAURATION DESTRUCTIVE                   #
+  #   WARNING — DESTRUCTIVE RESTORE                          #
   #                                                          #
-  #   Base cible   : $POSTGRES_DB
-  #   Sauvegarde   : $FILE
+  #   Target database : $POSTGRES_DB
+  #   Backup file     : $FILE
   #                                                          #
-  #   La base actuelle sera ÉCRASÉE. Toutes les données      #
-  #   saisies après cette sauvegarde seront DÉFINITIVEMENT   #
-  #   PERDUES. Cette action est IRRÉVERSIBLE.                #
+  #   The current database will be OVERWRITTEN. Everything   #
+  #   entered after this backup will be PERMANENTLY LOST.    #
+  #   This action is IRREVERSIBLE.                           #
   #                                                          #
   ############################################################
 
 BANNER
 
-if [[ "$ASSUME_YES" != "--oui" ]]; then
-  read -r -p 'Tapez exactement RESTAURER pour confirmer : ' CONFIRM
-  if [[ "$CONFIRM" != "RESTAURER" ]]; then
-    echo "Annulé. Aucune donnée n'a été modifiée."
+if [[ "$ASSUME_YES" != "--yes" ]]; then
+  read -r -p 'Type exactly RESTORE to confirm: ' CONFIRM
+  if [[ "$CONFIRM" != "RESTORE" ]]; then
+    echo "Cancelled. No data was changed."
     exit 1
   fi
 fi
 
-# --- Filet de sécurité : on sauvegarde l'état actuel AVANT de l'écraser. -----
-echo "[restore] sauvegarde de sécurité de l'état actuel…"
+# --- Safety net: back up the current state BEFORE overwriting it. -----------
+echo "[restore] backing up the current state first…"
 $DC exec -T backup sh /usr/local/bin/backup.sh </dev/null || {
-  echo "ERREUR : impossible de sauvegarder l'état actuel. Restauration annulée." >&2
+  echo "ERROR: could not back up the current state. Restore aborted." >&2
   exit 1
 }
 
-echo "[restore] arrêt de l'application (évite les écritures pendant la restauration)…"
+echo "[restore] stopping the application (avoids writes during the restore)…"
 $DC stop app >/dev/null 2>&1 || true
 
-echo "[restore] chargement de $FILE dans $POSTGRES_DB…"
+echo "[restore] loading $FILE into $POSTGRES_DB…"
 $DC exec -T backup sh -c "gunzip -c /backups/'$FILE'" </dev/null \
   | $DC exec -T db psql -v ON_ERROR_STOP=1 --quiet -U "$POSTGRES_USER" -d "$POSTGRES_DB"
 
-# Le dump est produit avec --no-privileges : les GRANT du rôle applicatif ne
-# sont pas dans le fichier. Le redémarrage de `app` les rétablit, son entrypoint
-# rejouant migrations + privilèges + seed conditionnel.
-echo "[restore] redémarrage de l'application (rétablit les privilèges applicatifs)…"
+# The dump is taken with --no-privileges: the application role's GRANTs are not
+# in the file. Restarting `app` restores them, since its entrypoint replays
+# migrations + privileges + conditional seed.
+echo "[restore] restarting the application (restores application privileges)…"
 $DC start app >/dev/null
 $DC logs --tail 20 app 2>/dev/null || true
 
 echo
-echo "[restore] TERMINÉ — la base $POSTGRES_DB contient désormais le contenu de $FILE."
-echo "[restore] L'état précédent a été sauvegardé juste avant, il figure en tête de :"
+echo "[restore] DONE — database $POSTGRES_DB now holds the contents of $FILE."
+echo "[restore] The previous state was backed up just before; it is the newest entry in:"
 echo "          bash scripts/restore.sh"

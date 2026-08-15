@@ -1,29 +1,29 @@
 #!/bin/sh
-# VIXART OS — démon de sauvegarde du conteneur `backup`.
-# Une sauvegarde immédiate au démarrage (preuve que la chaîne fonctionne),
-# puis une par nuit à $BACKUP_HOUR, heure d'Afrique/Casablanca.
+# VIXART OS — backup daemon for the `backup` container.
+# One backup immediately at start (proof the chain works), then one every night
+# at $BACKUP_HOUR, Africa/Casablanca time.
 set -eu
 
 BACKUP_HOUR="${BACKUP_HOUR:-3}"
 
-echo "[backup-daemon] démarrage — sauvegarde quotidienne à ${BACKUP_HOUR}h00 (${TZ:-UTC})"
+echo "[backup-daemon] starting — nightly backup at ${BACKUP_HOUR}:00 (${TZ:-UTC})"
 
-# Sauvegarde initiale : ne bloque pas le démon si la base n'est pas encore prête.
-sh /usr/local/bin/backup.sh || echo "[backup-daemon] sauvegarde initiale échouée, on continue"
+# Initial backup: does not block the daemon if the database is not ready yet.
+sh /usr/local/bin/backup.sh || echo "[backup-daemon] initial backup failed, continuing"
 
 while true; do
   NOW_H="$(date +%-H)"
   NOW_M="$(date +%-M)"
   NOW_S="$(date +%-S)"
 
-  # Secondes restantes jusqu'au prochain BACKUP_HOUR:00:00.
+  # Seconds remaining until the next BACKUP_HOUR:00:00.
   SECS_NOW=$(( NOW_H * 3600 + NOW_M * 60 + NOW_S ))
   SECS_TARGET=$(( BACKUP_HOUR * 3600 ))
   DELAY=$(( SECS_TARGET - SECS_NOW ))
   [ "$DELAY" -le 0 ] && DELAY=$(( DELAY + 86400 ))
 
-  echo "[backup-daemon] prochaine sauvegarde dans ${DELAY}s"
+  echo "[backup-daemon] next backup in ${DELAY}s"
   sleep "$DELAY"
 
-  sh /usr/local/bin/backup.sh || echo "[backup-daemon] échec de la sauvegarde, nouvelle tentative demain"
+  sh /usr/local/bin/backup.sh || echo "[backup-daemon] backup failed, retrying tomorrow"
 done

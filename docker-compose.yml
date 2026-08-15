@@ -1,9 +1,9 @@
-# VIXART OS — stack de production, hôte unique (VPS contrôlé par VIXART).
+# VIXART OS — production stack, single host (a VPS VIXART controls).
 #
-# ⚠️  LES TROIS VOLUMES CI-DESSOUS CONTIENNENT TOUTES LES DONNÉES DE L'ENTREPRISE.
-#     `docker compose down`     → sûr, les volumes survivent.
-#     `docker compose down -v`  → DÉTRUIT LA BASE, LES FICHIERS ET LES SAUVEGARDES.
-#     Ne jamais taper `-v` sur cette stack. Voir README « Sauvegarde et restauration ».
+# ⚠️  THE THREE VOLUMES BELOW HOLD ALL OF THE COMPANY'S DATA.
+#     `docker compose down`     → safe, the volumes survive.
+#     `docker compose down -v`  → DESTROYS THE DATABASE, THE FILES AND THE BACKUPS.
+#     Never type `-v` against this stack. See README "Backup and restore".
 
 name: vixart
 
@@ -16,14 +16,14 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      # Collation française pour les tris (noms de clients, libellés de services).
+      # Deterministic collation for sorting (client names, service labels).
       POSTGRES_INITDB_ARGS: "--locale=C.UTF-8 --encoding=UTF8"
       TZ: ${TZ:-Africa/Casablanca}
     volumes:
-      # Volume nommé — PAS un bind mount, PAS du stockage interne au conteneur.
+      # Named volume — NOT a bind mount, NOT container-internal storage.
       - pgdata:/var/lib/postgresql/data
     ports:
-      # Exposé sur la boucle locale uniquement, pour psql / drizzle-kit depuis l'hôte.
+      # Loopback only, for psql / drizzle-kit from the host.
       - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
@@ -44,9 +44,9 @@ services:
     environment:
       NODE_ENV: production
       TZ: ${TZ:-Africa/Casablanca}
-      # Rôle propriétaire : migrations + seed uniquement (au démarrage).
+      # Owner role: migrations + seed only, at start-up.
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
-      # Rôle applicatif : soumis au Row Level Security, utilisé par toutes les requêtes.
+      # Application role: subject to row level security, used by every query.
       APP_DATABASE_URL: postgres://${APP_DB_USER}:${APP_DB_PASSWORD}@db:5432/${POSTGRES_DB}
       APP_DB_USER: ${APP_DB_USER}
       APP_DB_PASSWORD: ${APP_DB_PASSWORD}
@@ -74,7 +74,7 @@ services:
       PGPASSWORD: ${POSTGRES_PASSWORD}
       TZ: ${TZ:-Africa/Casablanca}
       BACKUP_DIR: /backups
-      BACKUP_HOUR: ${BACKUP_HOUR:-3}   # 03h00, heure de Casablanca
+      BACKUP_HOUR: ${BACKUP_HOUR:-3}   # 03:00, Casablanca time
       BACKUP_RETENTION: ${BACKUP_RETENTION:-30}
     volumes:
       - backups:/backups
@@ -83,8 +83,8 @@ services:
     entrypoint: ["/bin/sh", "/usr/local/bin/backup-daemon.sh"]
 
 volumes:
-  # Les données vivent ici. Trois volumes nommés, gérés par Docker,
-  # indépendants du cycle de vie des conteneurs.
+  # The data lives here. Three named volumes, managed by Docker, independent
+  # of the container lifecycle.
   pgdata:
     name: vixart_pgdata
   uploads:

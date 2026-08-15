@@ -1,6 +1,6 @@
 # =============================================================================
-# VIXART OS — commandes d'exploitation
-#   make help   pour la liste complète
+# VIXART OS — operations commands
+#   make help   for the full list
 # =============================================================================
 
 SHELL := /bin/bash
@@ -9,95 +9,95 @@ DC    := docker compose
 .DEFAULT_GOAL := help
 .PHONY: help up down logs ps build restart backup backups restore shell psql migrate seed test volumes danger-reset
 
-help: ## Affiche cette aide
+help: ## Show this help
 	@echo ""
-	@echo "  VIXART OS — commandes disponibles"
+	@echo "  VIXART OS — available commands"
 	@echo ""
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
 		| awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[1m%-16s\033[0m %s\n", $$1, $$2}'
 	@echo ""
 
-# --- Cycle de vie -----------------------------------------------------------
+# --- Lifecycle --------------------------------------------------------------
 
-up: ## Démarre la stack (base, application, sauvegardes)
+up: ## Start the stack (database, application, backups)
 	$(DC) up -d --build
 	@echo ""
-	@echo "  Application : http://localhost:$${APP_PORT:-3000}"
+	@echo "  Application: http://localhost:$${APP_PORT:-4000}"
 
-down: ## Arrête la stack — LES DONNÉES SONT CONSERVÉES
+down: ## Stop the stack — DATA IS KEPT
 	$(DC) down
-	@echo "  Volumes conservés : vixart_pgdata, vixart_uploads, vixart_backups"
+	@echo "  Volumes kept: vixart_pgdata, vixart_uploads, vixart_backups"
 
-restart: ## Redémarre l'application seule
+restart: ## Restart the application only
 	$(DC) restart app
 
-build: ## Reconstruit l'image applicative
+build: ## Rebuild the application image
 	$(DC) build app
 
-ps: ## État des conteneurs
+ps: ## Container status
 	$(DC) ps
 
-logs: ## Suit les journaux de l'application
+logs: ## Follow the application logs
 	$(DC) logs -f app
 
-# --- Base de données --------------------------------------------------------
+# --- Database ---------------------------------------------------------------
 
-migrate: ## Applique les migrations en attente
+migrate: ## Apply pending migrations
 	$(DC) exec app node_modules/.bin/tsx scripts/migrate.ts
 
-seed: ## Amorçage conditionnel (ne fait rien si la base contient déjà des clients)
+seed: ## Conditional seed (does nothing if the database already holds clients)
 	$(DC) exec app node_modules/.bin/tsx seed/vixart.seed.ts
 
-psql: ## Ouvre une console SQL sur la base
+psql: ## Open a SQL console on the database
 	$(DC) exec db psql -U $${POSTGRES_USER:-vixart_owner} -d $${POSTGRES_DB:-vixart}
 
-shell: ## Ouvre un shell dans le conteneur applicatif
+shell: ## Open a shell inside the application container
 	$(DC) exec app sh
 
-# --- Sauvegarde et restauration ---------------------------------------------
+# --- Backup and restore -----------------------------------------------------
 
-backup: ## Sauvegarde immédiate de la base
+backup: ## Back up the database right now
 	$(DC) exec backup sh /usr/local/bin/backup.sh
 
-backups: ## Liste les sauvegardes disponibles
+backups: ## List the available backups
 	@bash scripts/restore.sh
 
-restore: ## Restaure une sauvegarde — DESTRUCTIF — make restore FILE=vixart_....sql.gz
+restore: ## Restore a backup — DESTRUCTIVE — make restore FILE=vixart_....sql.gz
 	@if [ -z "$(FILE)" ]; then \
-		echo "Usage : make restore FILE=vixart_2026-08-15_030000.sql.gz"; \
+		echo "Usage: make restore FILE=vixart_2026-08-15_030000.sql.gz"; \
 		echo ""; bash scripts/restore.sh; exit 1; \
 	fi
 	@bash scripts/restore.sh "$(FILE)"
 
-volumes: ## Affiche les trois volumes de données et leur taille
+volumes: ## Show the three data volumes and their size
 	@docker volume ls --filter name=vixart_ --format 'table {{.Name}}\t{{.Driver}}'
 	@echo ""
-	@$(DC) exec -T db du -sh /var/lib/postgresql/data 2>/dev/null | sed 's|/var/lib/postgresql/data|  base de données|'
-	@$(DC) exec -T backup du -sh /backups 2>/dev/null | sed 's|/backups|  sauvegardes|'
+	@$(DC) exec -T db du -sh /var/lib/postgresql/data 2>/dev/null | sed 's|/var/lib/postgresql/data|  database|'
+	@$(DC) exec -T backup du -sh /backups 2>/dev/null | sed 's|/backups|  backups|'
 
 # --- Tests ------------------------------------------------------------------
 
-test: ## Lance la suite de tests
+test: ## Run the test suite
 	npm run test
 
 # --- Danger -----------------------------------------------------------------
 
-danger-reset: ## ⚠️ DÉTRUIT TOUTES LES DONNÉES (base, fichiers, sauvegardes)
+danger-reset: ## ⚠️ DESTROYS ALL DATA (database, files, backups)
 	@echo ""
 	@echo "  ############################################################"
-	@echo "  #  DESTRUCTION TOTALE ET IRRÉVERSIBLE                      #"
+	@echo "  #  TOTAL AND IRREVERSIBLE DESTRUCTION                      #"
 	@echo "  #                                                          #"
-	@echo "  #  Supprime les trois volumes :                            #"
-	@echo "  #    vixart_pgdata   → toute la base de données            #"
-	@echo "  #    vixart_uploads  → toutes les pièces jointes           #"
-	@echo "  #    vixart_backups  → TOUTES LES SAUVEGARDES              #"
+	@echo "  #  Removes all three volumes:                              #"
+	@echo "  #    vixart_pgdata   → the entire database                 #"
+	@echo "  #    vixart_uploads  → every attachment                    #"
+	@echo "  #    vixart_backups  → EVERY BACKUP                        #"
 	@echo "  #                                                          #"
-	@echo "  #  Il ne restera RIEN à restaurer.                         #"
+	@echo "  #  Nothing will be left to restore from.                   #"
 	@echo "  ############################################################"
 	@echo ""
-	@read -p '  Tapez exactement DETRUIRE TOUT pour confirmer : ' c; \
-	if [ "$$c" = "DETRUIRE TOUT" ]; then \
-		$(DC) down -v; echo "  Volumes supprimés."; \
+	@read -p '  Type exactly DESTROY EVERYTHING to confirm: ' c; \
+	if [ "$$c" = "DESTROY EVERYTHING" ]; then \
+		$(DC) down -v; echo "  Volumes removed."; \
 	else \
-		echo "  Annulé. Aucune donnée n'a été touchée."; exit 1; \
+		echo "  Cancelled. No data was touched."; exit 1; \
 	fi

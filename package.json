@@ -17,6 +17,7 @@
     "bcryptjs": "^3.0.3",
     "drizzle-orm": "^0.45.2",
     "next": "^15.5.23",
+    "next-auth": "^5.0.0-beta.32",
     "pg": "^8.23.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",

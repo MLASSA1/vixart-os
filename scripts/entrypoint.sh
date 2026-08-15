@@ -1,30 +1,30 @@
 #!/bin/sh
-# VIXART OS — démarrage du conteneur applicatif.
+# VIXART OS — application container start-up.
 #
-# Ordre imposé, sans quoi rien ne fonctionne :
-#   1. migrations   (schéma à jour)
-#   2. privilèges   (rôle applicatif, rétabli aussi après une restauration)
-#   3. seed         (uniquement si la table `client` est vide — idempotent)
-#   4. serveur
+# Fixed order, nothing works without it:
+#   1. migrations  (schema up to date)
+#   2. privileges  (application role, also restored after a database restore)
+#   3. seed        (only when the `client` table is empty — idempotent)
+#   4. server
 #
-# Toute étape qui échoue arrête le démarrage : mieux vaut un conteneur qui ne
-# démarre pas qu'une application branchée sur un schéma incohérent.
+# Any failing step aborts start-up: better a container that does not start than
+# an application wired to an inconsistent schema.
 set -e
 
 cd /app
 
 echo "─────────────────────────────────────────────"
-echo " VIXART OS — démarrage"
+echo " VIXART OS — starting"
 echo "─────────────────────────────────────────────"
 
 echo "[1/4] migrations…"
 node_modules/.bin/tsx scripts/migrate.ts
 
-echo "[2/4] rôle et privilèges applicatifs…"
+echo "[2/4] application role and privileges…"
 node_modules/.bin/tsx scripts/apply-grants.ts
 
-echo "[3/4] amorçage conditionnel…"
+echo "[3/4] conditional seed…"
 node_modules/.bin/tsx seed/vixart.seed.ts
 
-echo "[4/4] serveur Next.js sur le port ${PORT:-3000}"
+echo "[4/4] Next.js server on port ${PORT:-3000}"
 exec node server.js

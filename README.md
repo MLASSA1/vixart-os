@@ -1,80 +1,84 @@
 # VIXART OS
 
-Système d'exploitation interne de **SOCIETE VIXART SARL** — Agadir.
-Remplace les tableurs et la mémoire WhatsApp de l'agence.
+Internal operating system for **SOCIETE VIXART SARL** — Agadir.
+Replaces the agency's spreadsheets and WhatsApp memory.
 
 | | |
 |---|---|
-| Raison sociale | SOCIETE VIXART SARL |
-| RC | 69627 — Tribunal de Commerce d'Agadir |
+| Registered name | SOCIETE VIXART SARL |
+| Trade register | RC 69627 — Tribunal de Commerce d'Agadir |
 | ICE | 003979570000062 |
-| IF | 73161069 |
-| Activité | Agence de publicité |
-| Siège | Bureau AB 403, Imm A9, Technopole II Bensergaou, Agadir |
+| Tax ID (IF) | 73161069 |
+| Activity | Advertising agency |
+| Registered office | Bureau AB 403, Imm A9, Technopole II Bensergaou, Agadir |
 
-Mono-organisation, mono-engagement actif (« Monk Mode »). Pas de multi-tenant,
-pas de portail client, pas de connexion pour les clients. Cinq comptes, deux
-rôles : `admin` (Amin) et `member` (l'équipe).
+Single organisation, one active engagement at a time ("Monk Mode"). No
+multi-tenancy, no client portal, no client logins. Five accounts, two roles:
+`admin` (Amin) and `member` (the team).
+
+The interface is in English. Money keeps the Moroccan format — `1 234,56 DH`,
+non-breaking space for thousands, decimal comma — because that is what an
+invoice issued in Morocco has to show; screens and issued documents must not
+disagree.
 
 ---
 
-## État d'avancement
+## Build progress
 
-| Phase | Contenu | État |
+| Step | Contents | State |
 |---|---|---|
-| **0** | Fondation : Docker, PostgreSQL, volumes, migrations, sauvegarde/restauration, `money.ts`, `fiscal.ts` | **Terminée** |
-| 1 | Authentification + CRM (contacts, WhatsApp, ICE, pipeline, timeline) | à venir |
-| 2 | Services + Devis/Factures (numérotation, immuabilité, PDF) | à venir |
-| 3 | Projets + Tâches (assignation, pièces jointes) | à venir |
-| 4 | Finance + Tableau de bord + Export CSV | à venir |
+| **1** | Foundation: Docker, PostgreSQL, volumes, migrations, backup + restore, `money.ts`, `fiscal.ts` | **Done** |
+| **2** | Auth + CRM (contacts, WhatsApp, ICE, pipeline, timeline) | **Done** |
+| 3 | Services + Quotes/Invoices (numbering, immutability, PDF) | to come |
+| 4 | Projects + Tasks (assignment, attachments) | to come |
+| 5 | Finance + Dashboard + CSV export | to come |
 
 ---
 
-## Installation
+## Install
 
-Prérequis : **Docker** (ou Colima) et **Node 22+** pour les outils locaux.
+Requirements: **Docker** (or Colima) and **Node 22+** for the local tooling.
 
 ```bash
-git clone <dépôt> && cd vixart-os
-cp .env.example .env          # puis remplacer toutes les valeurs CHANGER_MOI
-openssl rand -base64 32       # pour AUTH_SECRET
-docker compose up -d --build  # migrations + amorçage automatiques
-docker compose logs -f app    # suivre le démarrage
+git clone <repo> && cd vixart-os
+cp .env.example .env          # then replace every CHANGE_ME value
+openssl rand -base64 32       # for AUTH_SECRET
+docker compose up -d --build  # migrations + seed run automatically
+docker compose logs -f app    # follow start-up
 ```
 
-L'application écoute sur `http://localhost:${APP_PORT}` (voir `.env`).
+The application listens on `http://localhost:${APP_PORT}` (see `.env`).
 
-> **Note sur le port.** `APP_PORT` vaut `4000` sur ce poste : le port 3000 est
-> déjà occupé par le site vitrine visionxart.com en développement. Sur le VPS,
-> remettre `APP_PORT=3000`.
+> **Port note.** `APP_PORT` is `4000` on this machine: port 3000 is taken by the
+> visionxart.com marketing site in development. Set whatever you prefer on the VPS.
 
-Tout le reste passe par `make` :
+Everything else goes through `make`:
 
 ```bash
 make help
 ```
 
-### Version de Node
+### Node version
 
-Le projet exige **Node 22 ou supérieur** (`engines` dans `package.json`).
-Sur ce poste, `node` pointe encore vers une installation manuelle en 20.11 dans
-`~/.local/node`. Node 22 est installé via Homebrew mais masqué. Pour l'utiliser :
+The project requires **Node 22 or newer** (`engines` in `package.json`).
+On this machine `node` still points at a manual 20.11 install in `~/.local/node`.
+Node 22 is installed via Homebrew but shadowed. To use it:
 
 ```bash
 export PATH="/opt/homebrew/opt/node@22/bin:$PATH"
 ```
 
-À ajouter dans `~/.zshrc` pour le rendre permanent. Sans cela, `npm test` échoue
-avec `does not provide an export named 'styleText'`. Le conteneur Docker embarque
-déjà Node 22 : cette contrainte ne concerne que les commandes lancées sur le Mac.
+Add that to `~/.zshrc` to make it permanent. Without it `npm test` fails with
+`does not provide an export named 'styleText'`. The Docker image already ships
+Node 22 — this only affects commands run on the Mac.
 
-### Comptes de l'équipe
+### Team accounts
 
-L'amorçage crée cinq comptes avec le mot de passe commun défini par
-`SEED_DEFAULT_PASSWORD` dans `.env`. Chacun le change à sa première connexion
-(écran disponible en phase 1).
+The seed creates five accounts sharing the initial password from
+`SEED_DEFAULT_PASSWORD` in `.env`. **The application blocks every screen until
+each member sets their own password** — it is not a dismissible reminder.
 
-| Adresse | Nom | Rôle |
+| Address | Name | Role |
 |---|---|---|
 | amin@vixart.ma | Amin — Founder / CEO | admin |
 | aymen@vixart.ma | Aymen — Cinematic Director | member |
@@ -82,168 +86,186 @@ L'amorçage crée cinq comptes avec le mot de passe commun défini par
 | adam@vixart.ma | Adam — Community & Social Media Manager | member |
 | mohamed.amine@vixart.ma | Mohamed Amine — Creative Director & Designer | member |
 
-> Le domaine `@vixart.ma` est une hypothèse. Pour en utiliser un autre, modifier
-> `seed/vixart.seed.ts` **avant** le premier démarrage.
+> The `@vixart.ma` domain is an assumption. To use another one, edit
+> `seed/vixart.seed.ts` **before** the first start.
 
 ---
 
-## Sauvegarde et restauration
+## Backup and restore
 
-> Cette section est écrite pour être suivie sans être développeur.
-> Les commandes se tapent dans le Terminal, depuis le dossier du projet.
+> This section is written to be followed without being an engineer.
+> The commands are typed in Terminal, from the project folder.
+>
+> *If you would rather have this section in French for someone non-technical,
+> say so and it will be added back alongside the English.*
 
-### Où vivent les données
+### Where the data lives
 
-Trois **volumes Docker nommés**. Ils sont indépendants des conteneurs :
-supprimer, reconstruire ou mettre à jour l'application ne les touche pas.
+Three **named Docker volumes**. They are independent of the containers:
+removing, rebuilding or updating the application does not touch them.
 
-| Volume | Contenu |
+| Volume | Contents |
 |---|---|
-| `vixart_pgdata` | Toute la base : clients, documents, finance |
-| `vixart_uploads` | Les fichiers joints (pièces jointes, logos, reçus) |
-| `vixart_backups` | Les sauvegardes automatiques |
+| `vixart_pgdata` | The whole database: clients, documents, finance |
+| `vixart_uploads` | Attached files (attachments, logos, receipts) |
+| `vixart_backups` | The automatic backups |
 
-### Ce qui est automatique
+### What happens automatically
 
-Une sauvegarde part **toutes les nuits à 3 h** (heure de Casablanca), plus une
-à chaque démarrage de la stack. Les **30 dernières** sont conservées ;
-au-delà, la plus ancienne est supprimée automatiquement.
+A backup runs **every night at 03:00** (Casablanca time), plus one every time
+the stack starts. The **last 30** are kept; beyond that the oldest is deleted
+automatically.
 
-### Voir les sauvegardes existantes
+### See the existing backups
 
 ```bash
 make backups
 ```
 
-La plus récente est en bas de la liste. Le nom contient la date et l'heure :
-`vixart_2026-08-15_030000.sql.gz` = 15 août 2026 à 03 h 00.
+The most recent is at the bottom. The name carries date and time:
+`vixart_2026-08-15_030000.sql.gz` = 15 August 2026 at 03:00.
 
-### Lancer une sauvegarde tout de suite
+### Take a backup right now
 
-À faire avant toute manipulation risquée.
+Do this before anything risky.
 
 ```bash
 make backup
 ```
 
-### Restaurer une sauvegarde
+### Restore a backup
 
-> ### ⚠️ ATTENTION — OPÉRATION DESTRUCTIVE
-> La restauration **écrase la base actuelle**. Tout ce qui a été saisi
-> **après** la date de la sauvegarde choisie sera **définitivement perdu**.
-> Ne l'utiliser qu'en cas de perte ou de corruption réelle des données.
+> ### ⚠️ WARNING — DESTRUCTIVE OPERATION
+> Restoring **overwrites the current database**. Everything entered **after**
+> the date of the chosen backup is **permanently lost**. Use it only when data
+> has genuinely been lost or corrupted.
 
-1. Repérer le fichier à restaurer :
+1. Find the file to restore:
 
 ```bash
 make backups
 ```
 
-2. Lancer la restauration avec le nom exact du fichier :
+2. Run the restore with the exact file name:
 
 ```bash
 make restore FILE=vixart_2026-08-15_030000.sql.gz
 ```
 
-3. Le script affiche un avertissement et demande de taper **`RESTAURER`**
-   en majuscules. Toute autre saisie annule sans rien modifier.
+3. The script prints a warning and asks you to type **`RESTORE`** in capitals.
+   Anything else cancels without changing a thing.
 
-**Filet de sécurité :** avant d'écraser quoi que ce soit, le script sauvegarde
-automatiquement l'état actuel. Si la restauration était une erreur, l'état
-d'avant est le fichier le plus récent dans `make backups`.
+**Safety net:** before overwriting anything, the script backs up the current
+state. If the restore turns out to be a mistake, the state from just before is
+the newest file in `make backups`.
 
-### Arrêter l'application sans perdre les données
+### Stop the application without losing data
 
 ```bash
 make down
 ```
 
-Les trois volumes restent intacts. `make up` remet tout en marche.
+All three volumes stay intact. `make up` brings everything back.
 
-### ⚠️ La commande à ne jamais taper
+### The command never to type
 
 ```
 docker compose down -v
 ```
 
-Le `-v` **détruit les trois volumes** : la base, les fichiers joints **et toutes
-les sauvegardes**. Il ne resterait rien à restaurer.
+The `-v` **destroys all three volumes**: the database, the attached files **and
+every backup**. Nothing would be left to restore from.
 
-Le `Makefile` n'expose cette opération que sous le nom `make danger-reset`, avec
-un avertissement et une confirmation par phrase complète. Elle ne sert qu'à
-repartir d'une base totalement vierge sur une machine de test.
+The `Makefile` only exposes this as `make danger-reset`, behind a warning and a
+full-sentence confirmation. It exists to start from a genuinely blank database
+on a test machine.
 
-### Copier les sauvegardes hors du serveur
+### Copy the backups off the server
 
-Un volume Docker vit sur le même disque que l'application. Si le VPS est perdu,
-les sauvegardes le sont aussi. Récupérer une copie sur un autre support :
+A Docker volume lives on the same disk as the application. If the VPS is lost,
+the backups are lost with it. To pull a copy somewhere else:
 
 ```bash
-docker cp vixart_backup:/backups ./sauvegardes-vixart
+docker cp vixart_backup:/backups ./vixart-backups
 ```
 
-À faire au moins une fois par mois, vers un disque externe ou un cloud.
+Do this at least monthly, onto an external disk or a cloud drive.
 
 ---
 
 ## Architecture
 
 ```
-docker-compose.yml     3 services (app, db, backup), 3 volumes nommés
-Dockerfile             image applicative Next.js « standalone », Node 22
-Makefile               commandes d'exploitation — make help
+docker-compose.yml     3 services (app, db, backup), 3 named volumes
+Dockerfile             Next.js standalone application image, Node 22
+Makefile               operations commands — make help
 
-drizzle/               migrations SQL numérotées (jamais de `push`)
-  0000_foundation.sql  tables : app_user, client, fiscal_rate
-  0001_foundation_rules.sql  RLS, triggers, contraintes, contexte de session
+drizzle/               numbered SQL migrations (never `push`)
+  0000_foundation.sql        app_user, client, fiscal_rate
+  0001_foundation_rules.sql  RLS, triggers, checks, session context
+  0002_crm.sql               contact, interaction, must_change_password
+  0003_crm_rules.sql         sign-in lookup, password change, CRM policies
+  0004_english_messages.sql  database error messages in English
 
 scripts/
-  entrypoint.sh        migrations → privilèges → amorçage → serveur
-  migrate.ts           applique les migrations manquantes
-  apply-grants.ts      (re)crée le rôle applicatif et ses privilèges
-  backup.sh            un dump horodaté + purge au-delà de 30
-  backup-daemon.sh     boucle quotidienne du conteneur `backup`
-  restore.sh           restauration guidée, avec confirmation
+  entrypoint.sh        migrations → privileges → seed → server
+  migrate.ts           applies the missing migrations
+  apply-grants.ts      (re)creates the application role and its privileges
+  backup.sh            one timestamped dump + prune beyond 30
+  backup-daemon.sh     the `backup` container nightly loop
+  restore.sh           guided restore, with confirmation
 
-seed/vixart.seed.ts    équipe, pipeline réel, paramètres fiscaux — idempotent
+seed/vixart.seed.ts    team, real pipeline, tax parameters — idempotent
 
 src/
-  lib/money.ts         arithmétique en centimes (bigint), format 1 234,56 DH
-  lib/fiscal.ts        taux versionnés, calcul HT/TVA/TTC/retenue
-  db/schema.ts         schéma Drizzle
-  db/index.ts          deux pools : rôle applicatif (RLS) et rôle propriétaire
-  app/                 interface Next.js — français, deux couleurs
+  auth.ts              Auth.js, credentials provider, JWT sessions
+  lib/money.ts         centime arithmetic (bigint), 1 234,56 DH format
+  lib/fiscal.ts        versioned rates, excl. VAT / VAT / incl. VAT / withholding
+  lib/format.ts        dates and WhatsApp links, Casablanca time
+  db/schema.ts         Drizzle schema
+  db/index.ts          two pools: application role (RLS) and owner role
+  db/session.ts        withUser() — binds the session to the RLS context
+  components/ui.tsx    interface primitives, two colours
+  app/(app)/           the signed-in application
 ```
 
-### Deux rôles PostgreSQL, pas un
+### Two PostgreSQL roles, not one
 
-`vixart_owner` possède les tables et applique les migrations.
-`vixart_app` exécute les requêtes de l'application : `NOSUPERUSER`,
-`NOBYPASSRLS`, **aucun droit de DDL**. Il ne peut ni créer ni supprimer une
-table, et le Row Level Security s'applique réellement à lui.
+`vixart_owner` owns the tables and applies migrations.
+`vixart_app` runs the application queries: `NOSUPERUSER`, `NOBYPASSRLS`, **no
+DDL rights**. It can neither create nor drop a table, and row level security
+genuinely applies to it.
 
-Toutes les tables sont en `FORCE ROW LEVEL SECURITY` : les politiques valent
-même pour le propriétaire. Une erreur de configuration branchant l'application
-sur le mauvais rôle ne peut pas ouvrir silencieusement la cloison.
+Every table is under `FORCE ROW LEVEL SECURITY`: the policies hold even for the
+owner. A misconfiguration pointing the application at the wrong role cannot
+silently open the boundary.
 
-### L'argent ne passe jamais par un flottant
+### How a session reaches the database
 
-Tout montant est un `BIGINT` de centimes côté base et un `bigint` côté
-JavaScript. `src/lib/money.ts` interdit explicitement l'entrée d'un `number`
-non entier : `19.99 * 100 === 1998.9999999999998`, et une facture fausse d'un
-centime est une facture fausse.
+`withUser()` opens a transaction, injects `app.user_id` and `app.user_role` with
+`set_config(..., true)` — transaction-local — then runs the work. The pool
+recycles connections between requests; a plain `SET` would leak one user identity
+into the next request. The role handed to PostgreSQL comes from the signed JWT,
+never from a URL.
 
-### Les taux fiscaux sont versionnés, jamais modifiés
+### Money never passes through a float
 
-La table `fiscal_rate` porte une date `effective_from` et un déclencheur qui
-**refuse toute modification ou suppression** d'une version existante. Changer un
-taux consiste à insérer une nouvelle version datée. Un document déjà émis
-conservera le taux copié sur lui-même au moment de l'émission.
+Every amount is a `BIGINT` of centimes in the database and a `bigint` in
+JavaScript. `src/lib/money.ts` explicitly rejects a non-integer `number`:
+`19.99 * 100 === 1998.9999999999998`, and an invoice wrong by one centime is a
+wrong invoice.
 
-> **Retenue à la source (art. 117 bis CGI)** — le taux est amorcé à **0**,
-> délibérément. Il dépend de la situation fiscale de VIXART et de chaque client :
-> il doit être saisi par Amin sur avis de la fiduciaire, pas deviné. Tant qu'il
-> vaut 0, « Net à encaisser » est égal au « Total TTC ».
+### Tax rates are versioned, never edited
+
+The `fiscal_rate` table carries an `effective_from` date and a trigger that
+**refuses any update or delete** of an existing version. Changing a rate means
+inserting a new dated version. A document already issued keeps the rate copied
+onto it at issue time.
+
+> **Withholding at source (art. 117 bis CGI)** — the rate is seeded at **0**,
+> deliberately. It depends on VIXART tax situation and on each client: it must be
+> entered by Amin on the accountant advice, not guessed. While it is 0,
+> "Net to collect" equals "Total incl. VAT".
 
 ---
 
@@ -253,21 +275,20 @@ conservera le taux copié sur lui-même au moment de l'émission.
 npm test
 ```
 
-27 tests couvrent l'arithmétique monétaire et le calcul des totaux : arrondis,
-pièges du flottant, format français-marocain, TVA à 0 %, retenue à la source.
-Les tests de numérotation séquentielle et d'immuabilité des documents arrivent
-en phase 2, avec les tables concernées.
+27 tests cover the money arithmetic and the document totals: rounding, float
+traps, the Moroccan format, 0% VAT, withholding at source. The tests for gapless
+numbering and document immutability arrive at step 3, with the tables they need.
 
 ---
 
-## Modifier le schéma
+## Changing the schema
 
 ```bash
-npm run db:generate        # écrit un nouveau fichier numéroté dans drizzle/
-# relire le SQL produit avant de l'appliquer
+npm run db:generate        # writes a new numbered file into drizzle/
+# read the generated SQL before applying it
 make migrate
 ```
 
-> Ne jamais lancer `drizzle-kit push` sur la base de production : cette commande
-> modifie le schéma sans passer par un fichier versionné et peut supprimer des
-> colonnes — donc des données — sans trace.
+> Never run `drizzle-kit push` against the production database: it changes the
+> schema without a versioned file and can drop columns — and therefore data —
+> without a trace.

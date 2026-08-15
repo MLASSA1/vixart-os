@@ -1,12 +1,12 @@
 import { defineConfig } from 'drizzle-kit';
 
 /**
- * drizzle-kit ne sert QU'À GÉNÉRER des fichiers SQL numérotés dans `drizzle/`.
+ * drizzle-kit is used ONLY to GENERATE numbered SQL files into `drizzle/`.
  *
- * ⚠️  Ne jamais lancer `drizzle-kit push` sur une base contenant des données
- *     réelles : cette commande altère le schéma sans passer par un fichier de
- *     migration versionné et peut détruire des colonnes. Le seul chemin autorisé
- *     est : `npm run db:generate` → relire le SQL → `npm run db:migrate`.
+ * ⚠️  Never run `drizzle-kit push` against a database holding real records: it
+ *     alters the schema without a versioned migration file and can drop
+ *     columns. The only allowed path is:
+ *     `npm run db:generate` → read the SQL → `npm run db:migrate`.
  */
 export default defineConfig({
   dialect: 'postgresql',

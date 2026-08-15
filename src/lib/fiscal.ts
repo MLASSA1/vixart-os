@@ -1,166 +1,166 @@
 /**
- * VIXART OS — paramètres fiscaux versionnés et calcul des totaux de document.
+ * VIXART OS — versioned tax parameters and document totals.
  *
- * PRINCIPE : aucun taux n'est écrit en dur dans le code applicatif. Tous les
- * taux vivent dans la table `fiscal_rate`, avec une date `effective_from`.
- * Un taux n'est jamais modifié : on insère une nouvelle version. Un document
- * déjà émis conserve le taux copié sur lui-même au moment de l'émission —
- * il n'est JAMAIS relu depuis cette table à l'affichage.
+ * PRINCIPLE: no rate is hardcoded in application code. Every rate lives in the
+ * `fiscal_rate` table with an `effective_from` date. A rate is never edited —
+ * a new version is inserted. An already-issued document keeps the rate copied
+ * onto it at issue time; it is NEVER read back from this table for rendering.
  *
- * Les constantes ci-dessous ne sont que des valeurs d'amorçage (seed) pour un
- * cluster vierge, pas la source de vérité à l'exécution.
+ * The constants below are seed values for a blank cluster only, not the source
+ * of truth at runtime.
  */
 
 import {
-  appliquerTaux,
-  somme,
-  totalLigne,
+  applyRate,
+  lineTotal,
+  sum,
   type BasisPoints,
   type Centimes,
   type Millis,
 } from './money';
 
 // ---------------------------------------------------------------------------
-// Clés de paramètres
+// Parameter keys
 // ---------------------------------------------------------------------------
 
-export const CLES_FISCALES = {
-  /** TVA de droit commun applicable aux prestations de publicité. */
-  TVA_STANDARD: 'tva_standard',
+export const FISCAL_KEYS = {
+  /** Standard VAT applicable to advertising services. */
+  VAT_STANDARD: 'tva_standard',
   /**
-   * Retenue à la source sur la TVA — art. 117 bis du CGI.
-   * Part de la TVA que certains clients retiennent et reversent eux-mêmes.
+   * Withholding tax on VAT — article 117 bis of the Moroccan CGI.
+   * The share of VAT some clients withhold and remit themselves.
    */
-  RETENUE_SOURCE_TVA: 'retenue_source_tva',
+  WITHHOLDING_VAT: 'retenue_source_tva',
 } as const;
 
-export type CleFiscale = (typeof CLES_FISCALES)[keyof typeof CLES_FISCALES];
+export type FiscalKey = (typeof FISCAL_KEYS)[keyof typeof FISCAL_KEYS];
 
 /**
- * Valeurs d'amorçage.
+ * Seed values.
  *
- * TVA standard : 20 % — taux de droit commun sur les prestations de publicité.
+ * Standard VAT: 20% — the ordinary rate on advertising services.
  *
- * Retenue à la source : amorcée à 0 DÉLIBÉRÉMENT. Le taux applicable dépend de
- * la situation fiscale du prestataire et du client ; il doit être saisi par le
- * gérant à partir de l'avis de la fiduciaire, pas deviné par un développeur.
- * Tant qu'il vaut 0, « Net à encaisser » est égal au « Total TTC ».
+ * Withholding: seeded at 0 DELIBERATELY. The applicable rate depends on the
+ * tax situation of both VIXART and the client; it must be entered by the
+ * founder on the accountant's advice, not guessed by a developer. While it is
+ * 0, "Net to collect" equals "Total incl. VAT".
  */
-export const TAUX_AMORCAGE: ReadonlyArray<{
-  cle: CleFiscale;
-  pdb: BasisPoints;
+export const SEED_RATES: ReadonlyArray<{
+  key: FiscalKey;
+  bp: BasisPoints;
   effectiveFrom: string;
   note: string;
 }> = [
   {
-    cle: CLES_FISCALES.TVA_STANDARD,
-    pdb: 2000,
+    key: FISCAL_KEYS.VAT_STANDARD,
+    bp: 2000,
     effectiveFrom: '2026-01-01',
-    note: 'TVA de droit commun — prestations de publicité (agence).',
+    note: 'Standard VAT — advertising services (agency).',
   },
   {
-    cle: CLES_FISCALES.RETENUE_SOURCE_TVA,
-    pdb: 0,
+    key: FISCAL_KEYS.WITHHOLDING_VAT,
+    bp: 0,
     effectiveFrom: '2026-01-01',
     note:
-      'À DÉFINIR PAR LE GÉRANT (art. 117 bis CGI). Valeur nulle tant que la ' +
-      'fiduciaire n’a pas confirmé le taux applicable. Ne pas deviner : ' +
-      'ajouter une nouvelle version datée plutôt que modifier celle-ci.',
+      'TO BE SET BY THE FOUNDER (art. 117 bis CGI). Kept at zero until the ' +
+      'accountant confirms the applicable rate. Do not guess: add a new dated ' +
+      'version rather than editing this one.',
   },
 ];
 
 // ---------------------------------------------------------------------------
-// Sélection de la version applicable
+// Picking the version in force
 // ---------------------------------------------------------------------------
 
-export interface VersionTaux {
-  cle: string;
-  /** Taux en points de base. */
+export interface RateVersion {
+  key: string;
+  /** Rate in basis points. */
   rateBp: number;
-  /** Date d'entrée en vigueur, format ISO `YYYY-MM-DD`. */
+  /** Effective date, ISO `YYYY-MM-DD`. */
   effectiveFrom: string;
   note: string | null;
 }
 
 /**
- * Retourne la version en vigueur d'un taux à une date donnée : la plus récente
- * dont `effective_from` est antérieure ou égale à la date.
+ * Returns the version of a rate in force on a given date: the most recent one
+ * whose `effective_from` is on or before that date.
  *
- * Fonction pure — testable sans base de données.
+ * Pure function — testable without a database.
  */
-export function versionApplicable(
-  versions: readonly VersionTaux[],
-  cle: CleFiscale,
+export function rateInForce(
+  versions: readonly RateVersion[],
+  key: FiscalKey,
   date: string,
-): VersionTaux | null {
+): RateVersion | null {
   const candidates = versions
-    .filter((v) => v.cle === cle && v.effectiveFrom <= date)
+    .filter((v) => v.key === key && v.effectiveFrom <= date)
     .sort((a, b) => (a.effectiveFrom < b.effectiveFrom ? 1 : -1));
   return candidates[0] ?? null;
 }
 
 // ---------------------------------------------------------------------------
-// Totaux d'un document
+// Document totals
 // ---------------------------------------------------------------------------
 
-export interface LigneDocument {
-  /** Prix unitaire figé sur le document, en centimes. */
-  prixUnitaire: Centimes;
-  /** Quantité en millièmes d'unité. */
-  quantite: Millis;
+export interface DocumentLine {
+  /** Unit price frozen on the document, in centimes. */
+  unitPrice: Centimes;
+  /** Quantity in thousandths of a unit. */
+  quantity: Millis;
 }
 
-export interface EntreeTotaux {
-  lignes: readonly LigneDocument[];
-  /** Taux de TVA figé sur le document, en points de base (2000 = 20 %). */
-  tvaRateBp: BasisPoints;
-  /** Le client applique-t-il la retenue à la source ? */
-  retenueSource: boolean;
-  /** Taux de retenue figé sur le document, en points de base. */
-  retenueRateBp: BasisPoints;
+export interface TotalsInput {
+  lines: readonly DocumentLine[];
+  /** VAT rate frozen on the document, in basis points (2000 = 20%). */
+  vatRateBp: BasisPoints;
+  /** Does this client apply withholding tax at source? */
+  withholding: boolean;
+  /** Withholding rate frozen on the document, in basis points. */
+  withholdingRateBp: BasisPoints;
 }
 
-export interface Totaux {
-  /** Total hors taxes. */
-  totalHt: Centimes;
-  /** Montant de TVA. */
-  totalTva: Centimes;
-  /** Total toutes taxes comprises. */
-  totalTtc: Centimes;
-  /** Part de TVA retenue à la source par le client (0 si non applicable). */
-  retenue: Centimes;
-  /** Ce que VIXART encaisse réellement : TTC − retenue. */
-  netAEncaisser: Centimes;
+export interface Totals {
+  /** Total excluding tax. */
+  totalExclVat: Centimes;
+  /** VAT amount. */
+  totalVat: Centimes;
+  /** Total including tax. */
+  totalInclVat: Centimes;
+  /** Share of VAT withheld at source by the client (0 when not applicable). */
+  withheld: Centimes;
+  /** What VIXART actually collects: total incl. VAT − withheld. */
+  netToCollect: Centimes;
 }
 
 /**
- * Calcule les totaux d'un document. Entièrement en centimes, entièrement en
- * bigint. La TVA est calculée sur le total HT arrondi, pas ligne à ligne :
- * c'est la méthode retenue pour que l'addition affichée soit toujours exacte.
+ * Computes document totals. Entirely in centimes, entirely in bigint.
+ *
+ * VAT is computed on the rounded excl.-VAT total rather than line by line, so
+ * that the addition shown on the document is always exact.
  */
-export function calculerTotaux(entree: EntreeTotaux): Totaux {
-  const totalHt = somme(entree.lignes.map((l) => totalLigne(l.prixUnitaire, l.quantite)));
-  const totalTva = appliquerTaux(totalHt, entree.tvaRateBp);
-  const totalTtc = totalHt + totalTva;
+export function computeTotals(input: TotalsInput): Totals {
+  const totalExclVat = sum(input.lines.map((l) => lineTotal(l.unitPrice, l.quantity)));
+  const totalVat = applyRate(totalExclVat, input.vatRateBp);
+  const totalInclVat = totalExclVat + totalVat;
 
-  const retenue =
-    entree.retenueSource && entree.retenueRateBp > 0
-      ? appliquerTaux(totalTva, entree.retenueRateBp)
+  const withheld =
+    input.withholding && input.withholdingRateBp > 0
+      ? applyRate(totalVat, input.withholdingRateBp)
       : 0n;
 
   return {
-    totalHt,
-    totalTva,
-    totalTtc,
-    retenue,
-    netAEncaisser: totalTtc - retenue,
+    totalExclVat,
+    totalVat,
+    totalInclVat,
+    withheld,
+    netToCollect: totalInclVat - withheld,
   };
 }
 
 /**
- * Une TVA à 0 % exige une justification écrite (exonération, export, etc.).
- * Contrainte doublée côté base par un CHECK — ceci n'est que le garde-fou UI.
+ * A 0% VAT rate requires a written justification (exemption, export, …).
+ * Also enforced by a CHECK constraint in the database — this is only the UI guard.
  */
-export function justificationRequise(tvaRateBp: BasisPoints): boolean {
-  return tvaRateBp === 0;
+export function justificationRequired(vatRateBp: BasisPoints): boolean {
+  return vatRateBp === 0;
 }

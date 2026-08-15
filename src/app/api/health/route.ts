@@ -3,8 +3,8 @@ import { NextResponse } from 'next/server';
 import { getOwnerDb } from '@/db';
 
 /**
- * Sonde de santé — utilisée par le healthcheck du conteneur et par la
- * supervision du VPS. N'expose aucune donnée métier.
+ * Health probe — used by the container healthcheck and by VPS monitoring.
+ * Exposes no business data.
  */
 export const dynamic = 'force-dynamic';
 
@@ -15,16 +15,16 @@ export async function GET() {
       sql`SELECT count(*)::text AS migrations FROM drizzle.__drizzle_migrations`,
     );
     return NextResponse.json({
-      statut: 'ok',
-      base: 'connectée',
+      status: 'ok',
+      database: 'connected',
       migrations: Number(rows[0]?.migrations ?? 0),
     });
-  } catch (erreur) {
+  } catch (error) {
     return NextResponse.json(
       {
-        statut: 'dégradé',
-        base: 'injoignable',
-        detail: erreur instanceof Error ? erreur.message : String(erreur),
+        status: 'degraded',
+        database: 'unreachable',
+        detail: error instanceof Error ? error.message : String(error),
       },
       { status: 503 },
     );

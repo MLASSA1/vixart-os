@@ -1,31 +1,31 @@
 @import 'tailwindcss';
 
 /* =============================================================================
-   VIXART OS — standard de marque appliqué à l'interface.
+   VIXART OS — brand standard applied to the interface.
 
-   DEUX COULEURS. Void Black #0B0B0F, Pure White #FFFFFF. Rien d'autre.
-   Pas de dégradé, pas de palette de gris, pas de badge coloré, pas de rouge
-   pour un négatif, pas de vert pour un payé. La désaccentuation se fait par
-   l'opacité achromatique. Un état financier se lit dans la graisse, la casse,
-   l'épaisseur du filet et la position — jamais dans la teinte.
+   TWO COLOURS. Void Black #0B0B0F, Pure White #FFFFFF. Nothing else.
+   No gradient, no grey palette, no coloured badge, no red for a negative, no
+   green for paid. De-emphasis is achieved with achromatic opacity. A financial
+   or workflow state is read in the weight, the case, the border thickness and
+   the position — never in the hue.
 
-   Hypothèse assumée : fond blanc, encre noire. Les deux sens sont conformes au
-   standard ; le blanc l'emporte ici parce que l'application est faite de
-   tableaux financiers denses lus toute la journée et imprimés en A4.
+   Stated assumption: white ground, black ink. Both directions satisfy the
+   standard; white wins here because this application is dense financial tables
+   read all day and printed on A4.
    ============================================================================= */
 
 @theme {
   --color-void: #0b0b0f;
   --color-pure: #ffffff;
 
-  /* Les seules valeurs de désaccentuation autorisées. */
+  /* The only de-emphasis values allowed. */
   --opacity-secondary: 0.68;
   --opacity-meta: 0.52;
 
-  --font-sans: var(--police-interface), system-ui, sans-serif;
-  --font-mono: var(--police-mono), monospace;
+  --font-sans: var(--font-interface), system-ui, sans-serif;
+  --font-mono: var(--font-metadata), monospace;
 
-  /* Corps minimum 15 px — jamais plus petit, y compris pour les métadonnées. */
+  /* Minimum body size 15px — never smaller, metadata included. */
   --text-meta: 0.9375rem;
   --text-base: 0.9375rem;
 }
@@ -48,10 +48,10 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-/* --- Rôles typographiques --------------------------------------------------
-   Inter        → titres, corps, interface. Les chiffres sont toujours en 700.
-   IBM Plex Mono → métadonnées, libellés d'indicateurs, numéros de document,
-                   codes ICE/IF, dates, montants. Capitales, interlettrage 0.04em.
+/* --- Typographic roles -----------------------------------------------------
+   Inter          → headings, body, UI. Numerals are always Inter 700.
+   IBM Plex Mono  → metadata, KPI labels, document numbers, ICE/IF codes,
+                    dates, amounts. Uppercase, 0.04em letter-spacing.
    -------------------------------------------------------------------------- */
 
 .meta {
@@ -62,34 +62,34 @@ body {
   font-size: var(--text-meta);
 }
 
-/* Tout chiffre affiché : Inter 700, chasse fixe pour que les colonnes s'alignent. */
-.chiffre {
+/* Any displayed figure: Inter 700, tabular so columns line up. */
+.numeral {
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   font-feature-settings: 'tnum' 1;
 }
 
-/* Montants : mono pour l'alignement décimal en colonne, graisse 500. */
-.montant {
+/* Amounts: mono for decimal alignment down a column, weight 500. */
+.amount {
   font-family: var(--font-mono);
   font-weight: 500;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.02em;
 }
 
-/* Longueur de ligne : 68 caractères maximum. */
+/* Line length: 68 characters maximum. */
 .prose-vixart {
   max-width: 68ch;
 }
 
-/* --- Focus : l'épaisseur change, jamais la couleur ------------------------- */
+/* --- Focus: thickness changes, never colour ------------------------------- */
 
 :where(a, button, input, select, textarea, [tabindex]):focus-visible {
   outline: 2px solid var(--color-void);
   outline-offset: 2px;
 }
 
-/* --- Boutons : inversion pleine, deux sens seulement ----------------------- */
+/* --- Buttons: solid inversion, two directions only ------------------------ */
 
 .btn {
   font-family: var(--font-mono);
@@ -102,6 +102,7 @@ body {
   background-color: var(--color-void);
   color: var(--color-pure);
   cursor: pointer;
+  display: inline-block;
 }
 
 .btn:hover {
@@ -122,6 +123,11 @@ body {
 .btn:focus-visible {
   border-width: 3px;
   padding: calc(0.625rem - 2px) calc(1.125rem - 2px);
+}
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 ::selection {

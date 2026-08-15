@@ -1,31 +1,30 @@
 /**
- * VIXART OS — amorçage de la base.
+ * VIXART OS — database seed.
  *
- * IDEMPOTENT. Ne s'exécute que si la table `client` est vide, et chaque
- * insertion est protégée par ON CONFLICT DO NOTHING. Relancer ce script sur une
- * base contenant des données réelles ne modifie et n'écrase rien.
+ * IDEMPOTENT. It only runs when the `client` table is empty, and every insert
+ * is guarded by ON CONFLICT DO NOTHING. Re-running this script against a
+ * database holding real records changes and overwrites nothing.
  *
- * Les données ci-dessous sont le pipeline réel de VIXART, pas des exemples.
- * Aucun prix n'est inventé : le catalogue de services (phase 2) sera amorcé
- * à 0 DH, Amin fixe lui-même la tarification.
+ * The data below is VIXART's real pipeline, not sample data. No price is
+ * invented: the service catalog (step 3) will be seeded at 0 DH — Amin sets
+ * pricing himself.
  */
 
 import { hash } from 'bcryptjs';
 import { drizzle } from 'drizzle-orm/node-postgres';
-import { sql } from 'drizzle-orm';
 import { Client as PgClient } from 'pg';
 import { appUser, client, fiscalRate } from '../src/db/schema';
-import { TAUX_AMORCAGE } from '../src/lib/fiscal';
+import { SEED_RATES } from '../src/lib/fiscal';
 
 // ---------------------------------------------------------------------------
-// L'équipe — les cinq seuls comptes du système. Pas d'inscription publique.
+// The team — the only five accounts in the system. No public sign-up.
 //
-// Hypothèse : adresses internes @vixart.ma. Si le domaine de messagerie diffère,
-// modifier ici AVANT le premier démarrage, ou changer l'adresse dans l'écran
-// Équipe une fois connecté.
+// Assumption: internal @vixart.ma addresses. If the mail domain differs, change
+// it here BEFORE the first start, or update the address from the Team screen
+// once signed in.
 // ---------------------------------------------------------------------------
 
-const EQUIPE = [
+const TEAM = [
   {
     email: 'amin@vixart.ma',
     fullName: 'Amin',
@@ -59,9 +58,9 @@ const EQUIPE = [
 ];
 
 // ---------------------------------------------------------------------------
-// Le pipeline réel. ICE et IF laissés vides : ils seront saisis fiche par fiche
-// à partir des documents officiels des clients. Un ICE inventé sur une facture
-// est une facture fausse.
+// The real pipeline. ICE and tax IDs are left empty on purpose: they get typed
+// in record by record from the clients' own documents. An invented ICE on an
+// invoice makes the invoice false.
 // ---------------------------------------------------------------------------
 
 const PIPELINE = [
@@ -70,14 +69,14 @@ const PIPELINE = [
     status: 'client' as const,
     city: 'Agadir',
     engagementSummary:
-      'Refonte du site + tableau de bord de gestion des clients (suivi des inscriptions et des sessions).',
+      'Site refresh + client-management dashboard (enrolment and session tracking).',
     notes: null,
   },
   {
     name: 'Laboratoire Talborjt',
     status: 'client' as const,
     city: 'Agadir',
-    engagementSummary: "Laboratoire d'analyses médicales — présence digitale.",
+    engagementSummary: 'Medical analysis lab — digital presence.',
     notes: null,
   },
   {
@@ -86,49 +85,47 @@ const PIPELINE = [
     city: 'Agadir',
     website: 'https://silacod.com',
     engagementSummary:
-      'Plateforme de dropshipping en marque blanche — production des parcours de tutoriels vidéo.',
+      'White-label dropshipping platform — production of the video tutorial tracks.',
     notes: null,
   },
   {
     name: 'Yansin',
     status: 'client' as const,
     city: 'Agadir',
-    engagementSummary: 'Chaussure agadirie — construction du système de croissance.',
+    engagementSummary: 'Agadir footwear — building the growth system.',
     notes: null,
   },
   {
-    name: 'Client Podcast',
+    name: 'Podcast client',
     status: 'client' as const,
-    engagementSummary: "Croissance d'audience du podcast.",
-    notes:
-      'Nom commercial à renseigner par Amin — fiche créée à partir du pipeline existant.',
+    engagementSummary: 'Podcast audience growth.',
+    notes: 'Trading name to be filled in by Amin — record created from the existing pipeline.',
   },
   {
     name: 'Lion Park Agadir',
     status: 'prospect' as const,
     city: 'Drarga',
-    engagementSummary: 'Parc safari de Drarga — proposition en cours.',
+    engagementSummary: 'Drarga safari park — proposal stage.',
     notes: null,
   },
   {
     name: 'Roastery Agadir',
     status: 'prospect' as const,
     city: 'Agadir',
-    engagementSummary:
-      "Audit concurrentiel + proposition d'investissement.",
+    engagementSummary: 'Competitive audit + investment proposal.',
     notes: null,
   },
   {
     name: 'Sidi Fares',
     status: 'dormant' as const,
-    engagementSummary: 'Référence — étude de cas pilier.',
-    notes: 'Mission close. Conservée comme référence commerciale.',
+    engagementSummary: 'Reference — anchor case study.',
+    notes: 'Engagement closed. Kept as a commercial reference.',
   },
   {
     name: 'ARMURE',
     status: 'dormant' as const,
-    engagementSummary: 'Référence — étude de cas parfum D2C.',
-    notes: 'Mission close. Conservée comme référence commerciale.',
+    engagementSummary: 'Reference — fragrance D2C case study.',
+    notes: 'Engagement closed. Kept as a commercial reference.',
   },
 ];
 
@@ -136,12 +133,12 @@ const PIPELINE = [
 
 async function main() {
   const url = process.env.DATABASE_URL;
-  if (!url) throw new Error('DATABASE_URL manquant : voir .env.example');
+  if (!url) throw new Error('DATABASE_URL missing: see .env.example');
 
-  const motDePasse = process.env.SEED_DEFAULT_PASSWORD;
-  if (!motDePasse || motDePasse.length < 10) {
+  const password = process.env.SEED_DEFAULT_PASSWORD;
+  if (!password || password.length < 10) {
     throw new Error(
-      'SEED_DEFAULT_PASSWORD manquant ou trop court (10 caractères minimum). Voir .env.example.',
+      'SEED_DEFAULT_PASSWORD missing or too short (10 characters minimum). See .env.example.',
     );
   }
 
@@ -149,76 +146,74 @@ async function main() {
   await pg.connect();
 
   try {
-    // Le RLS est en FORCE, y compris pour le propriétaire des tables.
-    // Cette porte explicite n'est ouverte que par les scripts de démarrage.
+    // RLS is FORCEd, including for the table owner. This explicit door is
+    // opened only by the start-up scripts.
     await pg.query("SET app.bootstrap = 'on'");
 
     const db = drizzle(pg, { casing: 'snake_case' });
 
-    // --- Garde d'idempotence : le seed ne s'exécute que sur une base vierge ---
-    const { rows } = await pg.query<{ n: string }>(
-      'SELECT count(*)::text AS n FROM client',
-    );
-    const clientsExistants = Number(rows[0]?.n ?? 0);
+    // --- Idempotence guard: the seed only runs against a blank database ---
+    const { rows } = await pg.query<{ n: string }>('SELECT count(*)::text AS n FROM client');
+    const existing = Number(rows[0]?.n ?? 0);
 
-    if (clientsExistants > 0) {
+    if (existing > 0) {
       console.log(
-        `[seed] ${clientsExistants} client(s) déjà en base — amorçage ignoré, aucune donnée touchée.`,
+        `[seed] ${existing} client(s) already present — seed skipped, no data touched.`,
       );
       return;
     }
 
-    console.log('[seed] base vierge — amorçage');
+    console.log('[seed] blank database — seeding');
 
-    // --- Paramètres fiscaux versionnés ---
-    for (const taux of TAUX_AMORCAGE) {
+    // --- Versioned tax parameters ---
+    for (const rate of SEED_RATES) {
       await db
         .insert(fiscalRate)
         .values({
-          key: taux.cle,
-          rateBp: taux.pdb,
-          effectiveFrom: taux.effectiveFrom,
-          note: taux.note,
+          key: rate.key,
+          rateBp: rate.bp,
+          effectiveFrom: rate.effectiveFrom,
+          note: rate.note,
         })
         .onConflictDoNothing();
     }
-    console.log(`[seed] ${TAUX_AMORCAGE.length} paramètre(s) fiscal(aux)`);
+    console.log(`[seed] ${SEED_RATES.length} tax parameter(s)`);
 
-    // --- Équipe ---
-    // Coût bcrypt 12 : ~250 ms par hash, dissuasif hors ligne, indolore ici.
-    const hashCommun = await hash(motDePasse, 12);
-    for (const membre of EQUIPE) {
+    // --- Team ---
+    // bcrypt cost 12: ~250 ms per hash, painful to brute-force offline,
+    // unnoticeable here.
+    const sharedHash = await hash(password, 12);
+    for (const member of TEAM) {
       await db
         .insert(appUser)
-        .values({ ...membre, passwordHash: hashCommun })
+        .values({ ...member, passwordHash: sharedHash })
         .onConflictDoNothing();
     }
-    console.log(`[seed] ${EQUIPE.length} comptes d'équipe (mot de passe initial commun)`);
+    console.log(`[seed] ${TEAM.length} team accounts (shared initial password)`);
 
     // --- Pipeline ---
-    for (const fiche of PIPELINE) {
-      await db.insert(client).values(fiche).onConflictDoNothing();
+    for (const record of PIPELINE) {
+      await db.insert(client).values(record).onConflictDoNothing();
     }
 
-    const parStatut = PIPELINE.reduce<Record<string, number>>((acc, f) => {
-      acc[f.status] = (acc[f.status] ?? 0) + 1;
+    const byStatus = PIPELINE.reduce<Record<string, number>>((acc, r) => {
+      acc[r.status] = (acc[r.status] ?? 0) + 1;
       return acc;
     }, {});
     console.log(
-      `[seed] ${PIPELINE.length} fiches clients — ` +
-        Object.entries(parStatut)
+      `[seed] ${PIPELINE.length} client records — ` +
+        Object.entries(byStatus)
           .map(([s, n]) => `${n} ${s}`)
           .join(', '),
     );
 
-    await db.execute(sql`SELECT 1`);
-    console.log('[seed] terminé');
+    console.log('[seed] done');
   } finally {
     await pg.end();
   }
 }
 
-main().catch((erreur) => {
-  console.error('[seed] ÉCHEC :', erreur);
+main().catch((error) => {
+  console.error('[seed] FAILED:', error);
   process.exit(1);
 });

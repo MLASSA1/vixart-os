@@ -1,17 +1,17 @@
 /**
- * VIXART OS — connexions à la base.
+ * VIXART OS — database connections.
  *
- * Deux pools distincts, deux rôles PostgreSQL distincts :
+ * Two separate pools, two separate PostgreSQL roles:
  *
- *   `db`      → rôle applicatif (APP_DATABASE_URL), NOBYPASSRLS.
- *               Utilisé par toutes les requêtes issues d'une requête HTTP.
- *               Le Row Level Security s'applique à lui.
+ *   `db`        → application role (APP_DATABASE_URL), NOBYPASSRLS.
+ *                 Used by every query originating from an HTTP request.
+ *                 Row level security applies to it.
  *
- *   `dbOwner` → rôle propriétaire (DATABASE_URL). Migrations, amorçage et
- *               diagnostics de démarrage. Jamais depuis une route métier.
+ *   getOwnerDb  → owner role (DATABASE_URL). Migrations, seeding and start-up
+ *                 diagnostics. Never from a business route.
  *
- * Les deux pools sont créés paresseusement : `next build` importe ce module
- * pour analyser les routes, sans qu'aucune base ne soit joignable à ce moment.
+ * Both pools are created lazily: `next build` imports this module to analyse
+ * routes at a point where no database is reachable.
  */
 
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
@@ -19,55 +19,55 @@ import { Pool, types } from 'pg';
 import * as schema from './schema';
 
 // ---------------------------------------------------------------------------
-// Analyseurs de types pg — appliqués une fois, avant toute connexion.
+// pg type parsers — applied once, before any connection.
 // ---------------------------------------------------------------------------
 
-// OID 20 = int8/BIGINT. Par défaut, `pg` renvoie une chaîne. On veut un bigint :
-// un montant en centimes ne doit jamais transiter par un Number.
-types.setTypeParser(20, (valeur: string) => BigInt(valeur));
+// OID 20 = int8/BIGINT. By default `pg` returns a string. We want a bigint:
+// an amount in centimes must never pass through a Number.
+types.setTypeParser(20, (value: string) => BigInt(value));
 
-// OID 1082 = date. On garde la chaîne ISO `YYYY-MM-DD` : pas de dérive de
-// fuseau horaire sur les échéances ou les dates d'entrée en vigueur.
-types.setTypeParser(1082, (valeur: string) => valeur);
+// OID 1082 = date. Keep the ISO `YYYY-MM-DD` string: no timezone drift on due
+// dates or effective dates.
+types.setTypeParser(1082, (value: string) => value);
 
-// OID 1700 = numeric. Interdit dans ce schéma ; s'il apparaît un jour, il reste
-// une chaîne plutôt que d'être converti silencieusement en flottant.
-types.setTypeParser(1700, (valeur: string) => valeur);
+// OID 1700 = numeric. Not used in this schema; if it ever appears it stays a
+// string rather than being silently converted to a float.
+types.setTypeParser(1700, (value: string) => value);
 
 // ---------------------------------------------------------------------------
 
 export type Database = NodePgDatabase<typeof schema>;
 
-function requireEnv(nom: string): string {
-  const valeur = process.env[nom];
-  if (!valeur) {
-    throw new Error(`Variable d'environnement manquante : ${nom}. Voir .env.example.`);
+function requireEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`Missing environment variable: ${name}. See .env.example.`);
   }
-  return valeur;
+  return value;
 }
 
-function creerPool(url: string, max: number): Pool {
+function createPool(url: string, max: number): Pool {
   return new Pool({
     connectionString: url,
     max,
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 10_000,
-    // Imposé par le conteneur ; rappelé ici pour les exécutions hors Docker.
+    // Enforced by the container; repeated here for runs outside Docker.
     options: '-c timezone=Africa/Casablanca',
   });
 }
 
-// En développement, Next.js recharge les modules à chaud : sans ce cache global
-// on ouvrirait un pool par rechargement jusqu'à saturer PostgreSQL.
+// In development Next.js hot-reloads modules: without this global cache we
+// would open one pool per reload until PostgreSQL ran out of connections.
 const cache = globalThis as unknown as {
   __vixartDbApp?: Database;
   __vixartDbOwner?: Database;
 };
 
-/** Connexion applicative — soumise au RLS. Créée au premier usage. */
+/** Application connection — subject to RLS. Created on first use. */
 export function getDb(): Database {
   if (!cache.__vixartDbApp) {
-    cache.__vixartDbApp = drizzle(creerPool(requireEnv('APP_DATABASE_URL'), 10), {
+    cache.__vixartDbApp = drizzle(createPool(requireEnv('APP_DATABASE_URL'), 10), {
       schema,
       casing: 'snake_case',
     });
@@ -76,12 +76,12 @@ export function getDb(): Database {
 }
 
 /**
- * Connexion propriétaire — contourne le pool applicatif et ses politiques.
- * Réservée aux migrations, à l'amorçage et aux diagnostics de démarrage.
+ * Owner connection — bypasses the application pool and its policies.
+ * Reserved for migrations, seeding and start-up diagnostics.
  */
 export function getOwnerDb(): Database {
   if (!cache.__vixartDbOwner) {
-    cache.__vixartDbOwner = drizzle(creerPool(requireEnv('DATABASE_URL'), 2), {
+    cache.__vixartDbOwner = drizzle(createPool(requireEnv('DATABASE_URL'), 2), {
       schema,
       casing: 'snake_case',
     });
@@ -90,14 +90,14 @@ export function getOwnerDb(): Database {
 }
 
 /**
- * Alias ergonomique de `getDb()`. Le Proxy diffère la création du pool au
- * premier accès : importer `db` ne connecte rien.
+ * Ergonomic alias for `getDb()`. The Proxy defers pool creation to first
+ * property access: importing `db` connects nothing.
  */
 export const db: Database = new Proxy({} as Database, {
-  get(_cible, propriete, recepteur) {
-    const reel = getDb() as unknown as Record<string | symbol, unknown>;
-    const valeur = Reflect.get(reel, propriete, recepteur);
-    return typeof valeur === 'function' ? valeur.bind(reel) : valeur;
+  get(_target, property, receiver) {
+    const real = getDb() as unknown as Record<string | symbol, unknown>;
+    const value = Reflect.get(real, property, receiver);
+    return typeof value === 'function' ? value.bind(real) : value;
   },
 });
 

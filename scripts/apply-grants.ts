@@ -1,24 +1,24 @@
 /**
- * VIXART OS — rôle applicatif et privilèges (idempotent).
+ * VIXART OS — application role and privileges (idempotent).
  *
- * Exécuté à chaque démarrage du conteneur `app`, avant le serveur.
+ * Runs at every start of the `app` container, before the server.
  *
- * Pourquoi ce n'est pas une migration : les rôles PostgreSQL vivent au niveau
- * du cluster et non de la base ; `pg_dump` ne les restaure pas, et les GRANT
- * sont retirés par `--no-privileges`. Ce script rétablit donc l'état attendu
- * après n'importe quelle restauration, sans jamais toucher aux données.
+ * Why this is not a migration: PostgreSQL roles live at cluster level, not
+ * database level; `pg_dump` does not restore them, and GRANTs are stripped by
+ * `--no-privileges`. This script therefore restores the expected state after
+ * any restore, without ever touching the data.
  *
- * Le rôle créé ici est volontairement faible :
- *   - NOSUPERUSER, NOBYPASSRLS → le Row Level Security s'applique vraiment
- *   - aucun droit de DDL       → il ne peut ni créer ni supprimer une table
+ * The role created here is deliberately weak:
+ *   - NOSUPERUSER, NOBYPASSRLS → row level security genuinely applies
+ *   - no DDL rights            → it can neither create nor drop a table
  */
 
 import { Client } from 'pg';
 
-function requireEnv(nom: string): string {
-  const valeur = process.env[nom];
-  if (!valeur) throw new Error(`Variable d'environnement manquante : ${nom}`);
-  return valeur;
+function requireEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) throw new Error(`Missing environment variable: ${name}`);
+  return value;
 }
 
 async function main() {
@@ -30,8 +30,8 @@ async function main() {
   await client.connect();
 
   try {
-    // CREATE ROLE / ALTER ROLE n'acceptent pas de paramètre lié : on passe par
-    // un bloc DO, où `format()` avec %I / %L fait l'échappement correctement.
+    // CREATE ROLE / ALTER ROLE take no bound parameters: go through a DO block,
+    // where `format()` with %I / %L escapes correctly.
     await client.query(
       `DO $$
        DECLARE
@@ -60,7 +60,7 @@ async function main() {
          EXECUTE format('GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO %I', r);
          EXECUTE format('GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA app TO %I', r);
 
-         -- Les tables créées par les migrations futures héritent automatiquement.
+         -- Tables created by future migrations inherit automatically.
          EXECUTE format('ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO %I', r);
          EXECUTE format('ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO %I', r);
          EXECUTE format('ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO %I', r);
@@ -68,7 +68,7 @@ async function main() {
        $$;`,
     );
 
-    // Le journal de migrations reste hors de portée de l'application.
+    // The migration journal stays out of the application's reach.
     await client.query(
       `DO $$
        DECLARE r text := ${literal(appUser)};
@@ -80,18 +80,18 @@ async function main() {
        $$;`,
     );
 
-    console.log(`[grants] rôle « ${appUser} » synchronisé (NOBYPASSRLS, sans DDL)`);
+    console.log(`[grants] role "${appUser}" synchronised (NOBYPASSRLS, no DDL)`);
   } finally {
     await client.end();
   }
 }
 
-/** Littéral SQL échappé — utilisé uniquement pour des noms de rôle. */
-function literal(valeur: string): string {
-  return `'${valeur.replace(/'/g, "''")}'`;
+/** Escaped SQL literal — used only for role names. */
+function literal(value: string): string {
+  return `'${value.replace(/'/g, "''")}'`;
 }
 
-main().catch((erreur) => {
-  console.error('[grants] ÉCHEC :', erreur);
+main().catch((error) => {
+  console.error('[grants] FAILED:', error);
   process.exit(1);
 });
