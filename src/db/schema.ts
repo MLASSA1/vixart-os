@@ -453,6 +453,80 @@ export const comment = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// Documents — quotes, invoices, credit notes.
+//
+// The rules that matter live in SQL (drizzle/0015): gapless numbering under a
+// row lock, immutability after issue, snapshotted client identity and lines.
+// ---------------------------------------------------------------------------
+
+export const DOCUMENT_TYPES = ['devis', 'facture', 'avoir'] as const;
+export const DOCUMENT_STATUSES = ['brouillon', 'emis', 'paye', 'annule'] as const;
+
+export const document = pgTable('document', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  docType: text('doc_type').notNull(),
+  status: text('status').notNull().default('brouillon'),
+
+  /** Null while a draft. Assigned at issue and never changed. */
+  number: text('number'),
+  numberYear: integer('number_year'),
+  numberSeq: integer('number_seq'),
+
+  companyId: uuid('company_id').notNull().references(() => company.id),
+  dealId: uuid('deal_id').references(() => deal.id, { onDelete: 'set null' }),
+
+  issueDate: date('issue_date'),
+  dueDate: date('due_date'),
+
+  vatRateBp: integer('vat_rate_bp').notNull().default(2000),
+  vatExemptionReason: text('vat_exemption_reason'),
+  withholding: boolean('withholding').notNull().default(false),
+  withholdingRateBp: integer('withholding_rate_bp').notNull().default(0),
+
+  discountCentimes: bigint('discount_centimes', { mode: 'bigint' }).notNull().default(sql`0`),
+
+  totalExclVat: bigint('total_excl_vat', { mode: 'bigint' }).notNull().default(sql`0`),
+  totalVat: bigint('total_vat', { mode: 'bigint' }).notNull().default(sql`0`),
+  totalInclVat: bigint('total_incl_vat', { mode: 'bigint' }).notNull().default(sql`0`),
+  withheld: bigint('withheld', { mode: 'bigint' }).notNull().default(sql`0`),
+  netToCollect: bigint('net_to_collect', { mode: 'bigint' }).notNull().default(sql`0`),
+
+  clientName: text('client_name'),
+  clientLegalName: text('client_legal_name'),
+  clientIce: text('client_ice'),
+  clientIf: text('client_if'),
+  clientAddress: text('client_address'),
+
+  subject: text('subject'),
+  notes: text('notes'),
+  paymentTerms: text('payment_terms'),
+  correctsId: uuid('corrects_id'),
+
+  paidAt: timestamp('paid_at', { withTimezone: true }),
+  cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+  createdById: uuid('created_by_id').references(() => appUser.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const documentLine = pgTable(
+  'document_line',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    documentId: uuid('document_id').notNull().references(() => document.id, { onDelete: 'cascade' }),
+    serviceId: uuid('service_id').references(() => service.id, { onDelete: 'set null' }),
+    label: text('label').notNull(),
+    description: text('description'),
+    unit: text('unit').notNull().default('forfait'),
+    unitPriceCentimes: bigint('unit_price_centimes', { mode: 'bigint' }).notNull().default(sql`0`),
+    quantityMillis: bigint('quantity_millis', { mode: 'bigint' }).notNull().default(sql`1000`),
+    position: integer('position').notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('document_line_doc_idx').on(t.documentId, t.position)],
+);
+
+// ---------------------------------------------------------------------------
 // Versioned tax parameters — never edited, only appended to.
 // ---------------------------------------------------------------------------
 
@@ -487,4 +561,6 @@ export type FiscalRate = typeof fiscalRate.$inferSelect;
 export type Service = typeof service.$inferSelect;
 export type Activity = typeof activity.$inferSelect;
 export type Comment = typeof comment.$inferSelect;
+export type VixDocument = typeof document.$inferSelect;
+export type DocumentLine = typeof documentLine.$inferSelect;
 export type ServicePrice = typeof servicePrice.$inferSelect;

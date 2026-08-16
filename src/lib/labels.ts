@@ -117,3 +117,26 @@ export const SERVICE_UNITS = [
 
 export const PILLAR_LABELS = toMap(PILLARS);
 export const SERVICE_UNIT_LABELS = toMap(SERVICE_UNITS);
+
+export const DOCUMENT_TYPES = [
+  { value: 'devis', label: 'Quote' },
+  { value: 'facture', label: 'Invoice' },
+  { value: 'avoir', label: 'Credit note' },
+] as const;
+
+export const DOCUMENT_STATUSES = [
+  { value: 'brouillon', label: 'Draft' },
+  { value: 'emis', label: 'Issued' },
+  { value: 'paye', label: 'Paid' },
+  { value: 'annule', label: 'Cancelled' },
+] as const;
+
+export const DOCUMENT_TYPE_LABELS = toMap(DOCUMENT_TYPES);
+export const DOCUMENT_STATUS_LABELS = toMap(DOCUMENT_STATUSES);
+
+/** French wording printed on the document itself, whatever the interface language. */
+export const DOCUMENT_TITLE_FR: Record<string, string> = {
+  devis: 'DEVIS',
+  facture: 'FACTURE',
+  avoir: 'AVOIR',
+};
