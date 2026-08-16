@@ -46,7 +46,7 @@ export default async function SystemPage() {
       policies: string;
     }>(sql`
       SELECT (SELECT count(*) FROM drizzle.__drizzle_migrations)::text AS migrations,
-             (SELECT count(*) FROM client)::text       AS clients,
+             (SELECT count(*) FROM company)::text      AS clients,
              (SELECT count(*) FROM contact)::text      AS contacts,
              (SELECT count(*) FROM interaction)::text  AS interactions,
              (SELECT count(*) FROM app_user)::text     AS team,
@@ -62,7 +62,7 @@ export default async function SystemPage() {
   // this is what the RLS policies actually let through.
   const visibleToMe = await withUser(async (tx) => {
     const result = await tx.execute<{ n: string }>(
-      sql`SELECT count(*)::text AS n FROM client`,
+      sql`SELECT count(*)::text AS n FROM company`,
     );
     return Number(result.rows[0]?.n ?? 0);
   });
