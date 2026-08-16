@@ -299,6 +299,77 @@ export const task = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// Services — what VIXART sells, and what it costs.
+//
+// Price is NOT a column on the service. It lives in `service_price`, one row
+// per version with an `effective_from` date, and those rows are immutable.
+// Changing a price must never rewrite what an already-issued document said.
+// ---------------------------------------------------------------------------
+
+/** The seven service pillars. Stored as text + CHECK, see the note above. */
+export const PILLARS = [
+  'brand_architecture',
+  'cinematic_production',
+  'digital_presence',
+  'social_media',
+  'growth_marketing',
+  'app_automation',
+  'codex_ai',
+] as const;
+
+/** How a service is billed. */
+export const SERVICE_UNITS = ['forfait', 'mois', 'jour'] as const;
+
+export const service = pgTable(
+  'service',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    name: text('name').notNull(),
+    /** One of PILLARS. */
+    pillar: text('pillar').notNull(),
+    /** 'forfait' (fixed fee) | 'mois' (per month) | 'jour' (per day). */
+    unit: text('unit').notNull().default('forfait'),
+    description: text('description'),
+    isActive: boolean('is_active').notNull().default(true),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('service_name_key').on(sql`lower(${t.name})`),
+    index('service_pillar_idx').on(t.pillar),
+  ],
+);
+
+/**
+ * A dated price. Append-only: a trigger refuses UPDATE and DELETE, exactly like
+ * `fiscal_rate`. Raising a price inserts a new row; last month's quote keeps
+ * the figure it was issued with.
+ */
+export const servicePrice = pgTable(
+  'service_price',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    serviceId: uuid('service_id')
+      .notNull()
+      .references(() => service.id, { onDelete: 'cascade' }),
+    /** Unit price in centimes, excluding VAT. Never a float. */
+    unitPriceCentimes: bigint('unit_price_centimes', { mode: 'bigint' })
+      .notNull()
+      .default(sql`0`),
+    effectiveFrom: date('effective_from').notNull(),
+    note: text('note'),
+    createdById: uuid('created_by_id').references(() => appUser.id, {
+      onDelete: 'set null',
+    }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('service_price_version_key').on(t.serviceId, t.effectiveFrom),
+    index('service_price_service_idx').on(t.serviceId),
+  ],
+);
+
+// ---------------------------------------------------------------------------
 // Versioned tax parameters — never edited, only appended to.
 // ---------------------------------------------------------------------------
 
@@ -329,3 +400,5 @@ export type Deal = typeof deal.$inferSelect;
 export type Project = typeof project.$inferSelect;
 export type Task = typeof task.$inferSelect;
 export type FiscalRate = typeof fiscalRate.$inferSelect;
+export type Service = typeof service.$inferSelect;
+export type ServicePrice = typeof servicePrice.$inferSelect;

@@ -15,7 +15,6 @@ interface Counts {
   companies: string;
   clients: string;
   leads: string;
-  suppliers: string;
   contacts: string;
   active_projects: string;
   open_tasks: string;
@@ -43,7 +42,6 @@ export default async function DashboardPage() {
                WHERE relationship='client' AND status='client')                     AS clients,
              (SELECT count(*)::text FROM company
                WHERE relationship='client' AND status IN ('lead','prospect'))       AS leads,
-             (SELECT count(*)::text FROM company WHERE relationship='supplier')     AS suppliers,
              (SELECT count(*)::text FROM contact)                                   AS contacts,
              (SELECT count(*)::text FROM project WHERE status='active')             AS active_projects,
              (SELECT count(*)::text FROM task WHERE status IN ('todo','in_progress')) AS open_tasks,
@@ -237,12 +235,8 @@ export default async function DashboardPage() {
       <Section title="Directory">
         <div className="grid grid-cols-2 gap-6 md:grid-cols-4">
           <div>
-            <p className="label">Organisations</p>
+            <p className="label">Client records</p>
             <p className="figure mt-1 text-xl">{counts.companies}</p>
-          </div>
-          <div>
-            <p className="label">Suppliers</p>
-            <p className="figure mt-1 text-xl">{counts.suppliers}</p>
           </div>
           <div>
             <p className="label">Contacts</p>

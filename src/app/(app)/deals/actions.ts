@@ -7,6 +7,12 @@ import { deal } from '@/db/schema';
 import { withUser } from '@/db/session';
 import { toCentimes } from '@/lib/money';
 import { EMPTY_STATE, type FormState } from '@/lib/form-state';
+import { describeDbError } from '@/lib/db-errors';
+
+const DEAL_ERRORS = {
+  deal_lost_needs_reason:
+    'A lost deal has to say why it was lost — that is the whole point of recording it.',
+};
 
 const optionalText = z
   .string()
@@ -24,17 +30,6 @@ const dealSchema = z.object({
   lostReason: optionalText,
 });
 
-function readable(error: unknown): string {
-  const m = error instanceof Error ? error.message : String(error);
-  if (m.includes('deal_lost_needs_reason')) {
-    return 'A lost deal has to say why it was lost — that is the whole point of recording it.';
-  }
-  if (m.includes('deal_value_non_negative')) return 'The value cannot be negative.';
-  if (m.includes('row-level security')) {
-    return 'Deals carry money, so they are limited to management and the work moderator.';
-  }
-  return m;
-}
 
 export async function saveDealAction(
   dealId: string | null,
@@ -81,7 +76,7 @@ export async function saveDealAction(
       }
     });
   } catch (error) {
-    return { error: readable(error) };
+    return { error: describeDbError(error, DEAL_ERRORS) };
   }
 
   revalidatePath('/deals');

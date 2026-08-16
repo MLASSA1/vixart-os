@@ -21,9 +21,10 @@ const NAV: NavItem[] = [
   { href: '/my-work', label: 'My work' },
   { href: '/clients', label: 'Clients', group: 'Relationships' },
   { href: '/leads', label: 'Leads', group: 'Relationships' },
-  { href: '/companies', label: 'Companies', group: 'Relationships' },
+  { href: '/companies', label: 'All clients', group: 'Relationships' },
   { href: '/deals', label: 'Deals', group: 'Work', minRole: 'moderator' },
   { href: '/projects', label: 'Projects', group: 'Work' },
+  { href: '/services', label: 'Services', group: 'Work' },
   { href: '/team', label: 'Team', group: 'Agency' },
   { href: '/system', label: 'System', group: 'Agency', minRole: 'admin' },
 ];

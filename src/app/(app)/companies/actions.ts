@@ -6,6 +6,7 @@ import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { company, contact, interaction } from '@/db/schema';
 import { withUser } from '@/db/session';
+import { describeDbError } from '@/lib/db-errors';
 import { EMPTY_STATE, type FormState } from '@/lib/form-state';
 
 /**
@@ -37,7 +38,6 @@ const clientSchema = z.object({
   name: z.string().trim().min(1, 'The name is required.'),
   legalName: optionalText,
   status: z.enum(['lead', 'prospect', 'client', 'dormant']),
-  relationship: z.enum(['client', 'supplier', 'partner', 'other']),
   ice: iceSchema,
   identifiantFiscal: taxIdSchema,
   registreCommerce: optionalText,
@@ -54,7 +54,6 @@ function readCompanyForm(formData: FormData) {
     name: formData.get('name') ?? '',
     legalName: formData.get('legalName') ?? '',
     status: formData.get('status') ?? 'lead',
-    relationship: formData.get('relationship') ?? 'client',
     ice: formData.get('ice') ?? '',
     identifiantFiscal: formData.get('identifiantFiscal') ?? '',
     registreCommerce: formData.get('registreCommerce') ?? '',
@@ -67,32 +66,6 @@ function readCompanyForm(formData: FormData) {
   });
 }
 
-/** Turns a database error into something a human can act on. */
-function readableError(error: unknown): string {
-  const message = error instanceof Error ? error.message : String(error);
-  if (message.includes('company_name_key')) {
-    return 'A record with this name already exists.';
-  }
-  if (message.includes('company_ice_shape')) {
-    return 'The ICE must be exactly 15 digits.';
-  }
-  if (message.includes('company_if_shape')) {
-    return 'The tax ID (IF) must be 6 to 9 digits.';
-  }
-  if (message.includes('contact_unique_primary')) {
-    return 'This client already has a primary contact. Clear the other one first.';
-  }
-  if (message.includes('contact_email_shape')) {
-    return 'That email address is not valid.';
-  }
-  if (message.includes('interaction_not_in_future')) {
-    return 'The timeline records what happened, not what is planned: pick a past date.';
-  }
-  if (message.includes('Management only')) {
-    return 'Management only.';
-  }
-  return message;
-}
 
 // ---------------------------------------------------------------------------
 // Clients
@@ -115,7 +88,7 @@ export async function createCompanyAction(
       return row.id;
     });
   } catch (error) {
-    return { error: readableError(error) };
+    return { error: describeDbError(error) };
   }
 
   revalidatePath('/companies');
@@ -137,7 +110,7 @@ export async function updateCompanyAction(
       await tx.update(company).set(parsed.data).where(eq(company.id, companyId));
     });
   } catch (error) {
-    return { error: readableError(error) };
+    return { error: describeDbError(error) };
   }
 
   revalidatePath('/companies');
@@ -214,7 +187,7 @@ export async function createContactAction(
       await tx.insert(contact).values({ ...parsed.data, companyId });
     });
   } catch (error) {
-    return { error: readableError(error) };
+    return { error: describeDbError(error) };
   }
 
   revalidatePath(`/companies/${companyId}`);
@@ -243,7 +216,7 @@ export async function updateContactAction(
       await tx.update(contact).set(parsed.data).where(eq(contact.id, contactId));
     });
   } catch (error) {
-    return { error: readableError(error) };
+    return { error: describeDbError(error) };
   }
 
   revalidatePath(`/companies/${companyId}`);
@@ -310,7 +283,7 @@ export async function createInteractionAction(
       });
     });
   } catch (error) {
-    return { error: readableError(error) };
+    return { error: describeDbError(error) };
   }
 
   revalidatePath(`/companies/${companyId}`);

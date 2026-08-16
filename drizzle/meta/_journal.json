@@ -64,6 +64,20 @@
       "when": 1786837550202,
       "tag": "0008_moderator_is_authenticated",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1786838453461,
+      "tag": "0009_services",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1786839097474,
+      "tag": "0010_backdate_seed_prices",
+      "breakpoints": true
     }
   ]
 }

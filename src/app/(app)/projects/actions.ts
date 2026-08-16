@@ -6,6 +6,11 @@ import { z } from 'zod';
 import { project, task } from '@/db/schema';
 import { withUser } from '@/db/session';
 import { EMPTY_STATE, type FormState } from '@/lib/form-state';
+import { describeDbError } from '@/lib/db-errors';
+
+const WORK_ERRORS = {
+  task_title_not_empty: 'The task needs a title.',
+};
 
 const optionalText = z
   .string()
@@ -13,31 +18,6 @@ const optionalText = z
   .transform((v) => (v === '' ? null : v))
   .nullable();
 
-function readable(error: unknown): string {
-  const m = error instanceof Error ? error.message : String(error);
-  if (m.includes('Only a moderator can create and assign tasks')) {
-    return 'Only Mohamed Amine or Amin can create and assign tasks.';
-  }
-  if (m.includes('Only a moderator can mark a task completed')) {
-    return 'Only a moderator signs a task off. Submit it for review instead.';
-  }
-  if (m.includes('only update a task assigned to you')) {
-    return 'That task is not assigned to you.';
-  }
-  if (m.includes('not its definition')) {
-    return 'You can move your task along, but not rewrite it.';
-  }
-  if (m.includes('signed off by a moderator')) {
-    return 'A moderator already signed this off. Ask them to reopen it.';
-  }
-  if (m.includes('project_dates_ordered')) {
-    return 'The due date cannot be before the start date.';
-  }
-  if (m.includes('row-level security')) {
-    return 'You do not have permission for that.';
-  }
-  return m;
-}
 
 // ---------------------------------------------------------------------------
 // Projects
@@ -80,7 +60,7 @@ export async function saveProjectAction(
       }
     });
   } catch (error) {
-    return { error: readable(error) };
+    return { error: describeDbError(error, WORK_ERRORS) };
   }
 
   revalidatePath('/projects');
@@ -139,7 +119,7 @@ export async function createTaskAction(
       await tx.insert(task).values({ ...parsed.data, createdById: user.id });
     });
   } catch (error) {
-    return { error: readable(error) };
+    return { error: describeDbError(error, WORK_ERRORS) };
   }
 
   revalidatePath(`/projects/${projectId}`);

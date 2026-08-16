@@ -12,7 +12,7 @@ import {
   TextInput,
 } from '@/components/ui';
 import type { Company } from '@/db/schema';
-import { COMPANY_STAGES, RELATIONSHIPS } from '@/lib/labels';
+import { COMPANY_STAGES } from '@/lib/labels';
 import { EMPTY_STATE, type FormState } from '@/lib/form-state';
 
 function SubmitButton({ label }: { label: string }) {
@@ -56,14 +56,6 @@ export function CompanyForm({
             label="Registered name"
             defaultValue={record?.legalName}
             hint="Only if it differs from the trading name."
-          />
-          <Select
-            name="relationship"
-            label="Relationship"
-            required
-            defaultValue={record?.relationship ?? 'client'}
-            options={RELATIONSHIPS.map((r) => ({ value: r.value, label: r.label }))}
-            hint="What this organisation is to VIXART."
           />
           <Select
             name="status"

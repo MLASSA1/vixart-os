@@ -77,3 +77,22 @@ export const DEAL_STAGE_LABELS = toMap(DEAL_STAGES);
 export const PROJECT_STATUS_LABELS = toMap(PROJECT_STATUSES);
 export const TASK_STATUS_LABELS = toMap(TASK_STATUSES);
 export const TASK_PRIORITY_LABELS = toMap(TASK_PRIORITIES);
+
+export const PILLARS = [
+  { value: 'brand_architecture', label: 'Brand Architecture' },
+  { value: 'cinematic_production', label: 'Cinematic Production' },
+  { value: 'digital_presence', label: 'Digital Presence' },
+  { value: 'social_media', label: 'Social Media' },
+  { value: 'growth_marketing', label: 'Growth Marketing' },
+  { value: 'app_automation', label: 'App & Automation' },
+  { value: 'codex_ai', label: 'Codex AI' },
+] as const;
+
+export const SERVICE_UNITS = [
+  { value: 'forfait', label: 'Fixed fee' },
+  { value: 'mois', label: 'Per month' },
+  { value: 'jour', label: 'Per day' },
+] as const;
+
+export const PILLAR_LABELS = toMap(PILLARS);
+export const SERVICE_UNIT_LABELS = toMap(SERVICE_UNITS);

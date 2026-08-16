@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { Empty } from '@/components/ui';
-import { COMPANY_STAGE_LABELS, RELATIONSHIP_LABELS } from '@/lib/labels';
+import { COMPANY_STAGE_LABELS } from '@/lib/labels';
 import { since } from '@/lib/format';
 
 /**
@@ -46,12 +46,10 @@ export function Stage({ value }: { value: string }) {
 export function CompanyTable({
   rows,
   emptyMessage,
-  showRelationship = false,
   action,
 }: {
   rows: CompanyRow[];
   emptyMessage: string;
-  showRelationship?: boolean;
   action?: React.ReactNode;
 }) {
   if (rows.length === 0) {
@@ -64,7 +62,6 @@ export function CompanyTable({
         <thead>
           <tr className="border-b-2 border-void">
             <th className="th py-2 pr-4">Organisation</th>
-            {showRelationship && <th className="th py-2 pr-4">Type</th>}
             <th className="th py-2 pr-4">Stage</th>
             <th className="th py-2 pr-4">City</th>
             <th className="th py-2 pr-4">Main contact</th>
@@ -85,11 +82,6 @@ export function CompanyTable({
                   <p className="hint mt-0.5 max-w-md">{row.engagement_summary}</p>
                 )}
               </td>
-              {showRelationship && (
-                <td className="hint py-3 pr-4">
-                  {RELATIONSHIP_LABELS[row.relationship] ?? row.relationship}
-                </td>
-              )}
               <td className="py-3 pr-4">
                 <Stage value={row.status} />
               </td>
