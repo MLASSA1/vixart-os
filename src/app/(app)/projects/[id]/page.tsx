@@ -5,7 +5,9 @@ import { auth } from '@/auth';
 import { Empty, Field, PageHeader, Section } from '@/components/ui';
 import { TaskRow, type TaskItem } from '@/components/TaskRow';
 import { withUser } from '@/db/session';
-import { PROJECT_STATUS_LABELS } from '@/lib/labels';
+import { PROJECT_STATUS_LABELS, PROJECT_TYPE_LABELS } from '@/lib/labels';
+import { Comments, type CommentItem } from '@/components/Comments';
+import { addCommentAction, deleteCommentAction } from '../../comments-actions';
 import { formatDate } from '@/lib/format';
 import { TaskForm } from '../TaskForm';
 import { createTaskAction } from '../actions';
@@ -18,6 +20,7 @@ interface ProjectRow {
   name: string;
   description: string | null;
   status: string;
+  project_type: string;
   company_id: string;
   company_name: string;
   lead_name: string | null;
@@ -37,7 +40,7 @@ export default async function ProjectPage({
 
   const data = await withUser(async (tx) => {
     const p = await tx.execute<ProjectRow>(sql`
-      SELECT p.id, p.name, p.description, p.status, p.company_id,
+      SELECT p.id, p.name, p.description, p.status, p.project_type, p.company_id,
              c.name AS company_name, u.full_name AS lead_name,
              p.start_date::text AS start_date, p.due_date::text AS due_date
         FROM project p
@@ -66,11 +69,21 @@ export default async function ProjectPage({
     const members = await tx.execute<{ id: string; full_name: string }>(
       sql`SELECT id, full_name FROM app_user WHERE is_active ORDER BY full_name`,
     );
-    return { record, tasks: tasks.rows as TaskItem[], team: members.rows };
+    const comments = await tx.execute<CommentItem & { [k: string]: unknown }>(sql`
+      SELECT id, author_name, author_id, body, created_at::text
+        FROM comment WHERE entity_type = 'project' AND entity_id = ${id}
+       ORDER BY created_at
+    `);
+    return {
+      record,
+      tasks: tasks.rows as TaskItem[],
+      team: members.rows,
+      comments: comments.rows as CommentItem[],
+    };
   });
 
   if (!data) notFound();
-  const { record, tasks, team } = data;
+  const { record, tasks, team, comments } = data;
 
   const awaiting = tasks.filter((t) => t.status === 'submitted');
   const openTasks = tasks.filter((t) => t.status === 'todo' || t.status === 'in_progress');
@@ -83,6 +96,7 @@ export default async function ProjectPage({
       <div className="grid grid-cols-1 gap-x-10 md:grid-cols-2">
         <div>
           <Field label="Status" value={PROJECT_STATUS_LABELS[record.status]} />
+          <Field label="Type" value={PROJECT_TYPE_LABELS[record.project_type]} />
           <Field label="Project lead" value={record.lead_name} />
           <Field
             label="Client"
@@ -141,6 +155,16 @@ export default async function ProjectPage({
           </ul>
         )}
         {canModerate && <TaskForm action={createTaskAction.bind(null, record.id)} team={team} />}
+      </Section>
+
+      <Section title={`Discussion — ${comments.length}`}>
+        <Comments
+          items={comments}
+          addAction={addCommentAction.bind(null, 'project', record.id, `/projects/${record.id}`)}
+          deleteAction={deleteCommentAction.bind(null, `/projects/${record.id}`)}
+          currentUserId={me.id}
+          canModerate={canModerate}
+        />
       </Section>
 
       {completed.length > 0 && (

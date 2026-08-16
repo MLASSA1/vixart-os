@@ -3,7 +3,7 @@ import { sql } from 'drizzle-orm';
 import { auth } from '@/auth';
 import { Empty, PageHeader, Section } from '@/components/ui';
 import { withUser } from '@/db/session';
-import { PROJECT_STATUS_LABELS } from '@/lib/labels';
+import { PROJECT_STATUS_LABELS, PROJECT_TYPE_LABELS } from '@/lib/labels';
 import { formatDate } from '@/lib/format';
 import { ProjectForm } from './ProjectForm';
 import { saveProjectAction, setProjectStatusAction } from './actions';
@@ -15,6 +15,7 @@ interface Row {
   id: string;
   name: string;
   status: string;
+  project_type: string;
   company_id: string;
   company_name: string;
   lead_name: string | null;
@@ -38,7 +39,7 @@ export default async function ProjectsPage() {
 
   const { rows, companies, team } = await withUser(async (tx) => {
     const projects = await tx.execute<Row>(sql`
-      SELECT p.id, p.name, p.status, p.company_id, c.name AS company_name,
+      SELECT p.id, p.name, p.status, p.project_type, p.company_id, c.name AS company_name,
              u.full_name AS lead_name, p.due_date::text AS due_date,
              (SELECT count(*)::text FROM task t
                WHERE t.project_id = p.id AND t.status IN ('todo','in_progress')) AS open_tasks,
@@ -91,7 +92,7 @@ export default async function ProjectsPage() {
                       >
                         {row.name}
                       </Link>
-                      <p className="hint mt-0.5">{row.company_name}</p>
+                      <p className="hint mt-0.5">{row.company_name} · {PROJECT_TYPE_LABELS[row.project_type] ?? row.project_type}</p>
                     </td>
                     <td className="py-3 pr-4">
                       <span

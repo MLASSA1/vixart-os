@@ -33,10 +33,30 @@ export const INTERACTION_KINDS = [
 ] as const;
 
 export const DEAL_STAGES = [
+  { value: 'new_lead', label: 'New lead' },
+  { value: 'contacted', label: 'Contacted' },
+  { value: 'meeting_booked', label: 'Meeting booked' },
   { value: 'proposal', label: 'Proposal' },
   { value: 'negotiation', label: 'Negotiation' },
   { value: 'won', label: 'Won' },
   { value: 'lost', label: 'Lost' },
+] as const;
+
+/** Stages that are still in play — everything before won/lost. */
+export const OPEN_DEAL_STAGES = [
+  'new_lead',
+  'contacted',
+  'meeting_booked',
+  'proposal',
+  'negotiation',
+] as const;
+
+export const PROJECT_TYPES = [
+  { value: 'branding', label: 'Branding' },
+  { value: 'website', label: 'Website' },
+  { value: 'ads_campaign', label: 'Ads campaign' },
+  { value: 'video', label: 'Video' },
+  { value: 'other', label: 'Other' },
 ] as const;
 
 export const PROJECT_STATUSES = [
@@ -74,6 +94,7 @@ export const COMPANY_STAGE_LABELS = toMap(COMPANY_STAGES);
 export const RELATIONSHIP_LABELS = toMap(RELATIONSHIPS);
 export const INTERACTION_KIND_LABELS = toMap(INTERACTION_KINDS);
 export const DEAL_STAGE_LABELS = toMap(DEAL_STAGES);
+export const PROJECT_TYPE_LABELS = toMap(PROJECT_TYPES);
 export const PROJECT_STATUS_LABELS = toMap(PROJECT_STATUSES);
 export const TASK_STATUS_LABELS = toMap(TASK_STATUSES);
 export const TASK_PRIORITY_LABELS = toMap(TASK_PRIORITIES);

@@ -126,6 +126,8 @@ export const company = pgTable(
     /** Withholds VAT at source (art. 117 bis CGI). */
     retenueSource: boolean('retenue_source').notNull().default(false),
 
+    /** Agreed budget in centimes, from the Client Management module. */
+    budgetCentimes: bigint('budget_centimes', { mode: 'bigint' }).notNull().default(sql`0`),
     engagementSummary: text('engagement_summary'),
     notes: text('notes'),
 
@@ -219,12 +221,56 @@ export const deal = pgTable(
     expectedCloseDate: date('expected_close_date'),
     ownerId: uuid('owner_id').references(() => appUser.id, { onDelete: 'set null' }),
     closedAt: timestamp('closed_at', { withTimezone: true }),
+    /**
+     * Discount as a fixed amount in centimes, taken off the total before VAT.
+     * A money figure, not a percentage — that is how it is agreed and how it
+     * prints on the document.
+     */
+    discountCentimes: bigint('discount_centimes', { mode: 'bigint' })
+      .notNull()
+      .default(sql`0`),
     /** Why a lost deal was lost. The most useful field in the table. */
     lostReason: text('lost_reason'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index('deal_company_idx').on(t.companyId), index('deal_stage_idx').on(t.stage)],
+);
+
+// ---------------------------------------------------------------------------
+// Deal lines — the services on a deal.
+//
+// Every line is a SNAPSHOT. The service name, its unit and its price are copied
+// onto the line when it is added, so raising a price in the catalog next month
+// never silently moves the value of a deal already agreed. The link back to
+// `service` is kept for reporting only, and is allowed to go null.
+// ---------------------------------------------------------------------------
+
+export const dealLine = pgTable(
+  'deal_line',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    dealId: uuid('deal_id')
+      .notNull()
+      .references(() => deal.id, { onDelete: 'cascade' }),
+    /** Reporting link only — the figures come from the snapshot columns. */
+    serviceId: uuid('service_id').references(() => service.id, { onDelete: 'set null' }),
+    /** Service name as it was when the line was added. */
+    label: text('label').notNull(),
+    /** 'forfait' | 'mois' | 'jour', as it was when the line was added. */
+    unit: text('unit').notNull().default('forfait'),
+    /** Unit price in centimes, frozen at the moment the line was added. */
+    unitPriceCentimes: bigint('unit_price_centimes', { mode: 'bigint' })
+      .notNull()
+      .default(sql`0`),
+    /** Quantity in thousandths, so 1,5 days is exact. */
+    quantityMillis: bigint('quantity_millis', { mode: 'bigint' })
+      .notNull()
+      .default(sql`1000`),
+    position: integer('position').notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('deal_line_deal_idx').on(t.dealId, t.position)],
 );
 
 // ---------------------------------------------------------------------------
@@ -244,6 +290,8 @@ export const project = pgTable(
     description: text('description'),
     /** 'planned' | 'active' | 'on_hold' | 'delivered'. */
     status: text('status').notNull().default('planned'),
+    /** 'branding' | 'website' | 'ads_campaign' | 'video' | 'other'. */
+    projectType: text('project_type').notNull().default('branding'),
     startDate: date('start_date'),
     dueDate: date('due_date'),
     leadId: uuid('lead_id').references(() => appUser.id, { onDelete: 'set null' }),
@@ -370,6 +418,41 @@ export const servicePrice = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// Activity — written by database triggers, append-only.
+// ---------------------------------------------------------------------------
+
+export const activity = pgTable('activity', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  actorId: uuid('actor_id').references(() => appUser.id, { onDelete: 'set null' }),
+  actorName: text('actor_name').notNull().default('system'),
+  entityType: text('entity_type').notNull(),
+  entityId: uuid('entity_id'),
+  entityLabel: text('entity_label'),
+  action: text('action').notNull(),
+  detail: text('detail'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+// ---------------------------------------------------------------------------
+// Comments — the internal thread on a project, task or client.
+// ---------------------------------------------------------------------------
+
+export const comment = pgTable(
+  'comment',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    /** 'project' | 'task' | 'company'. */
+    entityType: text('entity_type').notNull(),
+    entityId: uuid('entity_id').notNull(),
+    authorId: uuid('author_id').references(() => appUser.id, { onDelete: 'set null' }),
+    authorName: text('author_name').notNull(),
+    body: text('body').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('comment_entity_idx').on(t.entityType, t.entityId, t.createdAt)],
+);
+
+// ---------------------------------------------------------------------------
 // Versioned tax parameters — never edited, only appended to.
 // ---------------------------------------------------------------------------
 
@@ -397,8 +480,11 @@ export type NewCompany = typeof company.$inferInsert;
 export type Contact = typeof contact.$inferSelect;
 export type Interaction = typeof interaction.$inferSelect;
 export type Deal = typeof deal.$inferSelect;
+export type DealLine = typeof dealLine.$inferSelect;
 export type Project = typeof project.$inferSelect;
 export type Task = typeof task.$inferSelect;
 export type FiscalRate = typeof fiscalRate.$inferSelect;
 export type Service = typeof service.$inferSelect;
+export type Activity = typeof activity.$inferSelect;
+export type Comment = typeof comment.$inferSelect;
 export type ServicePrice = typeof servicePrice.$inferSelect;

@@ -114,7 +114,12 @@ export default async function DealsPage() {
                 {rows.map((row) => (
                   <tr key={row.id} className="border-b border-void/10 align-top">
                     <td className="py-3 pr-4">
-                      <span className="font-semibold">{row.title}</span>
+                      <Link
+                        href={`/deals/${row.id}`}
+                        className="font-semibold underline-offset-4 hover:underline"
+                      >
+                        {row.title}
+                      </Link>
                       <p className="hint mt-0.5">
                         <Link
                           href={`/companies/${row.company_id}`}

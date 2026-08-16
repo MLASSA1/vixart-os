@@ -3,7 +3,7 @@
 import { useActionState, useRef } from 'react';
 import { useFormStatus } from 'react-dom';
 import { ErrorBanner, FormGrid, Select, TextArea, TextInput } from '@/components/ui';
-import { PROJECT_STATUSES } from '@/lib/labels';
+import { PROJECT_STATUSES, PROJECT_TYPES } from '@/lib/labels';
 import { EMPTY_STATE, type FormState } from '@/lib/form-state';
 
 function Submit({ label }: { label: string }) {
@@ -47,6 +47,13 @@ export function ProjectForm({
           options={companies.map((c) => ({ value: c.id, label: c.name }))}
         />
         <TextInput name="name" label="Project" required placeholder="Brand film — phase 1" />
+        <Select
+          name="projectType"
+          label="Type"
+          required
+          defaultValue="branding"
+          options={PROJECT_TYPES.map((t) => ({ value: t.value, label: t.label }))}
+        />
         <Select
           name="status"
           label="Status"

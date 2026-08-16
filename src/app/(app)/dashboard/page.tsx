@@ -7,6 +7,7 @@ import { withUser } from '@/db/session';
 import { formatMAD } from '@/lib/money';
 import { formatDate, since } from '@/lib/format';
 import { TASK_STATUS_LABELS } from '@/lib/labels';
+import { ActivityFeed, type ActivityItem } from '@/components/ActivityFeed';
 
 export const dynamic = 'force-dynamic';
 
@@ -99,15 +100,21 @@ export default async function DashboardPage() {
       };
     }
 
+    const feed = await tx.execute<ActivityItem & { [k: string]: unknown }>(sql`
+      SELECT id, actor_name, entity_type, entity_label, action, created_at::text
+        FROM activity ORDER BY created_at DESC LIMIT 12
+    `);
+
     return {
       counts: counts.rows[0]!,
       activeClients: activeClients.rows,
       myTasks: myTasks.rows,
+      activity: feed.rows as ActivityItem[],
       money,
     };
   });
 
-  const { counts, activeClients, myTasks, money } = data;
+  const { counts, activeClients, myTasks, activity, money } = data;
 
   return (
     <>
@@ -230,6 +237,14 @@ export default async function DashboardPage() {
             ))}
           </ul>
         )}
+      </Section>
+
+      <Section title="Team activity">
+        <ActivityFeed items={activity} />
+        <p className="hint mt-3">
+          Recorded by the database itself when something changes, not by the screen
+          that changed it — so nothing can be done without leaving a trace.
+        </p>
       </Section>
 
       <Section title="Directory">
