@@ -67,6 +67,36 @@ export default async function SystemPage() {
     return Number(result.rows[0]?.n ?? 0);
   });
 
+  /**
+   * Are the guards actually switched on?
+   *
+   * A trigger can be disabled with ALTER TABLE ... DISABLE TRIGGER, and a
+   * script that throws between disabling and re-enabling leaves the guarantee
+   * silently off. That happened once during development. The state is cheap to
+   * read, so it is shown here rather than assumed.
+   */
+  const guards = await withUser(async (tx) => {
+    const result = await tx.execute<{
+      [k: string]: unknown;
+      table_name: string;
+      trigger_name: string;
+      enabled: boolean;
+    }>(sql`
+      SELECT c.relname AS table_name, t.tgname AS trigger_name,
+             (t.tgenabled = 'O') AS enabled
+        FROM pg_trigger t JOIN pg_class c ON c.oid = t.tgrelid
+       WHERE NOT t.tgisinternal
+         AND t.tgname IN ('document_immutable','document_line_immutable',
+                          'service_price_immutable','fiscal_rate_immutable',
+                          'activity_append_only','task_signoff','task_insert_guard',
+                          'document_posts_revenue')
+       ORDER BY c.relname, t.tgname
+    `);
+    return result.rows;
+  });
+
+  const disabled = guards.filter((g) => !g.enabled);
+
   const rates = await withUser(async (tx) => {
     const result = await tx.execute<{
       key: string;
@@ -119,6 +149,54 @@ export default async function SystemPage() {
           misconfiguration that ran the application under the wrong role could not
           silently open the boundary.
         </p>
+      </Section>
+
+      <Section title="Guards">
+        {disabled.length > 0 ? (
+          <div className="border-2 border-void bg-void px-4 py-3 text-pure">
+            <p className="font-semibold">
+              {disabled.length} guard{disabled.length === 1 ? ' is' : 's are'} switched off
+            </p>
+            <p className="prose-vixart mt-1">
+              {disabled.map((g) => `${g.table_name}.${g.trigger_name}`).join(', ')} —
+              re-enable with ALTER TABLE … ENABLE TRIGGER before issuing anything.
+            </p>
+          </div>
+        ) : (
+          <p className="prose-vixart" style={{ opacity: 0.7 }}>
+            All {guards.length} guards are active: invoice immutability, price and
+            tax-rate versioning, the append-only activity log, the task sign-off,
+            and automatic revenue posting.
+          </p>
+        )}
+        <div className="mt-4 overflow-x-auto">
+          <table className="w-full border-collapse text-left">
+            <thead>
+              <tr className="border-b-2 border-void">
+                <th className="th py-2 pr-4">Table</th>
+                <th className="th py-2 pr-4">Guard</th>
+                <th className="th py-2">State</th>
+              </tr>
+            </thead>
+            <tbody>
+              {guards.map((g) => (
+                <tr key={`${g.table_name}-${g.trigger_name}`} className="border-b border-void/10">
+                  <td className="code py-2 pr-4">{g.table_name}</td>
+                  <td className="code py-2 pr-4">{g.trigger_name}</td>
+                  <td className="py-2">
+                    <span
+                      className={`inline-block px-2 py-0.5 text-[12.5px] font-medium ${
+                        g.enabled ? 'border border-void' : 'bg-void text-pure border border-void'
+                      }`}
+                    >
+                      {g.enabled ? 'Active' : 'SWITCHED OFF'}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </Section>
 
       <Section title="Tax parameters">

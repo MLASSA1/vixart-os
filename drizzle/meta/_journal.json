@@ -113,6 +113,20 @@
       "when": 1786845595147,
       "tag": "0015_document_rules",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1786846859295,
+      "tag": "0016_finance",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1786858004429,
+      "tag": "0017_line_bootstrap_door",
+      "breakpoints": true
     }
   ]
 }

@@ -39,7 +39,27 @@ describe.skipIf(!HAS_DB)('invoicing (integration)', () => {
   let admin: Client;
   let companyId: string;
 
+  /**
+   * A connection behaving exactly like a signed-in admin session: the role and
+   * user id the application would set, and NOT the bootstrap flag.
+   *
+   * Holding `app.bootstrap` open would open the maintenance door in the line
+   * trigger, and the guards would never be exercised — the test would pass
+   * while proving nothing.
+   */
   async function connect(): Promise<Client> {
+    const c = new Client({ connectionString: URL });
+    await c.connect();
+    const { rows } = await c.query<{ id: string }>(
+      `SELECT id FROM app_user WHERE role = 'admin' LIMIT 1`,
+    );
+    await c.query("SELECT set_config('app.user_role', 'admin', false)");
+    await c.query("SELECT set_config('app.user_id', $1, false)", [rows[0]!.id]);
+    return c;
+  }
+
+  /** Separate connection for setup and teardown, which may use the door. */
+  async function maintenance(): Promise<Client> {
     const c = new Client({ connectionString: URL });
     await c.connect();
     await c.query("SET app.bootstrap = 'on'");
@@ -69,18 +89,30 @@ describe.skipIf(!HAS_DB)('invoicing (integration)', () => {
 
   afterAll(async () => {
     if (!admin) return;
-    // Remove only what these tests created, and roll the counter back so the
-    // real numbering does not inherit gaps from the test run.
-    await admin.query('ALTER TABLE document_line DISABLE TRIGGER document_line_immutable');
-    await admin.query('ALTER TABLE document DISABLE TRIGGER document_immutable');
-    await admin.query(`DELETE FROM document WHERE subject = $1`, [MARK]);
-    await admin.query('ALTER TABLE document ENABLE TRIGGER document_immutable');
-    await admin.query('ALTER TABLE document_line ENABLE TRIGGER document_line_immutable');
-    await admin.query(`
-      UPDATE document_counter c SET last_seq = coalesce(
-        (SELECT max(d.number_seq) FROM document d
-          WHERE d.doc_type = c.doc_type AND d.number_year = c.year), 0)`);
-    await admin.end();
+    // Cleanup goes through the bootstrap door (0017) rather than disabling
+    // triggers. An earlier version did `ALTER TABLE ... DISABLE TRIGGER`, threw
+    // on a foreign key in between, and left invoice immutability switched OFF
+    // on the database. Never disable a guard to tidy up after yourself.
+    const keeper = await maintenance();
+    try {
+      // Ledger lines reference documents with ON DELETE restrict, so the
+      // revenue posted by marking an invoice paid has to go first.
+      await keeper.query(
+        `DELETE FROM finance_entry WHERE document_id IN
+           (SELECT id FROM document WHERE subject = $1)`,
+        [MARK],
+      );
+      await keeper.query(`DELETE FROM document WHERE subject = $1`, [MARK]);
+      // Roll the counters back to the highest number that still exists, so the
+      // real numbering does not inherit gaps from the test run.
+      await keeper.query(`
+        UPDATE document_counter c SET last_seq = coalesce(
+          (SELECT max(d.number_seq) FROM document d
+            WHERE d.doc_type = c.doc_type AND d.number_year = c.year), 0)`);
+    } finally {
+      await keeper.end();
+      await admin.end();
+    }
   });
 
   it('(a) concurrent issues never collide and never skip a number', async () => {

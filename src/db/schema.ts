@@ -527,6 +527,43 @@ export const documentLine = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// Finance — one ledger, both directions.
+//
+// `direction` carries the sign; the amount is always positive, so a sign error
+// cannot quietly turn a cost into income. Revenue is posted by a trigger when
+// an invoice is marked paid (drizzle/0016).
+// ---------------------------------------------------------------------------
+
+export const financeEntry = pgTable(
+  'finance_entry',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    /** 'income' | 'expense'. */
+    direction: text('direction').notNull(),
+    amountCentimes: bigint('amount_centimes', { mode: 'bigint' }).notNull(),
+    /** VAT contained in the amount, for the accountant. */
+    vatCentimes: bigint('vat_centimes', { mode: 'bigint' }).notNull().default(sql`0`),
+    entryDate: date('entry_date').notNull(),
+    category: text('category').notNull(),
+    /** 'virement' | 'especes' | 'cheque' | 'carte' | 'autre'. */
+    paymentMethod: text('payment_method').notNull().default('virement'),
+    description: text('description'),
+    companyId: uuid('company_id').references(() => company.id, { onDelete: 'set null' }),
+    documentId: uuid('document_id').references(() => document.id),
+    reference: text('reference'),
+    /** true when written by the revenue trigger rather than typed by hand. */
+    isAutomatic: boolean('is_automatic').notNull().default(false),
+    recordedById: uuid('recorded_by_id').references(() => appUser.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('finance_date_idx').on(t.entryDate),
+    index('finance_direction_idx').on(t.direction, t.entryDate),
+  ],
+);
+
+// ---------------------------------------------------------------------------
 // Versioned tax parameters — never edited, only appended to.
 // ---------------------------------------------------------------------------
 
@@ -563,4 +600,5 @@ export type Activity = typeof activity.$inferSelect;
 export type Comment = typeof comment.$inferSelect;
 export type VixDocument = typeof document.$inferSelect;
 export type DocumentLine = typeof documentLine.$inferSelect;
+export type FinanceEntry = typeof financeEntry.$inferSelect;
 export type ServicePrice = typeof servicePrice.$inferSelect;

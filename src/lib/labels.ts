@@ -140,3 +140,44 @@ export const DOCUMENT_TITLE_FR: Record<string, string> = {
   facture: 'FACTURE',
   avoir: 'AVOIR',
 };
+
+/**
+ * Ledger categories. Stored values are French because that is what the
+ * accountant's chart of accounts uses; the labels are English for the screen.
+ */
+export const INCOME_CATEGORIES = [
+  { value: 'facture', label: 'Client invoice' },
+  { value: 'autre_revenu', label: 'Other income' },
+] as const;
+
+export const EXPENSE_CATEGORIES = [
+  { value: 'loyer', label: 'Rent' },
+  { value: 'electricite', label: 'Electricity' },
+  { value: 'eau', label: 'Water' },
+  { value: 'internet', label: 'Internet' },
+  { value: 'telephone', label: 'Phone' },
+  { value: 'equipement', label: 'Equipment' },
+  { value: 'logiciel', label: 'Software & subscriptions' },
+  { value: 'salaires', label: 'Salaries' },
+  { value: 'sous_traitance', label: 'Subcontractors' },
+  { value: 'marketing', label: 'Marketing' },
+  { value: 'deplacement', label: 'Travel' },
+  { value: 'impots', label: 'Taxes' },
+  { value: 'frais_bancaires', label: 'Bank fees' },
+  { value: 'fournitures', label: 'Supplies' },
+  { value: 'autre_depense', label: 'Other expense' },
+] as const;
+
+export const PAYMENT_METHODS = [
+  { value: 'virement', label: 'Bank transfer' },
+  { value: 'especes', label: 'Cash' },
+  { value: 'cheque', label: 'Cheque' },
+  { value: 'carte', label: 'Card' },
+  { value: 'autre', label: 'Other' },
+] as const;
+
+export const CATEGORY_LABELS = {
+  ...toMap(INCOME_CATEGORIES),
+  ...toMap(EXPENSE_CATEGORIES),
+};
+export const PAYMENT_METHOD_LABELS = toMap(PAYMENT_METHODS);
