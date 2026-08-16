@@ -5,8 +5,8 @@ import { auth } from '@/auth';
 import { Empty, Field, PageHeader, Section } from '@/components/ui';
 import { withUser } from '@/db/session';
 import { DEAL_STAGE_LABELS, SERVICE_UNIT_LABELS } from '@/lib/labels';
-import { formatMAD, fromCentimes, fromMillis, lineTotal, sum } from '@/lib/money';
-import { computeTotals } from '@/lib/fiscal';
+import { formatMAD, fromCentimes, fromMillis } from '@/lib/money';
+import { computeDealTotals } from '@/lib/deal-totals';
 import { formatDate } from '@/lib/format';
 import { addDealLineAction, removeDealLineAction, setDiscountAction } from '../actions';
 import { AddLineForm, DiscountForm } from './LineForms';
@@ -92,21 +92,18 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
   if (!data) notFound();
   const { record, lines, services, vatRateBp } = data;
 
-  // Every figure below is bigint centimes. Nothing here touches a float.
-  const lineTotals = lines.map((l) =>
-    lineTotal(BigInt(l.unit_price_centimes), BigInt(l.quantity_millis)),
-  );
-  const subtotal = sum(lineTotals);
+  // All arithmetic lives in one tested place, so the figure shown here and the
+  // figure that will print on the quote cannot drift apart.
   const discount = BigInt(record.discount_centimes);
-  // A discount can never take the total below zero.
-  const netExclVat = subtotal > discount ? subtotal - discount : 0n;
-
-  const totals = computeTotals({
-    lines: [{ unitPrice: netExclVat, quantity: 1000n }],
+  const totals = computeDealTotals({
+    lines: lines.map((l) => ({
+      unitPriceCentimes: BigInt(l.unit_price_centimes),
+      quantityMillis: BigInt(l.quantity_millis),
+    })),
+    discountCentimes: discount,
     vatRateBp,
-    withholding: false,
-    withholdingRateBp: 0,
   });
+  const { lineTotals, subtotal } = totals;
 
   return (
     <>
@@ -237,7 +234,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
           </div>
           <div className="flex items-baseline justify-between border-b border-void/10 py-2">
             <span className="label">Discount</span>
-            <span className="code">{discount > 0n ? `− ${formatMAD(discount)}` : '—'}</span>
+            <span className="code">{totals.discountApplied > 0n ? `− ${formatMAD(totals.discountApplied)}` : '—'}</span>
           </div>
           <div className="flex items-baseline justify-between border-b border-void/10 py-2">
             <span className="label">Total excl. VAT</span>
