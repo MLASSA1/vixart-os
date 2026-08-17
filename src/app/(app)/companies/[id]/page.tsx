@@ -6,6 +6,8 @@ import { ButtonLink, Empty, Field, PageHeader, Section, Status } from '@/compone
 import { company, contact, interaction } from '@/db/schema';
 import { COMPANY_STAGES, INTERACTION_KIND_LABELS } from '@/lib/labels';
 import { withUser } from '@/db/session';
+import { Attachments } from '@/components/Attachments';
+import { listAttachments, uploadAttachmentAction } from '@/lib/attachment-actions';
 import { forDateTimeField, formatDateTime, paragraphs, whatsappLink } from '@/lib/format';
 import {
   createContactAction,
@@ -50,6 +52,8 @@ export default async function ClientPage({
 
     return { record, contacts, timeline };
   });
+
+  const files = await listAttachments('company', id);
 
   if (!data) notFound();
   const { record, contacts, timeline } = data;
@@ -286,6 +290,24 @@ export default async function ClientPage({
             })}
           </ol>
         )}
+      </Section>
+
+      {/* Contracts, briefs, signed quotes — anything that belongs to the client
+          rather than to a single project. */}
+      <Section title={`Files — ${files.length}`}>
+        <Attachments
+          action={uploadAttachmentAction.bind(null, 'company', record.id, `/companies/${record.id}`)}
+          items={files.map((f) => ({
+            id: f.id,
+            originalName: f.originalName,
+            mimeType: f.mimeType,
+            sizeBytes: String(f.sizeBytes),
+            caption: f.caption,
+            uploaderName: null,
+            createdAt: String(f.createdAt),
+          }))}
+          revalidate={`/companies/${record.id}`}
+        />
       </Section>
 
       {/* --- Internal notes ------------------------------------------------- */}

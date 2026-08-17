@@ -5,6 +5,8 @@ import { auth } from '@/auth';
 import { Empty, Field, PageHeader, Section } from '@/components/ui';
 import { TaskRow, type TaskItem } from '@/components/TaskRow';
 import { withUser } from '@/db/session';
+import { Attachments } from '@/components/Attachments';
+import { listAttachments, uploadAttachmentAction } from '@/lib/attachment-actions';
 import { PROJECT_STATUS_LABELS, PROJECT_TYPE_LABELS } from '@/lib/labels';
 import { Comments, type CommentItem } from '@/components/Comments';
 import { addCommentAction, deleteCommentAction } from '../../comments-actions';
@@ -81,6 +83,8 @@ export default async function ProjectPage({
       comments: comments.rows as CommentItem[],
     };
   });
+
+  const files = await listAttachments('project', id);
 
   if (!data) notFound();
   const { record, tasks, team, comments } = data;
@@ -181,6 +185,23 @@ export default async function ProjectPage({
           </ul>
         </Section>
       )}
+      {/* Briefs, storyboards, delivered cuts — the working files for this job. */}
+      <Section title={`Files — ${files.length}`}>
+        <Attachments
+          action={uploadAttachmentAction.bind(null, 'project', id, `/projects/${id}`)}
+          items={files.map((f) => ({
+            id: f.id,
+            originalName: f.originalName,
+            mimeType: f.mimeType,
+            sizeBytes: String(f.sizeBytes),
+            caption: f.caption,
+            uploaderName: null,
+            createdAt: String(f.createdAt),
+          }))}
+          revalidate={`/projects/${id}`}
+        />
+      </Section>
+
     </>
   );
 }

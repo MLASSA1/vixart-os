@@ -4,6 +4,8 @@ import { sql } from 'drizzle-orm';
 import { auth } from '@/auth';
 import { Empty, Field, PageHeader, Section } from '@/components/ui';
 import { withUser } from '@/db/session';
+import { Attachments } from '@/components/Attachments';
+import { listAttachments, uploadAttachmentAction } from '@/lib/attachment-actions';
 import { DOCUMENT_STATUS_LABELS, DOCUMENT_TYPE_LABELS, SERVICE_UNIT_LABELS } from '@/lib/labels';
 import { formatMAD, fromCentimes, fromMillis } from '@/lib/money';
 import { computeDealTotals } from '@/lib/deal-totals';
@@ -77,6 +79,8 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
     `);
     return { record, lines: lines.rows, services: services.rows };
   });
+
+  const files = await listAttachments('document', id);
 
   if (!data) notFound();
   const { record, lines, services } = data;
@@ -356,6 +360,24 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
           )}
         </Section>
       )}
+      {/* A signed quote or a proof of payment is evidence about the document,
+          not part of it — attaching one never touches the issued figures. */}
+      <Section title={`Attached files — ${files.length}`}>
+        <Attachments
+          action={uploadAttachmentAction.bind(null, 'document', record.id, `/documents/${record.id}`)}
+          items={files.map((f) => ({
+            id: f.id,
+            originalName: f.originalName,
+            mimeType: f.mimeType,
+            sizeBytes: String(f.sizeBytes),
+            caption: f.caption,
+            uploaderName: null,
+            createdAt: String(f.createdAt),
+          }))}
+          revalidate={`/documents/${record.id}`}
+        />
+      </Section>
+
     </>
   );
 }

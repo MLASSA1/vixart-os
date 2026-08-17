@@ -134,6 +134,20 @@
       "when": 1786858442723,
       "tag": "0018_fiscal_notes_english",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1786923700630,
+      "tag": "0019_attachments",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1786925700595,
+      "tag": "0020_equipment",
+      "breakpoints": true
     }
   ]
 }

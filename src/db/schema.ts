@@ -564,6 +564,78 @@ export const financeEntry = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// Equipment — what the agency owns and who is holding it.
+//
+// `purchaseCostCentimes` is a reference figure, not a movement. The money left
+// the account when the expense was recorded in `finance_entry`; counting it
+// again here would overstate spending.
+// ---------------------------------------------------------------------------
+
+export const EQUIPMENT_CATEGORIES = [
+  'camera', 'lens', 'audio', 'lighting', 'computer',
+  'phone', 'drone', 'storage', 'accessory', 'autre',
+] as const;
+
+export const EQUIPMENT_STATUSES = [
+  'available', 'assigned', 'repair', 'retired', 'lost',
+] as const;
+
+export const equipment = pgTable(
+  'equipment',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    name: text('name').notNull(),
+    category: text('category').notNull().default('autre'),
+    brand: text('brand'),
+    model: text('model'),
+    serialNumber: text('serial_number'),
+    status: text('status').notNull().default('available'),
+    /** Who has it right now. Null when it is in the office. */
+    assignedToId: uuid('assigned_to_id').references(() => appUser.id, { onDelete: 'set null' }),
+    assignedAt: timestamp('assigned_at', { withTimezone: true }),
+    purchaseDate: date('purchase_date'),
+    purchaseCostCentimes: bigint('purchase_cost_centimes', { mode: 'bigint' })
+      .notNull()
+      .default(sql`0`),
+    /** The expense this was bought with, so register and ledger agree. */
+    financeEntryId: uuid('finance_entry_id').references(() => financeEntry.id, {
+      onDelete: 'set null',
+    }),
+    notes: text('notes'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('equipment_status_idx').on(t.status),
+    index('equipment_assigned_idx').on(t.assignedToId),
+  ],
+);
+
+// ---------------------------------------------------------------------------
+// Attachments — metadata only. The bytes live in the uploads volume.
+// ---------------------------------------------------------------------------
+
+export const attachment = pgTable(
+  'attachment',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    /** 'task' | 'project' | 'company' | 'contact' | 'document' | 'finance_entry'. */
+    entityType: text('entity_type').notNull(),
+    entityId: uuid('entity_id').notNull(),
+    /** What the user called it. Displayed, never used to build a path. */
+    originalName: text('original_name').notNull(),
+    /** Generated: yyyy/mm/<uuid>.<ext>, relative to UPLOADS_DIR. */
+    storedPath: text('stored_path').notNull(),
+    mimeType: text('mime_type').notNull(),
+    sizeBytes: bigint('size_bytes', { mode: 'bigint' }).notNull(),
+    caption: text('caption'),
+    uploadedById: uuid('uploaded_by_id').references(() => appUser.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('attachment_entity_idx').on(t.entityType, t.entityId)],
+);
+
+// ---------------------------------------------------------------------------
 // Versioned tax parameters — never edited, only appended to.
 // ---------------------------------------------------------------------------
 
@@ -601,4 +673,6 @@ export type Comment = typeof comment.$inferSelect;
 export type VixDocument = typeof document.$inferSelect;
 export type DocumentLine = typeof documentLine.$inferSelect;
 export type FinanceEntry = typeof financeEntry.$inferSelect;
+export type Attachment = typeof attachment.$inferSelect;
+export type Equipment = typeof equipment.$inferSelect;
 export type ServicePrice = typeof servicePrice.$inferSelect;

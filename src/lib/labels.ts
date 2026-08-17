@@ -181,3 +181,27 @@ export const CATEGORY_LABELS = {
   ...toMap(EXPENSE_CATEGORIES),
 };
 export const PAYMENT_METHOD_LABELS = toMap(PAYMENT_METHODS);
+
+export const EQUIPMENT_CATEGORIES = [
+  { value: 'camera', label: 'Camera' },
+  { value: 'lens', label: 'Lens' },
+  { value: 'audio', label: 'Audio & mics' },
+  { value: 'lighting', label: 'Lighting' },
+  { value: 'computer', label: 'Computer' },
+  { value: 'phone', label: 'Phone & tablet' },
+  { value: 'drone', label: 'Drone' },
+  { value: 'storage', label: 'Storage & drives' },
+  { value: 'accessory', label: 'Accessory' },
+  { value: 'autre', label: 'Other' },
+] as const;
+
+export const EQUIPMENT_STATUSES = [
+  { value: 'available', label: 'In the office' },
+  { value: 'assigned', label: 'Checked out' },
+  { value: 'repair', label: 'In repair' },
+  { value: 'retired', label: 'Retired' },
+  { value: 'lost', label: 'Lost or stolen' },
+] as const;
+
+export const EQUIPMENT_CATEGORY_LABELS = toMap(EQUIPMENT_CATEGORIES);
+export const EQUIPMENT_STATUS_LABELS = toMap(EQUIPMENT_STATUSES);
