@@ -148,6 +148,13 @@
       "when": 1786925700595,
       "tag": "0020_equipment",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1786973743019,
+      "tag": "0021_team_management",
+      "breakpoints": true
     }
   ]
 }

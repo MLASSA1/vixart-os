@@ -1,203 +1,284 @@
 import { sql } from 'drizzle-orm';
 import { auth } from '@/auth';
 import { PageHeader, Section } from '@/components/ui';
-import { ActivityFeed, type ActivityItem } from '@/components/ActivityFeed';
 import { withUser } from '@/db/session';
-import { ROLE_LABELS } from '@/lib/labels';
 import { formatDate } from '@/lib/format';
+import {
+  createMemberAction,
+  deleteMemberAction,
+  resetPasswordAction,
+  setActiveAction,
+  setRoleAction,
+  updateMemberAction,
+} from './actions';
+import { AddMemberForm, EditMemberForm, ResetPasswordForm } from './TeamForms';
 
 export const dynamic = 'force-dynamic';
 
-interface MemberRow {
+interface Row {
   [k: string]: unknown;
-  id: string;
-  full_name: string;
-  email: string;
-  job_title: string | null;
-  role: string;
-  is_active: boolean;
-  must_change_password: boolean;
+  id: string; full_name: string; email: string; job_title: string | null;
+  role: string; is_active: boolean; must_change_password: boolean;
   created_at: string;
-  open_tasks: string;
-  in_progress: string;
-  awaiting: string;
-  overdue: string;
-  completed: string;
-  projects_led: string;
+  open_tasks: string; done_tasks: string; timeline_entries: string;
+  /** Anything they have touched — a record with history is never deleted. */
+  has_history: boolean;
 }
 
-/**
- * Team — the directory plus the workload overview from the diagram's Team
- * Management module. Everyone can read it: assigning work needs to know who is
- * already loaded.
- */
+const ROLE_LABEL: Record<string, string> = {
+  admin: 'Administrator',
+  moderator: 'Moderator',
+  member: 'Team',
+};
+
+/** Denser mark = more reach. No colour anywhere. */
+const ROLE_STYLE: Record<string, string> = {
+  admin: 'bg-void text-pure border border-void',
+  moderator: 'border-2 border-void',
+  member: 'border border-void/40',
+};
+
+const ROLE_EXPLAINS: Record<string, string> = {
+  admin: 'Finance, invoices, prices, accounts.',
+  moderator: 'Assigns work and signs off completion.',
+  member: 'Own tasks, clients and projects.',
+};
+
 export default async function TeamPage() {
   const session = await auth();
-  const canModerate =
-    session?.user.role === 'admin' || session?.user.role === 'moderator';
+  const isAdmin = session?.user.role === 'admin';
+  const me = session?.user.id;
 
-  const { members, activity } = await withUser(async (tx) => {
-    const rows = await tx.execute<MemberRow>(sql`
+  const members = await withUser(async (tx) => {
+    const result = await tx.execute<Row>(sql`
       SELECT u.id, u.full_name, u.email, u.job_title, u.role, u.is_active,
              u.must_change_password, u.created_at::text,
              (SELECT count(*)::text FROM task t
-               WHERE t.assignee_id = u.id AND t.status IN ('todo','in_progress')) AS open_tasks,
+               WHERE t.assignee_id = u.id AND t.status <> 'completed') AS open_tasks,
              (SELECT count(*)::text FROM task t
-               WHERE t.assignee_id = u.id AND t.status = 'in_progress') AS in_progress,
-             (SELECT count(*)::text FROM task t
-               WHERE t.assignee_id = u.id AND t.status = 'submitted') AS awaiting,
-             (SELECT count(*)::text FROM task t
-               WHERE t.assignee_id = u.id AND t.status IN ('todo','in_progress')
-                 AND t.due_date IS NOT NULL AND t.due_date < current_date) AS overdue,
-             (SELECT count(*)::text FROM task t
-               WHERE t.assignee_id = u.id AND t.status = 'completed') AS completed,
-             (SELECT count(*)::text FROM project p WHERE p.lead_id = u.id) AS projects_led
+               WHERE t.assignee_id = u.id AND t.status = 'completed')  AS done_tasks,
+             (SELECT count(*)::text FROM interaction i WHERE i.author_id = u.id) AS timeline_entries,
+             (EXISTS (SELECT 1 FROM task t WHERE t.assignee_id = u.id)
+              OR EXISTS (SELECT 1 FROM interaction i WHERE i.author_id = u.id)
+              OR EXISTS (SELECT 1 FROM activity a WHERE a.actor_id = u.id)) AS has_history
         FROM app_user u
-       ORDER BY CASE u.role WHEN 'admin' THEN 0 WHEN 'moderator' THEN 1 ELSE 2 END,
-                u.full_name
+       ORDER BY u.is_active DESC,
+                CASE u.role WHEN 'admin' THEN 0 WHEN 'moderator' THEN 1 ELSE 2 END,
+                lower(u.full_name)
     `);
-
-    const feed = await tx.execute<ActivityItem & { [k: string]: unknown }>(sql`
-      SELECT id, actor_name, entity_type, entity_label, action, created_at::text
-        FROM activity ORDER BY created_at DESC LIMIT 25
-    `);
-
-    return { members: rows.rows, activity: feed.rows as ActivityItem[] };
+    return result.rows;
   });
 
-  const totalOpen = members.reduce((a, m) => a + Number(m.open_tasks), 0);
-  const busiest = Math.max(1, ...members.map((m) => Number(m.open_tasks)));
+  const active = members.filter((m) => m.is_active);
+  const admins = active.filter((m) => m.role === 'admin');
 
   return (
     <>
-      <PageHeader eyebrow="VIXART" title="Team" />
+      <PageHeader eyebrow="The agency" title="Team" />
 
-      <Section title="Workload">
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-left">
-            <thead>
-              <tr className="border-b-2 border-void">
-                <th className="th py-2 pr-4">Member</th>
-                <th className="th py-2 pr-4">Access</th>
-                <th className="th py-2 pr-4">Load</th>
-                <th className="th py-2 pr-4 text-right">Open</th>
-                <th className="th py-2 pr-4 text-right">Overdue</th>
-                <th className="th py-2 pr-4 text-right">Awaiting</th>
-                <th className="th py-2 text-right">Done</th>
-              </tr>
-            </thead>
-            <tbody>
-              {members.map((m) => {
-                const open = Number(m.open_tasks);
-                // Load bar: proportion of the busiest person's queue. Achromatic
-                // by design — a filled rule, never a coloured meter.
-                const share = Math.round((open / busiest) * 100);
-                return (
-                  <tr key={m.id} className="border-b border-void/10">
-                    <td className="py-3 pr-4">
-                      <span className="font-semibold">{m.full_name}</span>
-                      {m.must_change_password && (
-                        <span className="hint ml-2">· initial password</span>
+      <div className="grid grid-cols-2 gap-6 border-b border-void/15 pb-6 md:grid-cols-4">
+        <div>
+          <p className="label">Active accounts</p>
+          <p className="kpi mt-1">{active.length}</p>
+        </div>
+        <div>
+          <p className="label">Administrators</p>
+          <p className="kpi mt-1">{admins.length}</p>
+          {admins.length === 1 && (
+            <p className="hint mt-1">
+              Only one. Promote a second so a lost password is not a locked door.
+            </p>
+          )}
+        </div>
+        <div>
+          <p className="label">Open tasks</p>
+          <p className="kpi mt-1">
+            {active.reduce((a, m) => a + Number(m.open_tasks), 0)}
+          </p>
+        </div>
+        <div>
+          <p className="label">Still on the initial password</p>
+          <p className="kpi mt-1">
+            {active.filter((m) => m.must_change_password).length}
+          </p>
+        </div>
+      </div>
+
+      <Section title={`Accounts — ${members.length}`}>
+        <ul className="border-t border-void/10">
+          {members.map((m) => {
+            const isMe = m.id === me;
+            const lastAdmin = m.role === 'admin' && m.is_active && admins.length === 1;
+
+            return (
+              <li key={m.id} className="border-b border-void/10 py-4">
+                <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
+                  <div className="min-w-0">
+                    <span
+                      className={`font-semibold ${m.is_active ? '' : 'opacity-50 line-through'}`}
+                    >
+                      {m.full_name}
+                    </span>
+                    {isMe && <span className="hint ml-2">you</span>}
+                    {m.must_change_password && m.is_active && (
+                      <span className="ml-3 inline-block border border-void px-2 py-0.5 text-[12.5px] font-medium">
+                        Initial password
+                      </span>
+                    )}
+                    <p className="hint">
+                      {m.job_title ?? '—'} · {m.email}
+                    </p>
+                    <p className="hint">
+                      {m.open_tasks} open · {m.done_tasks} completed ·{' '}
+                      {m.timeline_entries} timeline entries · since {formatDate(m.created_at)}
+                    </p>
+                  </div>
+
+                  <div className="text-right">
+                    <span
+                      className={`inline-block px-2.5 py-1 text-[12.5px] font-medium leading-none ${
+                        ROLE_STYLE[m.role]
+                      }`}
+                    >
+                      {ROLE_LABEL[m.role] ?? m.role}
+                    </span>
+                    <p className="hint mt-1 max-w-52">{ROLE_EXPLAINS[m.role]}</p>
+                    {!m.is_active && <p className="hint mt-1">Deactivated — cannot sign in</p>}
+                  </div>
+                </div>
+
+                {isAdmin && (
+                  <details className="mt-2">
+                    <summary className="hint cursor-pointer">Manage</summary>
+                    <div className="border-l border-void/20 pt-2 pl-4">
+                      <EditMemberForm
+                        action={updateMemberAction.bind(null, m.id)}
+                        fullName={m.full_name}
+                        jobTitle={m.job_title}
+                      />
+
+                      {/* --- Role ------------------------------------------ */}
+                      <div className="mt-5">
+                        <p className="label">Access</p>
+                        {isMe ? (
+                          <p className="hint mt-1 max-w-lg">
+                            You cannot change your own role — another administrator has
+                            to. The database refuses it, so an accidental self-demotion
+                            cannot lock you out.
+                          </p>
+                        ) : (
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {(['member', 'moderator', 'admin'] as const)
+                              .filter((r) => r !== m.role)
+                              .map((r) => (
+                                <form key={r} action={setRoleAction}>
+                                  <input type="hidden" name="userId" value={m.id} />
+                                  <input type="hidden" name="role" value={r} />
+                                  <button
+                                    type="submit"
+                                    className="btn btn-small btn-inverse"
+                                    disabled={lastAdmin}
+                                  >
+                                    Make {ROLE_LABEL[r]}
+                                  </button>
+                                </form>
+                              ))}
+                          </div>
+                        )}
+                        {lastAdmin && !isMe && (
+                          <p className="hint mt-2 max-w-lg">
+                            This is the only administrator. Promote someone else first —
+                            the database refuses to leave the agency without one.
+                          </p>
+                        )}
+                      </div>
+
+                      {/* --- Password ---------------------------------------- */}
+                      {!isMe && (
+                        <div className="mt-5">
+                          <p className="label">Locked out?</p>
+                          <ResetPasswordForm action={resetPasswordAction.bind(null, m.id)} />
+                        </div>
                       )}
-                      <p className="hint">{m.job_title ?? m.email}</p>
-                    </td>
-                    <td className="py-3 pr-4">
-                      <span
-                        className={`inline-block px-2 py-0.5 text-[12.5px] font-medium whitespace-nowrap ${
-                          m.role === 'admin'
-                            ? 'bg-void text-pure border border-void'
-                            : m.role === 'moderator'
-                              ? 'border-2 border-void'
-                              : 'border border-void/40'
-                        }`}
-                      >
-                        {ROLE_LABELS[m.role] ?? m.role}
-                      </span>
-                    </td>
-                    <td className="py-3 pr-4">
-                      <span
-                        aria-hidden="true"
-                        className="block h-2 border border-void/30"
-                        style={{ width: 96 }}
-                      >
-                        <span
-                          className="block h-full bg-void"
-                          style={{ width: `${open === 0 ? 0 : Math.max(share, 6)}%` }}
-                        />
-                      </span>
-                      <span className="sr-only">{open} open tasks</span>
-                    </td>
-                    <td className="figure py-3 pr-4 text-right">{m.open_tasks}</td>
-                    <td className="figure py-3 pr-4 text-right">
-                      {Number(m.overdue) > 0 ? <strong>{m.overdue}</strong> : m.overdue}
-                    </td>
-                    <td className="figure py-3 pr-4 text-right">{m.awaiting}</td>
-                    <td className="figure py-3 text-right" style={{ opacity: 0.6 }}>
-                      {m.completed}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-        <p className="hint mt-3">
-          {totalOpen} open task{totalOpen === 1 ? '' : 's'} across the team.
-          {canModerate
-            ? ' Assign work from a project.'
-            : ' Only a moderator assigns work.'}
-        </p>
+
+                      {/* --- Access ------------------------------------------ */}
+                      {!isMe && (
+                        <div className="mt-5">
+                          <p className="label">
+                            {m.is_active ? 'Remove from the team' : 'Bring back'}
+                          </p>
+                          <p className="hint mt-1 max-w-lg">
+                            {m.is_active
+                              ? 'Deactivating stops them signing in and keeps their name on the work they did. This is how someone leaves.'
+                              : 'They will be able to sign in again with their existing password.'}
+                          </p>
+                          <form action={setActiveAction} className="mt-2">
+                            <input type="hidden" name="userId" value={m.id} />
+                            <input
+                              type="hidden"
+                              name="active"
+                              value={m.is_active ? 'false' : 'true'}
+                            />
+                            <button type="submit" className="btn btn-small" disabled={lastAdmin}>
+                              {m.is_active ? 'Deactivate account' : 'Reactivate account'}
+                            </button>
+                          </form>
+                        </div>
+                      )}
+
+                      {/* --- Permanent deletion, only when there is no trace -- */}
+                      {!isMe && !m.has_history && (
+                        <div className="mt-5">
+                          <p className="label">Delete permanently</p>
+                          <p className="hint mt-1 max-w-lg">
+                            This account has no history — nothing assigned, written or
+                            recorded — so it can be removed outright. Once it has done
+                            any work, deactivate it instead so the record stays intact.
+                          </p>
+                          <form
+                            action={deleteMemberAction}
+                            className="mt-2 flex flex-wrap items-end gap-3"
+                          >
+                            <input type="hidden" name="userId" value={m.id} />
+                            <input type="hidden" name="expected" value={m.email} />
+                            <label className="block" htmlFor={`confirm-${m.id}`}>
+                              <span className="label block">
+                                Type {m.email} to confirm
+                              </span>
+                              <input
+                                id={`confirm-${m.id}`}
+                                name="confirmation"
+                                autoComplete="off"
+                                className="input w-72"
+                              />
+                            </label>
+                            <button type="submit" className="btn btn-small">
+                              Delete
+                            </button>
+                          </form>
+                        </div>
+                      )}
+                    </div>
+                  </details>
+                )}
+              </li>
+            );
+          })}
+        </ul>
       </Section>
 
-      <Section title="Roles">
-        <div className="prose-vixart space-y-2">
-          <p>
-            <strong>Management</strong> — Amin. Everything, including finance,
-            service prices and deal values.
-          </p>
-          <p>
-            <strong>Work moderator</strong> — Mohamed Amine. Assigns tasks, shapes
-            projects, and signs off completion after a member submits.
-          </p>
-          <p>
-            <strong>Team</strong> — sees clients, projects and their own tasks. Never
-            prices, deal values or the P&amp;L.
-          </p>
-          <p className="hint">
-            Enforced by PostgreSQL row level security, not by hiding menu entries —
-            a member querying a price gets nothing back.
-          </p>
-        </div>
-      </Section>
+      {isAdmin && (
+        <Section title="Add someone">
+          <AddMemberForm action={createMemberAction} />
+        </Section>
+      )}
 
-      <Section title="Recent activity">
-        <ActivityFeed items={activity} />
-      </Section>
-
-      <Section title="Accounts">
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-left">
-            <thead>
-              <tr className="border-b-2 border-void">
-                <th className="th py-2 pr-4">Name</th>
-                <th className="th py-2 pr-4">Email</th>
-                <th className="th py-2 pr-4 text-right">Projects led</th>
-                <th className="th py-2 text-right">Since</th>
-              </tr>
-            </thead>
-            <tbody>
-              {members.map((m) => (
-                <tr key={m.id} className="border-b border-void/10">
-                  <td className="py-2.5 pr-4">{m.full_name}</td>
-                  <td className="code py-2.5 pr-4">{m.email}</td>
-                  <td className="figure py-2.5 pr-4 text-right">{m.projects_led}</td>
-                  <td className="hint py-2.5 text-right">{formatDate(m.created_at)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Section>
+      <p className="prose-vixart mt-10 text-[15px]" style={{ opacity: 0.55 }}>
+        Administrators see Finance, invoices and service prices. Moderators assign
+        work and sign off completed tasks. The team sees clients, projects and
+        their own work. The boundary is enforced by PostgreSQL row level security,
+        not by hiding menu entries.
+      </p>
     </>
   );
 }
