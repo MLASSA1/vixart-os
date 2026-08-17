@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { allowedTypesForInput, formatBytes, isAllowedType, resolveInsideRoot } from './uploads';
+import { resolveInsideRoot } from './uploads';
+import { allowedTypesForInput, formatBytes, isAllowedType } from './upload-types';
 
 describe('upload type allowlist', () => {
   it('accepts the formats an agency actually sends', () => {

@@ -3,7 +3,7 @@
 import { useActionState, useRef } from 'react';
 import { useFormStatus } from 'react-dom';
 import { ErrorBanner } from '@/components/ui';
-import { ALLOWED_SUMMARY, allowedTypesForInput, formatBytes } from '@/lib/uploads';
+import { ALLOWED_SUMMARY, allowedTypesForInput, formatBytes } from '@/lib/upload-types';
 import { EMPTY_STATE, type FormState } from '@/lib/form-state';
 import { deleteAttachmentAction } from '@/lib/attachment-actions';
 
