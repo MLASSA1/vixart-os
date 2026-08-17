@@ -612,6 +612,36 @@ export const equipment = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// Recurring costs — rent, electricity, subscriptions.
+//
+// A template. `app.post_due_recurring()` writes the actual ledger lines, and a
+// unique index on (recurring_entry_id, period_key) makes double-posting
+// impossible however many times it runs. See drizzle/0022.
+// ---------------------------------------------------------------------------
+
+export const RECURRING_FREQUENCIES = ['monthly', 'quarterly', 'yearly'] as const;
+
+export const recurringEntry = pgTable('recurring_entry', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  direction: text('direction').notNull().default('expense'),
+  amountCentimes: bigint('amount_centimes', { mode: 'bigint' }).notNull(),
+  vatCentimes: bigint('vat_centimes', { mode: 'bigint' }).notNull().default(sql`0`),
+  category: text('category').notNull(),
+  paymentMethod: text('payment_method').notNull().default('virement'),
+  description: text('description').notNull(),
+  companyId: uuid('company_id').references(() => company.id, { onDelete: 'set null' }),
+  frequency: text('frequency').notNull().default('monthly'),
+  /** Capped at 28 so February is never a special case. */
+  dayOfMonth: integer('day_of_month').notNull().default(1),
+  startDate: date('start_date').notNull(),
+  endDate: date('end_date'),
+  isActive: boolean('is_active').notNull().default(true),
+  createdById: uuid('created_by_id').references(() => appUser.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+// ---------------------------------------------------------------------------
 // Attachments — metadata only. The bytes live in the uploads volume.
 // ---------------------------------------------------------------------------
 
@@ -673,6 +703,7 @@ export type Comment = typeof comment.$inferSelect;
 export type VixDocument = typeof document.$inferSelect;
 export type DocumentLine = typeof documentLine.$inferSelect;
 export type FinanceEntry = typeof financeEntry.$inferSelect;
+export type RecurringEntry = typeof recurringEntry.$inferSelect;
 export type Attachment = typeof attachment.$inferSelect;
 export type Equipment = typeof equipment.$inferSelect;
 export type ServicePrice = typeof servicePrice.$inferSelect;

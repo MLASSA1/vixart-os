@@ -80,6 +80,7 @@ services:
       - backups:/backups
       - ./scripts/backup.sh:/usr/local/bin/backup.sh:ro
       - ./scripts/backup-daemon.sh:/usr/local/bin/backup-daemon.sh:ro
+      - ./scripts/nightly.sh:/usr/local/bin/nightly.sh:ro
     entrypoint: ["/bin/sh", "/usr/local/bin/backup-daemon.sh"]
 
 volumes:

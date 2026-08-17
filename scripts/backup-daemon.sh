@@ -1,15 +1,19 @@
 #!/bin/sh
-# VIXART OS — backup daemon for the `backup` container.
-# One backup immediately at start (proof the chain works), then one every night
-# at $BACKUP_HOUR, Africa/Casablanca time.
+# VIXART OS — nightly daemon for the `backup` container.
+#
+# One run immediately at start-up, so a broken chain shows now rather than at
+# 3am, then one per night at $BACKUP_HOUR, Africa/Casablanca time.
+#
+# Each run posts any recurring costs that have fallen due, then takes the
+# backup — in that order, so the dump contains the night's postings.
 set -eu
 
 BACKUP_HOUR="${BACKUP_HOUR:-3}"
 
-echo "[backup-daemon] starting — nightly backup at ${BACKUP_HOUR}:00 (${TZ:-UTC})"
+echo "[nightly-daemon] starting — nightly jobs at ${BACKUP_HOUR}:00 (${TZ:-UTC})"
 
-# Initial backup: does not block the daemon if the database is not ready yet.
-sh /usr/local/bin/backup.sh || echo "[backup-daemon] initial backup failed, continuing"
+# Catches up anything missed while the stack was down.
+sh /usr/local/bin/nightly.sh || echo "[nightly-daemon] first run failed, continuing"
 
 while true; do
   NOW_H="$(date +%-H)"
@@ -22,8 +26,8 @@ while true; do
   DELAY=$(( SECS_TARGET - SECS_NOW ))
   [ "$DELAY" -le 0 ] && DELAY=$(( DELAY + 86400 ))
 
-  echo "[backup-daemon] next backup in ${DELAY}s"
+  echo "[nightly-daemon] next run in ${DELAY}s"
   sleep "$DELAY"
 
-  sh /usr/local/bin/backup.sh || echo "[backup-daemon] backup failed, retrying tomorrow"
+  sh /usr/local/bin/nightly.sh || echo "[nightly-daemon] run failed, retrying tomorrow"
 done

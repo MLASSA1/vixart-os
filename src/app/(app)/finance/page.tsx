@@ -8,7 +8,16 @@ import { CATEGORY_LABELS, PAYMENT_METHOD_LABELS } from '@/lib/labels';
 import { formatMAD } from '@/lib/money';
 import { formatDate } from '@/lib/format';
 import { EntryForm } from './EntryForm';
-import { addEntryAction, deleteEntryAction } from './actions';
+import { RecurringForm } from './RecurringForm';
+import {
+  addEntryAction,
+  addRecurringAction,
+  deleteEntryAction,
+  deleteRecurringAction,
+  postDueNowAction,
+  toggleRecurringAction,
+} from './actions';
+import { RECURRING_FREQUENCY_LABELS } from '@/lib/labels';
 
 export const dynamic = 'force-dynamic';
 
@@ -89,6 +98,59 @@ export default async function FinancePage({
       sql`SELECT id, name FROM company ORDER BY lower(name)`,
     );
 
+    // Recurring templates, with how many lines each has actually produced.
+    const recurring = await tx.execute<{
+      [k: string]: unknown;
+      id: string; direction: string; description: string; category: string;
+      amount_centimes: string; frequency: string; day_of_month: number;
+      start_date: string; end_date: string | null; is_active: boolean;
+      posted_count: string; last_period: string | null;
+    }>(sql`
+      SELECT r.id, r.direction, r.description, r.category,
+             r.amount_centimes::text, r.frequency, r.day_of_month,
+             r.start_date::text, r.end_date::text, r.is_active,
+             (SELECT count(*)::text FROM finance_entry f
+               WHERE f.recurring_entry_id = r.id) AS posted_count,
+             (SELECT max(f.period_key) FROM finance_entry f
+               WHERE f.recurring_entry_id = r.id) AS last_period
+        FROM recurring_entry r
+       ORDER BY r.is_active DESC, r.direction, lower(r.description)
+    `);
+
+    // What is owed to the tax authority: VAT charged on issued invoices, less
+    // VAT paid on costs. Reads the frozen figures on the documents, never a
+    // live rate.
+    const vat = await tx.execute<{
+      [k: string]: unknown;
+      period: string; collected: string; paid: string;
+    }>(sql`
+      SELECT to_char(d.issue_date, 'YYYY-MM') AS period,
+             sum(d.total_vat - d.withheld)::text AS collected,
+             coalesce((SELECT sum(f.vat_centimes) FROM finance_entry f
+                        WHERE f.direction = 'expense'
+                          AND to_char(f.entry_date, 'YYYY-MM') = to_char(d.issue_date, 'YYYY-MM')
+                      ), 0)::text AS paid
+        FROM document d
+       WHERE d.doc_type = 'facture' AND d.status IN ('emis','paye')
+         AND extract(year FROM d.issue_date) = ${year}
+       GROUP BY 1 ORDER BY 1 DESC
+    `);
+
+    // Issued, past its due date, still unpaid.
+    const overdue = await tx.execute<{
+      [k: string]: unknown;
+      id: string; number: string; client: string; due_date: string;
+      net_to_collect: string; days_late: string;
+    }>(sql`
+      SELECT d.id, d.number, coalesce(d.client_name, c.name) AS client,
+             d.due_date::text, d.net_to_collect::text,
+             (current_date - d.due_date)::text AS days_late
+        FROM document d JOIN company c ON c.id = d.company_id
+       WHERE d.doc_type = 'facture' AND d.status = 'emis'
+         AND d.due_date IS NOT NULL AND d.due_date < current_date
+       ORDER BY d.due_date
+    `);
+
     return {
       entries: entries.rows,
       months: months.rows,
@@ -99,6 +161,9 @@ export default async function FinancePage({
         count: Number(outstanding.rows[0]?.n ?? 0),
       },
       companies: comps.rows,
+      recurring: recurring.rows,
+      vat: vat.rows,
+      overdue: overdue.rows,
     };
   });
 
@@ -319,6 +384,167 @@ export default async function FinancePage({
           <a href="/api/export/finance" className="btn">Ledger (CSV)</a>
           <a href="/api/export/documents" className="btn btn-inverse">Issued documents (CSV)</a>
           <a href="/api/export/contacts" className="btn btn-inverse">Contacts (CSV)</a>
+        </div>
+      </Section>
+
+      {/* --- Who has not paid ------------------------------------------- */}
+      {data.overdue.length > 0 && (
+        <Section title={`Overdue — ${data.overdue.length}`}>
+          <p className="prose-vixart mb-4" style={{ opacity: 0.7 }}>
+            Issued, past the due date, still unpaid. Chasing these is usually
+            worth more than any cost you could cut.
+          </p>
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-left">
+              <thead>
+                <tr className="border-b-2 border-void">
+                  <th className="th py-2 pr-4">Invoice</th>
+                  <th className="th py-2 pr-4">Client</th>
+                  <th className="th py-2 pr-4">Was due</th>
+                  <th className="th py-2 pr-4">Late by</th>
+                  <th className="th py-2 text-right">Owed</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.overdue.map((o) => (
+                  <tr key={o.id} className="border-b border-void/10">
+                    <td className="py-2.5 pr-4">
+                      <Link href={`/documents/${o.id}`} className="code underline underline-offset-4">
+                        {o.number}
+                      </Link>
+                    </td>
+                    <td className="py-2.5 pr-4">{o.client}</td>
+                    <td className="code py-2.5 pr-4">{formatDate(o.due_date)}</td>
+                    {/* Lateness in words and weight, never in red. */}
+                    <td className="py-2.5 pr-4 font-semibold">{o.days_late} days</td>
+                    <td className="code py-2.5 text-right font-semibold">
+                      {formatMAD(BigInt(o.net_to_collect))}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Section>
+      )}
+
+      {/* --- VAT position -------------------------------------------------- */}
+      {data.vat.length > 0 && (
+        <Section title={`VAT position — ${year}`}>
+          <p className="prose-vixart mb-4" style={{ opacity: 0.7 }}>
+            VAT charged on issued invoices, less the VAT contained in costs. A
+            positive figure is roughly what is owed to the tax authority for that
+            month. Read from the figures frozen on each document, never from a
+            live rate — and it is an indication for your accountant, not a return.
+          </p>
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-left">
+              <thead>
+                <tr className="border-b-2 border-void">
+                  <th className="th py-2 pr-4">Month</th>
+                  <th className="th py-2 pr-4 text-right">Charged</th>
+                  <th className="th py-2 pr-4 text-right">Paid on costs</th>
+                  <th className="th py-2 text-right">Net position</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.vat.map((v) => {
+                  const net = BigInt(v.collected) - BigInt(v.paid);
+                  return (
+                    <tr key={v.period} className="border-b border-void/10">
+                      <td className="code py-2.5 pr-4">{v.period}</td>
+                      <td className="code py-2.5 pr-4 text-right">
+                        {formatMAD(BigInt(v.collected))}
+                      </td>
+                      <td className="code py-2.5 pr-4 text-right">
+                        {formatMAD(BigInt(v.paid))}
+                      </td>
+                      <td className="code py-2.5 text-right font-semibold">
+                        {formatMAD(net)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Section>
+      )}
+
+      {/* --- Recurring costs ------------------------------------------------ */}
+      <Section
+        title={`Recurring — ${data.recurring.length}`}
+        action={
+          <form action={postDueNowAction}>
+            <button type="submit" className="btn btn-small btn-inverse">
+              Post anything due now
+            </button>
+          </form>
+        }
+      >
+        <p className="prose-vixart mb-4" style={{ opacity: 0.7 }}>
+          Rent, electricity, subscriptions — the costs that are the same figure
+          every month. These post themselves each night, and catch up on every
+          period missed if the stack was down. A period can only ever be posted
+          once, so nothing is counted twice.
+        </p>
+
+        {data.recurring.length === 0 ? (
+          <Empty message="Nothing recurring yet — add rent and the utility bills below and stop typing them" />
+        ) : (
+          <ul className="border-t border-void/10">
+            {data.recurring.map((r) => (
+              <li
+                key={r.id}
+                className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 border-b border-void/10 py-3"
+              >
+                <div className="min-w-0">
+                  <span className={`font-semibold ${r.is_active ? '' : 'opacity-50 line-through'}`}>
+                    {r.description}
+                  </span>
+                  <span className="hint ml-3">
+                    {CATEGORY_LABELS[r.category] ?? r.category} ·{' '}
+                    {RECURRING_FREQUENCY_LABELS[r.frequency] ?? r.frequency} · day{' '}
+                    {r.day_of_month}
+                  </span>
+                  <p className="hint">
+                    {r.posted_count} posted
+                    {r.last_period ? ` · last ${r.last_period}` : ' · nothing yet'}
+                    {r.end_date ? ` · ends ${formatDate(r.end_date)}` : ''}
+                    {!r.is_active ? ' · stopped' : ''}
+                  </p>
+                </div>
+                <div className="flex items-baseline gap-4">
+                  <span className="code font-semibold">
+                    {r.direction === 'expense' ? '− ' : ''}
+                    {formatMAD(BigInt(r.amount_centimes))}
+                  </span>
+                  <form action={toggleRecurringAction}>
+                    <input type="hidden" name="recurringId" value={r.id} />
+                    <input type="hidden" name="active" value={r.is_active ? 'false' : 'true'} />
+                    <button type="submit" className="hint cursor-pointer underline underline-offset-4">
+                      {r.is_active ? 'Stop' : 'Restart'}
+                    </button>
+                  </form>
+                  {/* Once it has posted, the lines are a record of money that
+                      moved — so it is stopped, not erased. The database
+                      refuses the delete either way. */}
+                  {Number(r.posted_count) === 0 && (
+                    <form action={deleteRecurringAction}>
+                      <input type="hidden" name="recurringId" value={r.id} />
+                      <button type="submit" className="hint cursor-pointer underline underline-offset-4">
+                        Delete
+                      </button>
+                    </form>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <div className="mt-6">
+          <RecurringForm action={addRecurringAction} today={today} />
         </div>
       </Section>
 

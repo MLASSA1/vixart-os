@@ -205,3 +205,11 @@ export const EQUIPMENT_STATUSES = [
 
 export const EQUIPMENT_CATEGORY_LABELS = toMap(EQUIPMENT_CATEGORIES);
 export const EQUIPMENT_STATUS_LABELS = toMap(EQUIPMENT_STATUSES);
+
+export const RECURRING_FREQUENCIES = [
+  { value: 'monthly', label: 'Every month' },
+  { value: 'quarterly', label: 'Every quarter' },
+  { value: 'yearly', label: 'Every year' },
+] as const;
+
+export const RECURRING_FREQUENCY_LABELS = toMap(RECURRING_FREQUENCIES);
