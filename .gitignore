@@ -26,3 +26,6 @@ next-env.d.ts
 *.log
 npm-debug.log*
 coverage/
+
+# The real client pipeline. The repository is public; this never goes in it.
+seed/pipeline.local.ts

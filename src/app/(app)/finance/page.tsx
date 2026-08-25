@@ -7,6 +7,8 @@ import { withUser } from '@/db/session';
 import { CATEGORY_LABELS, PAYMENT_METHOD_LABELS } from '@/lib/labels';
 import { formatMAD } from '@/lib/money';
 import { formatDate } from '@/lib/format';
+import { Comptable } from './Comptable';
+import { isConfigured } from '@/lib/agent/comptable';
 import { EntryForm } from './EntryForm';
 import { RecurringForm } from './RecurringForm';
 import {
@@ -227,6 +229,10 @@ export default async function FinancePage({
           </p>
         </div>
       </div>
+
+      <Section title="Ask">
+        <Comptable configured={isConfigured()} />
+      </Section>
 
       <Section title={`Month by month — ${year}`}>
         {data.months.length === 0 ? (

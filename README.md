@@ -29,11 +29,73 @@ disagree.
 |---|---|---|
 | **1** | Foundation: Docker, PostgreSQL, volumes, migrations, backup + restore, `money.ts`, `fiscal.ts` | **Done** |
 | **2** | Auth + CRM (contacts, WhatsApp, ICE, pipeline, timeline) | **Done** |
-| 3 | Services + Quotes/Invoices (numbering, immutability, PDF) | to come |
-| 4 | Projects + Tasks (assignment, attachments) | to come |
-| 5 | Finance + Dashboard + CSV export | to come |
+| **3** | Services with versioned prices; quotes, invoices and credit notes — gapless numbering, immutability, A4 PDF | **Done** |
+| **4** | Projects and tasks with two-step sign-off, attachments, equipment register | **Done** |
+| **5** | Finance ledger, recurring costs, VAT position, dashboard, CSV exports | **Done** |
+| **6** | Agent layer, phase 1: fiscal calendar, effort log, the `vixart_agent` role, six finance tools, Le Comptable | **Done** |
+
+Everything above is shipped and covered by migrations `0000`–`0027`. Later steps
+arrived out of order — companies, deals, projects and tasks came in as one Work
+module, and team management and recurring entries followed — so the table is a
+summary of what exists, not a chronology of the commits.
+
+### What is deliberately not built
+
+| | Why |
+|---|---|
+| Client portal | Excluded from v1: clients never log in |
+| Sending anything — email, WhatsApp, filings | The agent drafts, a person signs. This line does not move |
+| A withholding rate | Seeded at 0 until the accountant confirms it. Guessing a tax rate is worse than leaving it visibly unset |
+| Service prices | Seeded at 0. Pricing is the founder's decision, not a default |
 
 ---
+
+## The agent layer
+
+`/finance` carries a chat panel — **Le Comptable** — that answers questions about
+the agency's money from its own database.
+
+### Security is a grant, not a prompt
+
+The agent connects as `vixart_agent`, a PostgreSQL role that **physically cannot**
+issue an invoice number, edit a fiscal rate, or update or delete any row anywhere.
+That is a property of the connection, not of the system prompt: it holds against a
+prompt injection, a bad tool definition, and a future refactor equally.
+
+| The agent may | The agent cannot |
+|---|---|
+| Read the business tables it reports on | `UPDATE` or `DELETE` anything, anywhere |
+| Insert a document **only** as a draft with no number | Assign a number — `app.issue_document()` refuses an agent session |
+| Insert a hand-entered ledger line under its own service account | Touch `fiscal_rate` or `service_price` |
+| | Read `password_hash` — it gets a view without the column |
+
+`src/lib/agent-role.integration.test.ts` proves each of those, connecting as the
+agent itself rather than as the app pretending to be it.
+
+### Never a number without its source
+
+Every tool returns `{ data, sources, caveats }`. `sources` names the table and the
+row ids a figure came from; `caveats` says what the figure does not account for.
+The panel shows both under each answer. A finance agent that emits a confident
+figure from nothing is worse than no agent, because it will be acted on.
+
+Two caveats are load-bearing today:
+
+- **Withholding is 0.** Until the accountant confirms the rate, "net to collect"
+  equals the total including VAT for clients who withhold. Those figures are not final.
+- **Margin is a cash margin.** Labour appears as minutes, never as money — there is
+  no cost-per-hour in the database, so salaries and overheads are not deducted. The
+  real margin is lower than reported.
+
+### Configuration
+
+Set `ANTHROPIC_API_KEY` in `.env`. Without it the panel says it is not configured
+and every other screen works normally — the agent only ever reads what is already there.
+
+The team is treated as **prestataire**, so no CNSS or IR deadlines are tracked. The
+`kind` column in `declaration` already accepts both, so switching to salarié is a
+data change, not a migration — see the note at the top of `drizzle/0025`.
+
 
 ## Install
 

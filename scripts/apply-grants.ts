@@ -80,6 +80,83 @@ async function main() {
        $$;`,
     );
 
+
+    // ---------------------------------------------------------------------
+    // The agent role.
+    //
+    // Deliberately weaker than the application role. It gets SELECT on the
+    // business tables it reports on, INSERT on exactly three, and no UPDATE or
+    // DELETE anywhere at all. The RLS policies in drizzle/0026 narrow those
+    // INSERTs further — a document only as a draft, a ledger line only under
+    // its own service account.
+    //
+    // Grants are the wall. The policies decide which rows; the grants decide
+    // whether the verb is even available. Both have to allow it.
+    // ---------------------------------------------------------------------
+    const agentUser = process.env.AGENT_DB_USER;
+    const agentPassword = process.env.AGENT_DB_PASSWORD;
+
+    if (agentUser && agentPassword) {
+      await client.query(
+        `DO $$
+         DECLARE r text := ${literal(agentUser)}; p text := ${literal(agentPassword)};
+         BEGIN
+           IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = r) THEN
+             EXECUTE format('CREATE ROLE %I LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS', r);
+           END IF;
+           EXECUTE format('ALTER ROLE %I WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS PASSWORD %L', r, p);
+         END
+         $$;`,
+      );
+
+      await client.query(
+        `DO $$
+         DECLARE
+           r text := ${literal(agentUser)};
+           readable text[] := ARRAY[
+             'company','contact','deal','deal_line','project','task','effort_log',
+             'service','service_price','document','document_line','finance_entry',
+             'recurring_entry','declaration','fiscal_rate','equipment'];
+           t text;
+         BEGIN
+           EXECUTE format('GRANT CONNECT ON DATABASE %I TO %I', current_database(), r);
+           EXECUTE format('GRANT USAGE ON SCHEMA public TO %I', r);
+           EXECUTE format('GRANT USAGE ON SCHEMA app TO %I', r);
+           EXECUTE format('REVOKE CREATE ON SCHEMA public FROM %I', r);
+
+           -- Start from nothing, every time. If a table is dropped from the
+           -- list above, this run takes the grant away with it.
+           EXECUTE format('REVOKE ALL ON ALL TABLES IN SCHEMA public FROM %I', r);
+           EXECUTE format('REVOKE ALL ON ALL FUNCTIONS IN SCHEMA app FROM %I', r);
+
+           FOREACH t IN ARRAY readable LOOP
+             EXECUTE format('GRANT SELECT ON TABLE %I TO %I', t, r);
+           END LOOP;
+
+           -- The only three writes it can perform at all.
+           EXECUTE format('GRANT INSERT ON TABLE document TO %I', r);
+           EXECUTE format('GRANT INSERT ON TABLE document_line TO %I', r);
+           EXECUTE format('GRANT INSERT ON TABLE finance_entry TO %I', r);
+
+           -- The team directory as a view, so password_hash is unreachable
+           -- rather than merely unselected.
+           EXECUTE format('GRANT SELECT ON app.team_directory TO %I', r);
+
+           -- Only the context helpers. Notably NOT app.issue_document, which
+           -- is SECURITY DEFINER and would mint an invoice number.
+           EXECUTE format('GRANT EXECUTE ON FUNCTION app.current_user_id() TO %I', r);
+           EXECUTE format('GRANT EXECUTE ON FUNCTION app.current_user_role() TO %I', r);
+           EXECUTE format('GRANT EXECUTE ON FUNCTION app.is_agent() TO %I', r);
+           EXECUTE format('GRANT EXECUTE ON FUNCTION app.agent_user_id() TO %I', r);
+         END
+         $$;`,
+      );
+
+      console.log(`[grants] agent role "${agentUser}" — read-only plus 3 narrow inserts, no UPDATE or DELETE`);
+    } else {
+      console.log('[grants] AGENT_DB_USER/PASSWORD not set — agent role skipped');
+    }
+
     console.log(`[grants] role "${appUser}" synchronised (NOBYPASSRLS, no DDL)`);
   } finally {
     await client.end();

@@ -15,6 +15,7 @@ import { drizzle } from 'drizzle-orm/node-postgres';
 import { Client as PgClient } from 'pg';
 import { appUser, company, fiscalRate } from '../src/db/schema';
 import { SEED_RATES } from '../src/lib/fiscal';
+import { PIPELINE as EXAMPLE_PIPELINE, type SeedCompany } from './pipeline.example';
 
 // ---------------------------------------------------------------------------
 // The team — the only five accounts in the system. No public sign-up.
@@ -64,71 +65,20 @@ const TEAM = [
 // invoice makes the invoice false.
 // ---------------------------------------------------------------------------
 
-const PIPELINE = [
-  {
-    name: 'Bader Training Center',
-    status: 'client' as const,
-    city: 'Agadir',
-    engagementSummary:
-      'Site refresh + client-management dashboard (enrolment and session tracking).',
-    notes: null,
-  },
-  {
-    name: 'Laboratoire Talborjt',
-    status: 'client' as const,
-    city: 'Agadir',
-    engagementSummary: 'Medical analysis lab — digital presence.',
-    notes: null,
-  },
-  {
-    name: 'SILACOD',
-    status: 'client' as const,
-    city: 'Agadir',
-    website: 'https://silacod.com',
-    engagementSummary:
-      'White-label dropshipping platform — production of the video tutorial tracks.',
-    notes: null,
-  },
-  {
-    name: 'Yansin',
-    status: 'client' as const,
-    city: 'Agadir',
-    engagementSummary: 'Agadir footwear — building the growth system.',
-    notes: null,
-  },
-  {
-    name: 'Podcast client',
-    status: 'client' as const,
-    engagementSummary: 'Podcast audience growth.',
-    notes: 'Trading name to be filled in by Amin — record created from the existing pipeline.',
-  },
-  {
-    name: 'Lion Park Agadir',
-    status: 'prospect' as const,
-    city: 'Drarga',
-    engagementSummary: 'Drarga safari park — proposal stage.',
-    notes: null,
-  },
-  {
-    name: 'Roastery Agadir',
-    status: 'prospect' as const,
-    city: 'Agadir',
-    engagementSummary: 'Competitive audit + investment proposal.',
-    notes: null,
-  },
-  {
-    name: 'Sidi Fares',
-    status: 'dormant' as const,
-    engagementSummary: 'Reference — anchor case study.',
-    notes: 'Engagement closed. Kept as a commercial reference.',
-  },
-  {
-    name: 'ARMURE',
-    status: 'dormant' as const,
-    engagementSummary: 'Reference — fragrance D2C case study.',
-    notes: 'Engagement closed. Kept as a commercial reference.',
-  },
-];
+// The pipeline is loaded from `seed/pipeline.local.ts` when that file exists,
+// and from the generic `seed/pipeline.example.ts` when it does not. The local
+// file is gitignored: the repository is public, and a client list with open
+// prospects in it is a competitor's shopping list.
+async function loadPipeline(): Promise<SeedCompany[]> {
+  try {
+    const local = (await import('./pipeline.local')) as { PIPELINE: SeedCompany[] };
+    console.log('[seed] using seed/pipeline.local.ts');
+    return local.PIPELINE;
+  } catch {
+    console.log('[seed] no seed/pipeline.local.ts — using the generic example pipeline');
+    return EXAMPLE_PIPELINE;
+  }
+}
 
 // ---------------------------------------------------------------------------
 
@@ -193,6 +143,7 @@ async function main() {
     console.log(`[seed] ${TEAM.length} team accounts (shared initial password)`);
 
     // --- Pipeline ---
+    const PIPELINE = await loadPipeline();
     for (const record of PIPELINE) {
       await db.insert(company).values(record).onConflictDoNothing();
     }
