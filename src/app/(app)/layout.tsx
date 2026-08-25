@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import { PasswordForm } from './PasswordForm';
 import { Shell } from './Shell';
+import { getAttention, urgentCount } from '@/lib/attention';
 
 export const dynamic = 'force-dynamic';
 
@@ -47,5 +48,13 @@ export default async function AppLayout({
     );
   }
 
-  return <Shell user={user}>{children}</Shell>;
+  // Computed here rather than in the shell: the shell is a client component,
+  // and this is a database read that must stay on the server.
+  const attention = await getAttention();
+
+  return (
+    <Shell user={user} urgent={urgentCount(attention)}>
+      {children}
+    </Shell>
+  );
 }

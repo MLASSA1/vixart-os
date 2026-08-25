@@ -18,6 +18,7 @@ interface NavItem {
  */
 const NAV: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard' },
+  { href: '/attention', label: 'Needs attention' },
   { href: '/my-work', label: 'My work' },
   { href: '/clients', label: 'Clients', group: 'Relationships' },
   { href: '/leads', label: 'Leads', group: 'Relationships' },
@@ -43,9 +44,12 @@ function visible(item: NavItem, role: 'admin' | 'moderator' | 'member') {
 
 export function Shell({
   user,
+  urgent,
   children,
 }: {
   user: { name: string; jobTitle: string | null; role: 'admin' | 'moderator' | 'member' };
+  /** How many things are waiting on this person right now. */
+  urgent: number;
   children: ReactNode;
 }) {
   const pathname = usePathname();
@@ -91,6 +95,15 @@ export function Shell({
                       }`}
                     >
                       {item.label}
+                      {item.href === '/attention' && urgent > 0 && (
+                        <span
+                          className={`ml-2 inline-block min-w-[1.35rem] px-1.5 py-px text-center text-[12px] font-semibold ${
+                            active ? 'bg-pure text-void' : 'bg-void text-pure'
+                          }`}
+                        >
+                          {urgent}
+                        </span>
+                      )}
                     </Link>
                   );
                 })}
@@ -140,6 +153,7 @@ export function Shell({
               }`}
             >
               {item.label}
+              {item.href === '/attention' && urgent > 0 && ` (${urgent})`}
             </Link>
           );
         })}
