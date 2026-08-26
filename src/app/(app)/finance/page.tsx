@@ -126,16 +126,40 @@ export default async function FinancePage({
       [k: string]: unknown;
       period: string; collected: string; paid: string;
     }>(sql`
-      SELECT to_char(d.issue_date, 'YYYY-MM') AS period,
-             sum(d.total_vat - d.withheld)::text AS collected,
-             coalesce((SELECT sum(f.vat_centimes) FROM finance_entry f
-                        WHERE f.direction = 'expense'
-                          AND to_char(f.entry_date, 'YYYY-MM') = to_char(d.issue_date, 'YYYY-MM')
-                      ), 0)::text AS paid
-        FROM document d
-       WHERE d.doc_type = 'facture' AND d.status IN ('emis','paye')
-         AND extract(year FROM d.issue_date) = ${year}
-       GROUP BY 1 ORDER BY 1 DESC
+      WITH collected AS (
+        SELECT to_char(d.issue_date, 'YYYY-MM') AS period,
+               sum(d.total_vat - d.withheld) AS amount
+          FROM document d
+         WHERE d.doc_type = 'facture' AND d.status IN ('emis','paye')
+           AND extract(year FROM d.issue_date) = ${year}
+         GROUP BY 1
+      ),
+      paid AS (
+        SELECT to_char(f.entry_date, 'YYYY-MM') AS period,
+               sum(f.vat_centimes) AS amount
+          FROM finance_entry f
+         WHERE f.direction = 'expense'
+           AND extract(year FROM f.entry_date) = ${year}
+         GROUP BY 1
+      )
+      -- FULL OUTER JOIN, not a correlated subquery hanging off document.
+      -- Two reasons, and only the first one crashes:
+      --
+      --   1. PostgreSQL refuses a sublink that reads an ungrouped outer column,
+      --      even when the expression around it is the GROUP BY key. GROUP BY 1
+      --      names an output position; the check inside the sublink does not
+      --      follow it back.
+      --
+      --   2. Anchoring on document means a month is only listed if it has an
+      --      invoice in it. A month of costs with nothing invoiced would drop
+      --      out of the VAT position silently — the worst kind of wrong, since
+      --      the figure still looks complete. FULL OUTER keeps both sides.
+      SELECT coalesce(c.period, p.period) AS period,
+             coalesce(c.amount, 0)::text AS collected,
+             coalesce(p.amount, 0)::text AS paid
+        FROM collected c
+        FULL OUTER JOIN paid p ON p.period = c.period
+       ORDER BY 1 DESC
     `);
 
     // Issued, past its due date, still unpaid.
