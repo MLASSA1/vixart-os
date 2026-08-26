@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import type Anthropic from '@anthropic-ai/sdk';
 import { ask, isConfigured } from '@/lib/agent/comptable';
 import { guardAgentRoute } from '@/lib/agent/route-helper';
+import { readAgentError } from '@/lib/agent-errors';
 
 export const dynamic = 'force-dynamic';
 /** A tool loop can take a while; well inside the platform limit. */
@@ -56,7 +57,9 @@ export async function POST(request: Request) {
   try {
     return NextResponse.json(await ask(history));
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ error: message }, { status: 500 });
+    // The raw SDK message is an HTTP body with a request id in it. Log that;
+    // show the reader a sentence they can act on.
+    console.error('[comptable]', error);
+    return NextResponse.json({ error: readAgentError(error).message }, { status: 500 });
   }
 }

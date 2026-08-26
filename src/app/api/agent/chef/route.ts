@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import type Anthropic from '@anthropic-ai/sdk';
 import { auth } from '@/auth';
 import { ask, isConfigured } from '@/lib/agent/chef';
+import { readAgentError } from '@/lib/agent-errors';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
@@ -62,8 +63,11 @@ export async function POST(request: Request) {
   try {
     return NextResponse.json(await ask(history));
   } catch (error) {
+    console.error('[chef]', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : String(error) },
+      // The raw SDK message is an HTTP body with a request id in it. Log that;
+      // show the reader a sentence they can act on.
+      { error: readAgentError(error).message },
       { status: 500 },
     );
   }
