@@ -152,9 +152,90 @@ async function main() {
          $$;`,
       );
 
+
       console.log(`[grants] agent role "${agentUser}" — read-only plus 3 narrow inserts, no UPDATE or DELETE`);
     } else {
       console.log('[grants] AGENT_DB_USER/PASSWORD not set — agent role skipped');
+    }
+
+    // ---------------------------------------------------------------------
+    // The work agent role.
+    //
+    // Differs from the finance agent in one way that matters: it must UPDATE.
+    // Assigning a task IS an update. So instead of withholding the verb, the
+    // grant NARROWS it — column-level UPDATE on exactly three columns.
+    //
+    // A column grant is checked per statement: an UPDATE naming `status` is
+    // refused by PostgreSQL before any policy or trigger runs. That is what
+    // stops the agent marking work complete; the trigger in 0028 says the same
+    // thing again where a reader will look for it.
+    //
+    // It has no grant at all on document, finance_entry, service_price or
+    // fiscal_rate. It cannot learn what anything costs.
+    // ---------------------------------------------------------------------
+    const workUser = process.env.WORK_AGENT_DB_USER;
+    const workPassword = process.env.WORK_AGENT_DB_PASSWORD;
+
+    if (workUser && workPassword) {
+      await client.query(
+        `DO $$
+         DECLARE r text := ${literal(workUser)}; p text := ${literal(workPassword)};
+         BEGIN
+           IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = r) THEN
+             EXECUTE format('CREATE ROLE %I LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS', r);
+           END IF;
+           EXECUTE format('ALTER ROLE %I WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS PASSWORD %L', r, p);
+         END
+         $$;`,
+      );
+
+      await client.query(
+        `DO $$
+         DECLARE
+           r text := ${literal(workUser)};
+           readable text[] := ARRAY['company','project','task','effort_log','capacity','comment'];
+           t text;
+         BEGIN
+           EXECUTE format('GRANT CONNECT ON DATABASE %I TO %I', current_database(), r);
+           EXECUTE format('GRANT USAGE ON SCHEMA public TO %I', r);
+           EXECUTE format('GRANT USAGE ON SCHEMA app TO %I', r);
+           EXECUTE format('REVOKE CREATE ON SCHEMA public FROM %I', r);
+
+           -- Reset first, so removing a table from the list above takes the
+           -- grant away rather than leaving it behind.
+           EXECUTE format('REVOKE ALL ON ALL TABLES IN SCHEMA public FROM %I', r);
+           EXECUTE format('REVOKE ALL ON ALL FUNCTIONS IN SCHEMA app FROM %I', r);
+
+           FOREACH t IN ARRAY readable LOOP
+             EXECUTE format('GRANT SELECT ON TABLE %I TO %I', t, r);
+           END LOOP;
+
+           EXECUTE format('GRANT INSERT ON TABLE task TO %I', r);
+           EXECUTE format('GRANT INSERT ON TABLE comment TO %I', r);
+
+           -- The audit log. Creating a task fires the activity trigger, which
+           -- runs as the caller — so without this the agent cannot act at all.
+           -- INSERT only: the activity table is append-only, so it can write
+           -- its own trail and never edit it. An agent that could act without
+           -- being logged would be the worst of both worlds.
+           EXECUTE format('GRANT INSERT ON TABLE activity TO %I', r);
+
+           -- The narrowing. Three columns, named explicitly. An UPDATE that
+           -- mentions status, title or project_id is refused by the grant.
+           EXECUTE format('GRANT UPDATE (assignee_id, due_date, priority) ON TABLE task TO %I', r);
+
+           EXECUTE format('GRANT SELECT ON app.team_directory TO %I', r);
+           EXECUTE format('GRANT EXECUTE ON FUNCTION app.current_user_id() TO %I', r);
+           EXECUTE format('GRANT EXECUTE ON FUNCTION app.current_user_role() TO %I', r);
+           EXECUTE format('GRANT EXECUTE ON FUNCTION app.is_work_agent() TO %I', r);
+           EXECUTE format('GRANT EXECUTE ON FUNCTION app.work_agent_user_id() TO %I', r);
+         END
+         $$;`,
+      );
+
+      console.log(`[grants] work agent role "${workUser}" — reads work, may assign and reschedule, never completes`);
+    } else {
+      console.log('[grants] WORK_AGENT_DB_USER/PASSWORD not set — work agent role skipped');
     }
 
     console.log(`[grants] role "${appUser}" synchronised (NOBYPASSRLS, no DDL)`);

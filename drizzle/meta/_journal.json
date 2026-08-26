@@ -197,6 +197,34 @@
       "when": 1787688356621,
       "tag": "0027_agent_identity_fix",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1787769113691,
+      "tag": "0028_work_agent",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1787769331438,
+      "tag": "0029_work_agent_task_rules",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1787769517861,
+      "tag": "0030_actor_name_definer",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1787769546977,
+      "tag": "0031_agent_activity_policy",
+      "breakpoints": true
     }
   ]
 }

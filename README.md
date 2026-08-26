@@ -33,6 +33,7 @@ disagree.
 | **4** | Projects and tasks with two-step sign-off, attachments, equipment register | **Done** |
 | **5** | Finance ledger, recurring costs, VAT position, dashboard, CSV exports | **Done** |
 | **6** | Agent layer, phase 1: fiscal calendar, effort log, the `vixart_agent` role, six finance tools, Le Comptable | **Done** |
+| **7** | Agent layer, phase 2: capacity, the `vixart_agent_work` role, five work tools, Le Chef | **Done** |
 
 Everything above is shipped and covered by migrations `0000`–`0027`. Later steps
 arrived out of order — companies, deals, projects and tasks came in as one Work
@@ -86,6 +87,34 @@ Two caveats are load-bearing today:
 - **Margin is a cash margin.** Labour appears as minutes, never as money — there is
   no cost-per-hour in the database, so salaries and overheads are not deducted. The
   real margin is lower than reported.
+
+### Two agents, two roles, one panel
+
+| | Le Comptable | Le Chef |
+|---|---|---|
+| Lives on | `/finance` | `/projects` |
+| For | Amin | Amin and the work moderator |
+| Database role | `vixart_agent` | `vixart_agent_work` |
+| Reads | the books | the work |
+| May write | a draft document, a hand-entered ledger line | assign, reschedule, open a task |
+| Cannot | issue a number, edit a rate, update or delete anything | change a task's status, see money at all |
+
+Neither can reach the other's tables — that is a grant, not a convention. The
+work agent has no privilege on `document`, `finance_entry`, `service_price` or
+`fiscal_rate`, so a price cannot influence who gets the work.
+
+**This is not a sub-agent picker.** The user never chooses which agent to
+address; the page does. Money questions live on Finance, work questions on
+Projects. One shared panel component, two endpoints.
+
+**Le Chef's load figures are counts, never percentages.** Nobody has recorded
+how many hours a week anyone works, so `capacity` is empty and the tools say so.
+Whether someone is overloaded stays a judgement until that is filled in — the
+same treatment as the withholding rate.
+
+**Nothing is notified.** Assigning a task does not tell the person. There is no
+email, no WhatsApp, no notification anywhere in the system, and the agent says so
+every time it moves work.
 
 ### Configuration
 
