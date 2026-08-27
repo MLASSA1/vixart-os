@@ -48,14 +48,11 @@ services:
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       # Application role: subject to row level security, used by every query.
       APP_DATABASE_URL: postgres://${APP_DB_USER}:${APP_DB_PASSWORD}@db:5432/${POSTGRES_DB}
-      # Agent role: read-mostly, cannot issue a number or edit a rate.
-      AGENT_DATABASE_URL: postgres://${AGENT_DB_USER}:${AGENT_DB_PASSWORD}@db:5432/${POSTGRES_DB}
-      WORK_AGENT_DATABASE_URL: postgres://${WORK_AGENT_DB_USER}:${WORK_AGENT_DB_PASSWORD}@db:5432/${POSTGRES_DB}
-      WORK_AGENT_DB_USER: ${WORK_AGENT_DB_USER}
-      WORK_AGENT_DB_PASSWORD: ${WORK_AGENT_DB_PASSWORD}
-      AGENT_DB_USER: ${AGENT_DB_USER}
-      AGENT_DB_PASSWORD: ${AGENT_DB_PASSWORD}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      # Passed only so apply-grants.ts can find the retired agent roles and
+      # drop them. Remove these two once every environment has restarted at
+      # least once after the removal.
+      AGENT_DB_USER: ${AGENT_DB_USER:-}
+      WORK_AGENT_DB_USER: ${WORK_AGENT_DB_USER:-}
       APP_DB_USER: ${APP_DB_USER}
       APP_DB_PASSWORD: ${APP_DB_PASSWORD}
       AUTH_SECRET: ${AUTH_SECRET}

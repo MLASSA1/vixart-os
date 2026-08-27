@@ -82,160 +82,46 @@ async function main() {
 
 
     // ---------------------------------------------------------------------
-    // The agent role.
+    // The agent roles, removed.
     //
-    // Deliberately weaker than the application role. It gets SELECT on the
-    // business tables it reports on, INSERT on exactly three, and no UPDATE or
-    // DELETE anywhere at all. The RLS policies in drizzle/0026 narrow those
-    // INSERTs further — a document only as a draft, a ledger line only under
-    // its own service account.
+    // Two logins used to exist here for the finance and work agents. The
+    // agents are gone, and a role that can still read the books is not made
+    // safe by the absence of code that uses it — anyone holding the password
+    // can connect directly. So this drops them rather than merely not creating
+    // them, and it runs on every start, so a database restored from a backup
+    // taken before the removal is cleaned up too.
     //
-    // Grants are the wall. The policies decide which rows; the grants decide
-    // whether the verb is even available. Both have to allow it.
+    // REASSIGN is deliberately absent: these roles never owned an object, and
+    // silently reassigning ownership would hide a surprise rather than raise
+    // it. If a DROP ever fails because something depends on the role, that is
+    // worth stopping for.
     // ---------------------------------------------------------------------
-    const agentUser = process.env.AGENT_DB_USER;
-    const agentPassword = process.env.AGENT_DB_PASSWORD;
-
-    if (agentUser && agentPassword) {
+    for (const legacy of ['AGENT_DB_USER', 'WORK_AGENT_DB_USER']) {
+      const name = process.env[legacy];
+      if (!name) continue;
       await client.query(
         `DO $$
-         DECLARE r text := ${literal(agentUser)}; p text := ${literal(agentPassword)};
+         DECLARE r text := ${literal(name)};
          BEGIN
-           IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = r) THEN
-             EXECUTE format('CREATE ROLE %I LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS', r);
+           IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = r) THEN
+             -- Schema app as well as public: app.team_directory is a view, and a
+             -- privilege on it is enough to block the DROP below. The first
+             -- attempt at this failed on exactly that.
+             EXECUTE format('REVOKE ALL ON ALL TABLES IN SCHEMA public, app FROM %I', r);
+             EXECUTE format('REVOKE ALL ON ALL FUNCTIONS IN SCHEMA app FROM %I', r);
+             EXECUTE format('REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public FROM %I', r);
+             EXECUTE format('REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM %I', r);
+             EXECUTE format('REVOKE ALL ON SCHEMA app, public FROM %I', r);
+             EXECUTE format('REVOKE ALL ON DATABASE %I FROM %I', current_database(), r);
+             EXECUTE format('ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON TABLES FROM %I', r);
+             EXECUTE format('ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON SEQUENCES FROM %I', r);
+             EXECUTE format('ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON FUNCTIONS FROM %I', r);
+             EXECUTE format('DROP ROLE %I', r);
            END IF;
-           EXECUTE format('ALTER ROLE %I WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS PASSWORD %L', r, p);
          END
          $$;`,
       );
-
-      await client.query(
-        `DO $$
-         DECLARE
-           r text := ${literal(agentUser)};
-           readable text[] := ARRAY[
-             'company','contact','deal','deal_line','project','task','effort_log',
-             'service','service_price','document','document_line','finance_entry',
-             'recurring_entry','declaration','fiscal_rate','equipment'];
-           t text;
-         BEGIN
-           EXECUTE format('GRANT CONNECT ON DATABASE %I TO %I', current_database(), r);
-           EXECUTE format('GRANT USAGE ON SCHEMA public TO %I', r);
-           EXECUTE format('GRANT USAGE ON SCHEMA app TO %I', r);
-           EXECUTE format('REVOKE CREATE ON SCHEMA public FROM %I', r);
-
-           -- Start from nothing, every time. If a table is dropped from the
-           -- list above, this run takes the grant away with it.
-           EXECUTE format('REVOKE ALL ON ALL TABLES IN SCHEMA public FROM %I', r);
-           EXECUTE format('REVOKE ALL ON ALL FUNCTIONS IN SCHEMA app FROM %I', r);
-
-           FOREACH t IN ARRAY readable LOOP
-             EXECUTE format('GRANT SELECT ON TABLE %I TO %I', t, r);
-           END LOOP;
-
-           -- The only three writes it can perform at all.
-           EXECUTE format('GRANT INSERT ON TABLE document TO %I', r);
-           EXECUTE format('GRANT INSERT ON TABLE document_line TO %I', r);
-           EXECUTE format('GRANT INSERT ON TABLE finance_entry TO %I', r);
-
-           -- The team directory as a view, so password_hash is unreachable
-           -- rather than merely unselected.
-           EXECUTE format('GRANT SELECT ON app.team_directory TO %I', r);
-
-           -- Only the context helpers. Notably NOT app.issue_document, which
-           -- is SECURITY DEFINER and would mint an invoice number.
-           EXECUTE format('GRANT EXECUTE ON FUNCTION app.current_user_id() TO %I', r);
-           EXECUTE format('GRANT EXECUTE ON FUNCTION app.current_user_role() TO %I', r);
-           EXECUTE format('GRANT EXECUTE ON FUNCTION app.is_agent() TO %I', r);
-           EXECUTE format('GRANT EXECUTE ON FUNCTION app.agent_user_id() TO %I', r);
-         END
-         $$;`,
-      );
-
-
-      console.log(`[grants] agent role "${agentUser}" — read-only plus 3 narrow inserts, no UPDATE or DELETE`);
-    } else {
-      console.log('[grants] AGENT_DB_USER/PASSWORD not set — agent role skipped');
-    }
-
-    // ---------------------------------------------------------------------
-    // The work agent role.
-    //
-    // Differs from the finance agent in one way that matters: it must UPDATE.
-    // Assigning a task IS an update. So instead of withholding the verb, the
-    // grant NARROWS it — column-level UPDATE on exactly three columns.
-    //
-    // A column grant is checked per statement: an UPDATE naming `status` is
-    // refused by PostgreSQL before any policy or trigger runs. That is what
-    // stops the agent marking work complete; the trigger in 0028 says the same
-    // thing again where a reader will look for it.
-    //
-    // It has no grant at all on document, finance_entry, service_price or
-    // fiscal_rate. It cannot learn what anything costs.
-    // ---------------------------------------------------------------------
-    const workUser = process.env.WORK_AGENT_DB_USER;
-    const workPassword = process.env.WORK_AGENT_DB_PASSWORD;
-
-    if (workUser && workPassword) {
-      await client.query(
-        `DO $$
-         DECLARE r text := ${literal(workUser)}; p text := ${literal(workPassword)};
-         BEGIN
-           IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = r) THEN
-             EXECUTE format('CREATE ROLE %I LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS', r);
-           END IF;
-           EXECUTE format('ALTER ROLE %I WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS PASSWORD %L', r, p);
-         END
-         $$;`,
-      );
-
-      await client.query(
-        `DO $$
-         DECLARE
-           r text := ${literal(workUser)};
-           readable text[] := ARRAY['company','project','task','effort_log','capacity','comment'];
-           t text;
-         BEGIN
-           EXECUTE format('GRANT CONNECT ON DATABASE %I TO %I', current_database(), r);
-           EXECUTE format('GRANT USAGE ON SCHEMA public TO %I', r);
-           EXECUTE format('GRANT USAGE ON SCHEMA app TO %I', r);
-           EXECUTE format('REVOKE CREATE ON SCHEMA public FROM %I', r);
-
-           -- Reset first, so removing a table from the list above takes the
-           -- grant away rather than leaving it behind.
-           EXECUTE format('REVOKE ALL ON ALL TABLES IN SCHEMA public FROM %I', r);
-           EXECUTE format('REVOKE ALL ON ALL FUNCTIONS IN SCHEMA app FROM %I', r);
-
-           FOREACH t IN ARRAY readable LOOP
-             EXECUTE format('GRANT SELECT ON TABLE %I TO %I', t, r);
-           END LOOP;
-
-           EXECUTE format('GRANT INSERT ON TABLE task TO %I', r);
-           EXECUTE format('GRANT INSERT ON TABLE comment TO %I', r);
-
-           -- The audit log. Creating a task fires the activity trigger, which
-           -- runs as the caller — so without this the agent cannot act at all.
-           -- INSERT only: the activity table is append-only, so it can write
-           -- its own trail and never edit it. An agent that could act without
-           -- being logged would be the worst of both worlds.
-           EXECUTE format('GRANT INSERT ON TABLE activity TO %I', r);
-
-           -- The narrowing. Three columns, named explicitly. An UPDATE that
-           -- mentions status, title or project_id is refused by the grant.
-           EXECUTE format('GRANT UPDATE (assignee_id, due_date, priority) ON TABLE task TO %I', r);
-
-           EXECUTE format('GRANT SELECT ON app.team_directory TO %I', r);
-           EXECUTE format('GRANT EXECUTE ON FUNCTION app.current_user_id() TO %I', r);
-           EXECUTE format('GRANT EXECUTE ON FUNCTION app.current_user_role() TO %I', r);
-           EXECUTE format('GRANT EXECUTE ON FUNCTION app.is_work_agent() TO %I', r);
-           EXECUTE format('GRANT EXECUTE ON FUNCTION app.work_agent_user_id() TO %I', r);
-         END
-         $$;`,
-      );
-
-      console.log(`[grants] work agent role "${workUser}" — reads work, may assign and reschedule, never completes`);
-    } else {
-      console.log('[grants] WORK_AGENT_DB_USER/PASSWORD not set — work agent role skipped');
+      console.log(`[grants] agent role "${name}" revoked and dropped`);
     }
 
     console.log(`[grants] role "${appUser}" synchronised (NOBYPASSRLS, no DDL)`);

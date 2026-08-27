@@ -32,10 +32,10 @@ disagree.
 | **3** | Services with versioned prices; quotes, invoices and credit notes — gapless numbering, immutability, A4 PDF | **Done** |
 | **4** | Projects and tasks with two-step sign-off, attachments, equipment register | **Done** |
 | **5** | Finance ledger, recurring costs, VAT position, dashboard, CSV exports | **Done** |
-| **6** | Agent layer, phase 1: fiscal calendar, effort log, the `vixart_agent` role, six finance tools, Le Comptable | **Done** |
-| **7** | Agent layer, phase 2: capacity, the `vixart_agent_work` role, five work tools, Le Chef | **Done** |
+| **6** | Fiscal calendar and effort log | **Done** |
+| **7** | ~~Agent layer — two conversational agents over the books and the work~~ | **Removed**, see below |
 
-Everything above is shipped and covered by migrations `0000`–`0027`. Later steps
+Everything above is shipped and covered by migrations `0000`–`0032`. Later steps
 arrived out of order — companies, deals, projects and tasks came in as one Work
 module, and team management and recurring entries followed — so the table is a
 summary of what exists, not a chronology of the commits.
@@ -45,81 +45,53 @@ summary of what exists, not a chronology of the commits.
 | | Why |
 |---|---|
 | Client portal | Excluded from v1: clients never log in |
-| Sending anything — email, WhatsApp, filings | The agent drafts, a person signs. This line does not move |
+| Sending anything — email, WhatsApp, filings | Nothing in this system contacts anyone. Every document is drafted here and sent by a person |
 | A withholding rate | Seeded at 0 until the accountant confirms it. Guessing a tax rate is worse than leaving it visibly unset |
 | Service prices | Seeded at 0. Pricing is the founder's decision, not a default |
 
 ---
 
-## The agent layer
+## The agent layer, and why it is gone
 
-`/finance` carries a chat panel — **Le Comptable** — that answers questions about
-the agency's money from its own database.
+Two conversational agents were built and then removed: **Le Comptable** over the
+books and **Le Chef** over the work. They worked the way the rest of this system
+works — each connected as its own PostgreSQL role, so what it could do was a
+grant rather than a promise in a prompt, and every figure came back with the
+rows it was read from.
 
-### Security is a grant, not a prompt
+They were removed for one reason: every question costs money at the API, and
+nothing else in this app has a running cost. That is a bad trade for a five
+person agency whose books were, at the time, empty.
 
-The agent connects as `vixart_agent`, a PostgreSQL role that **physically cannot**
-issue an invoice number, edit a fiscal rate, or update or delete any row anywhere.
-That is a property of the connection, not of the system prompt: it holds against a
-prompt injection, a bad tool definition, and a future refactor equally.
+**The removal is in the database, not just the code.** `drizzle/0032` drops all
+29 agent policies and the four helper functions, and restores
+`app.enforce_task_signoff`, `app.enforce_task_insert` and `app.issue_document`
+to their human-only form. `scripts/apply-grants.ts` revokes and **drops both
+roles**, and does so on every start, so a database restored from an older backup
+is cleaned up too. Deleting the code alone would have left two logins that could
+still read the books — a role is not made safe by the absence of code that uses
+it, because anyone holding the password can connect directly.
 
-| The agent may | The agent cannot |
-|---|---|
-| Read the business tables it reports on | `UPDATE` or `DELETE` anything, anywhere |
-| Insert a document **only** as a draft with no number | Assign a number — `app.issue_document()` refuses an agent session |
-| Insert a hand-entered ledger line under its own service account | Touch `fiscal_rate` or `service_price` |
-| | Read `password_hash` — it gets a view without the column |
+Two things deliberately stayed:
 
-`src/lib/agent-role.integration.test.ts` proves each of those, connecting as the
-agent itself rather than as the app pretending to be it.
+- **`declaration`, `effort_log` and `capacity`** — empty tables with no
+  remaining agent dependency. The fiscal calendar and the effort log are
+  ordinary business records a later screen could surface. Dropping a table is
+  destructive and nothing was gained by it.
+- **`agent@vixart.local` and `chef@vixart.local`** — the activity log is
+  append-only, and one of them is the actor on rows already in it. Removing the
+  account would mean rewriting history, which is the one thing an append-only
+  log exists to prevent. Both hold `NO-LOGIN` in place of a password hash and
+  cannot authenticate.
 
-### Never a number without its source
+The work is in the history if it is ever wanted back: commits `3c94dcc`,
+`1d32421` and `273ce14`.
 
-Every tool returns `{ data, sources, caveats }`. `sources` names the table and the
-row ids a figure came from; `caveats` says what the figure does not account for.
-The panel shows both under each answer. A finance agent that emits a confident
-figure from nothing is worse than no agent, because it will be acted on.
-
-Two caveats are load-bearing today:
-
-- **Withholding is 0.** Until the accountant confirms the rate, "net to collect"
-  equals the total including VAT for clients who withhold. Those figures are not final.
-- **Margin is a cash margin.** Labour appears as minutes, never as money — there is
-  no cost-per-hour in the database, so salaries and overheads are not deducted. The
-  real margin is lower than reported.
-
-### Two agents, two roles, one panel
-
-| | Le Comptable | Le Chef |
-|---|---|---|
-| Lives on | `/finance` | `/projects` |
-| For | Amin | Amin and the work moderator |
-| Database role | `vixart_agent` | `vixart_agent_work` |
-| Reads | the books | the work |
-| May write | a draft document, a hand-entered ledger line | assign, reschedule, open a task |
-| Cannot | issue a number, edit a rate, update or delete anything | change a task's status, see money at all |
-
-Neither can reach the other's tables — that is a grant, not a convention. The
-work agent has no privilege on `document`, `finance_entry`, `service_price` or
-`fiscal_rate`, so a price cannot influence who gets the work.
-
-**This is not a sub-agent picker.** The user never chooses which agent to
-address; the page does. Money questions live on Finance, work questions on
-Projects. One shared panel component, two endpoints.
-
-**Le Chef's load figures are counts, never percentages.** Nobody has recorded
-how many hours a week anyone works, so `capacity` is empty and the tools say so.
-Whether someone is overloaded stays a judgement until that is filled in — the
-same treatment as the withholding rate.
-
-**Nothing is notified.** Assigning a task does not tell the person. There is no
-email, no WhatsApp, no notification anywhere in the system, and the agent says so
-every time it moves work.
+---
 
 ### Configuration
 
-Set `ANTHROPIC_API_KEY` in `.env`. Without it the panel says it is not configured
-and every other screen works normally — the agent only ever reads what is already there.
+No external API keys. The stack talks to nothing but its own database.
 
 The team is treated as **prestataire**, so no CNSS or IR deadlines are tracked. The
 `kind` column in `declaration` already accepts both, so switching to salarié is a

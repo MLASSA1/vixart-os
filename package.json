@@ -14,7 +14,6 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.120.0",
     "@react-pdf/renderer": "^4.6.1",
     "bcryptjs": "^3.0.3",
     "drizzle-orm": "^0.45.2",

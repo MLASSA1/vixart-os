@@ -225,6 +225,13 @@
       "when": 1787769546977,
       "tag": "0031_agent_activity_policy",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1787769546978,
+      "tag": "0032_remove_agent_layer",
+      "breakpoints": true
     }
   ]
 }

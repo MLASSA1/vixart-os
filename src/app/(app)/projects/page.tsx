@@ -3,8 +3,6 @@ import { sql } from 'drizzle-orm';
 import { auth } from '@/auth';
 import { Empty, PageHeader, Section } from '@/components/ui';
 import { withUser } from '@/db/session';
-import { Chef } from './Chef';
-import { isConfigured } from '@/lib/agent/chef';
 import { PROJECT_STATUS_LABELS, PROJECT_TYPE_LABELS } from '@/lib/labels';
 import { formatDate } from '@/lib/format';
 import { ProjectForm } from './ProjectForm';
@@ -67,12 +65,6 @@ export default async function ProjectsPage() {
   return (
     <>
       <PageHeader eyebrow="Delivery" title="Projects" />
-
-      {canModerate && (
-        <Section title="Ask">
-          <Chef configured={isConfigured()} />
-        </Section>
-      )}
 
       <Section title={`All projects — ${rows.length}`}>
         {rows.length === 0 ? (
