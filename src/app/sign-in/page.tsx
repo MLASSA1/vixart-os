@@ -59,7 +59,7 @@ export default async function SignInPage({
           </div>
 
           <p className="hint mt-6">
-            Internal system. Five accounts, no public sign-up. Contact Amin if you
+            Internal system. Team accounts only, no public sign-up. Contact Amin if you
             cannot get in.
           </p>
         </div>

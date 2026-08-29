@@ -1,7 +1,7 @@
 /**
  * VIXART OS — authentication.
  *
- * Five accounts, no public sign-up, no external provider.
+ * Team accounts only, no public sign-up, no external provider.
  * Sessions are signed JWTs: no session table to back up, and restoring the
  * database does not sign anyone out.
  *

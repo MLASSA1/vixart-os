@@ -18,7 +18,7 @@ import { SEED_RATES } from '../src/lib/fiscal';
 import { PIPELINE as EXAMPLE_PIPELINE, type SeedCompany } from './pipeline.example';
 
 // ---------------------------------------------------------------------------
-// The team — the only five accounts in the system. No public sign-up.
+// The team — the only accounts in the system. No public sign-up.
 //
 // Assumption: internal @vixart.ma addresses. If the mail domain differs, change
 // it here BEFORE the first start, or update the address from the Team screen
@@ -33,9 +33,21 @@ const TEAM = [
     role: 'admin' as const,
   },
   {
-    email: 'aymen@vixart.ma',
-    fullName: 'Aymen',
+    email: 'yassin@vixart.ma',
+    fullName: 'Yassin',
     jobTitle: 'Cinematic Director',
+    role: 'member' as const,
+  },
+  {
+    email: 'abdelkbir@vixart.ma',
+    fullName: 'Abdelkbir',
+    jobTitle: 'Developer',
+    role: 'member' as const,
+  },
+  {
+    email: 'aya@vixart.ma',
+    fullName: 'Aya',
+    jobTitle: 'Content Creator',
     role: 'member' as const,
   },
   {
