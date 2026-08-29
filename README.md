@@ -87,6 +87,46 @@ Two things deliberately stayed:
 The work is in the history if it is ever wanted back: commits `3c94dcc`,
 `1d32421` and `273ce14`.
 
+## Writing a quote or an invoice
+
+`/documents/new` is one screen from blank to a document ready to print: pick the
+client, set the dates, add lines from the service catalog with a quantity each,
+and watch the totals as you type. Header and every line are written in a
+**single transaction**, so a half-written document cannot reach the database.
+
+The totals on that screen are a **preview**. The figures that end up on paper
+are computed by `app.issue_document()` in PostgreSQL, in integer centimes, from
+the rows as they land. The preview mirrors the SQL exactly — same half-up
+rounding, per line before summing — and if the two ever disagreed, the database
+is right and the screen is the bug.
+
+**The client's identity is copied, not referenced.** Legal name, ICE, IF and
+address are frozen onto the document. An invoice has to keep saying what it said
+on the day it was issued, even after the client moves or corrects their ICE.
+
+### The Moroccan format
+
+| On every document | |
+|---|---|
+| Issuer | Legal name, activity, address, RC, ICE, IF |
+| Client | Legal name, address, ICE, IF — as frozen at issue |
+| Lines | Désignation, unité, quantité, P.U. HT, total HT |
+| Totals | Total HT, TVA at its rate, Total TTC |
+| **Total in words** | *Arrêtée la présente facture à la somme de …* |
+| Retenue à la source | Deducted, with the article 117 bis mention, when it applies |
+| VAT exemption | Refused without a stated legal reason — a database CHECK, not a form hint |
+
+A **devis** additionally prints its validity and a *Bon pour accord* block for
+the client to sign back. An invoice prints neither, because it is not an offer.
+
+`taxeProfessionnelle`, `cnss` and `capitalSocial` in `src/lib/vixart.ts` are
+**deliberately blank**. Moroccan practice puts them beside the ICE, the correct
+values are on VIXART's registration papers, and a wrong identifier on an issued
+invoice is worse than a missing one — the document would then assert something
+false and could never be edited. Fill them in and they appear from that moment.
+
+---
+
 ---
 
 ### Configuration

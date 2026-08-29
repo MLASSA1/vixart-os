@@ -12,6 +12,7 @@ import {
   renderToBuffer,
 } from '@react-pdf/renderer';
 import { VIXART } from '@/lib/vixart';
+import { amountInWords } from '@/lib/amount-in-words';
 import { formatMAD, formatRate, fromMillis, lineTotal } from '@/lib/money';
 import { DOCUMENT_TITLE_FR } from '@/lib/labels';
 
@@ -110,6 +111,27 @@ const s = StyleSheet.create({
     textAlign: 'center',
   },
   note: { marginTop: 18, fontSize: 8, opacity: 0.75 },
+
+  // The total in words. Boxed, because it is the line a reader checks the
+  // figures against — brand law allows a border, never a colour.
+  arretee: {
+    marginTop: 16,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: '#0B0B0F',
+    paddingVertical: 7,
+    fontSize: 9,
+  },
+
+  // Somewhere for the client to sign a quote back.
+  accord: { marginTop: 26 },
+  accordBox: {
+    marginTop: 6,
+    height: 66,
+    borderWidth: 1,
+    borderColor: '#0B0B0F',
+    borderStyle: 'dashed',
+  },
 });
 
 export interface PdfLine {
@@ -181,6 +203,18 @@ export async function renderDocumentPdf(input: PdfInput): Promise<Buffer> {
             <Text style={s.meta}>
               ICE {VIXART.ice} · IF {VIXART.taxId}
             </Text>
+            {/* Printed only once the real values are on file. See lib/vixart.ts. */}
+            {(VIXART.taxeProfessionnelle || VIXART.cnss) && (
+              <Text style={s.meta}>
+                {[
+                  VIXART.taxeProfessionnelle && `TP ${VIXART.taxeProfessionnelle}`,
+                  VIXART.cnss && `CNSS ${VIXART.cnss}`,
+                ].filter(Boolean).join(' · ')}
+              </Text>
+            )}
+            {VIXART.capitalSocial && (
+              <Text style={s.meta}>Capital social : {VIXART.capitalSocial}</Text>
+            )}
           </View>
           <View style={{ width: '40%' }}>
             <Text style={s.docTitle}>{title}</Text>
@@ -283,6 +317,34 @@ export async function renderDocumentPdf(input: PdfInput): Promise<Buffer> {
           )}
         </View>
 
+        {/*
+          The total written out. Moroccan invoices carry this, and it is what
+          makes the figure hard to alter after the fact: a digit can be changed
+          with a pen, a sentence cannot.
+
+          It states the TTC — the amount the document is for. Where a
+          withholding applies, the net actually collected is a consequence of
+          that figure, not a different total, so it is named separately rather
+          than replacing it.
+        */}
+        <View style={s.arretee}>
+          <Text>
+            {input.docType === 'devis'
+              ? 'Arrêté le présent devis à la somme de : '
+              : input.docType === 'avoir'
+                ? 'Arrêté le présent avoir à la somme de : '
+                : 'Arrêtée la présente facture à la somme de : '}
+            <Text style={s.strong}>{amountInWords(input.totalInclVat)}</Text>
+            {' TTC.'}
+          </Text>
+          {input.withholding && input.withheld > 0n && (
+            <Text style={{ marginTop: 3 }}>
+              Net à encaisser après retenue à la source :{' '}
+              <Text style={s.strong}>{amountInWords(input.netToCollect)}</Text>.
+            </Text>
+          )}
+        </View>
+
         {input.vatRateBp === 0 && input.vatExemptionReason && (
           <Text style={s.note}>
             Exonération de TVA : {input.vatExemptionReason}
@@ -298,6 +360,26 @@ export async function renderDocumentPdf(input: PdfInput): Promise<Buffer> {
           <Text style={s.note}>Conditions de règlement : {input.paymentTerms}</Text>
         )}
         {input.notes && <Text style={s.note}>{input.notes}</Text>}
+
+        {input.docType === 'devis' && (
+          <>
+            <Text style={s.note}>
+              {input.dueDate
+                ? `Offre valable jusqu'au ${frDate(input.dueDate)}.`
+                : 'Offre valable 30 jours à compter de la date ci-dessus.'}
+              {' '}Les prix sont exprimés en dirhams marocains.
+            </Text>
+            {/* A quote becomes an agreement when the client signs it. */}
+            <View style={s.accord} wrap={false}>
+              <Text style={s.blockTitle}>BON POUR ACCORD</Text>
+              <Text style={s.meta}>
+                Date, cachet et signature du client, précédés de la mention
+                « Bon pour accord »
+              </Text>
+              <View style={s.accordBox} />
+            </View>
+          </>
+        )}
 
         <Text style={s.footer} fixed>
           {VIXART.legalName} · {VIXART.activity} · {VIXART.address} ·{' '}

@@ -13,4 +13,22 @@ export const VIXART = {
   taxId: '73161069',
   address: 'Bureau AB 403, Imm A9, Technopole II Bensergaou, Agadir',
   country: 'Maroc',
+
+  // ---------------------------------------------------------------------
+  // Left blank on purpose.
+  //
+  // Moroccan practice puts the taxe professionnelle (patente), the CNSS
+  // affiliation and the capital social on an invoice alongside the ICE, IF and
+  // RC above. The correct values are on VIXART's own registration papers and
+  // are not guessable — and a wrong identifier on an issued invoice is worse
+  // than a missing one, because the document then asserts something false and
+  // cannot be edited afterwards.
+  //
+  // Fill these in and they appear on every document from that moment. Until
+  // then the PDF simply omits the line. Same rule as the withholding rate and
+  // the service prices: visibly unset beats plausibly wrong.
+  // ---------------------------------------------------------------------
+  taxeProfessionnelle: '',
+  cnss: '',
+  capitalSocial: '',
 } as const;

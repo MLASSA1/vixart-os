@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { sql } from 'drizzle-orm';
 import { auth } from '@/auth';
-import { Empty, PageHeader, Section } from '@/components/ui';
+import { ButtonLink, Empty, PageHeader, Section } from '@/components/ui';
 import { withUser } from '@/db/session';
 import { DOCUMENT_STATUS_LABELS, DOCUMENT_TYPE_LABELS } from '@/lib/labels';
 import { formatMAD } from '@/lib/money';
@@ -136,7 +136,11 @@ export default async function DocumentsPage() {
 
   return (
     <>
-      <PageHeader eyebrow="Billing" title="Quotes & invoices" />
+      <PageHeader
+        eyebrow="Billing"
+        title="Quotes &amp; invoices"
+        actions={<ButtonLink href="/documents/new">New document</ButtonLink>}
+      />
 
       <div className="grid grid-cols-2 gap-6 border-b border-void/15 pb-6 md:grid-cols-4">
         <div>
