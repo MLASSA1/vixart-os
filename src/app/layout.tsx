@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { IBM_Plex_Mono, Inter } from 'next/font/google';
+import { IBM_Plex_Mono, Inter, Space_Grotesk } from 'next/font/google';
 import './globals.css';
 
 /**
@@ -14,6 +14,18 @@ const inter = Inter({
   subsets: ['latin', 'latin-ext'],
   weight: ['400', '500', '600', '700'],
   variable: '--font-interface',
+  display: 'block',
+});
+
+/**
+ * Space Grotesk carries headings and big figures — enough character to feel
+ * like a studio built this, without costing body-text legibility, which stays
+ * Inter's job.
+ */
+const grotesk = Space_Grotesk({
+  subsets: ['latin'],
+  weight: ['500', '600', '700'],
+  variable: '--font-display',
   display: 'block',
 });
 
@@ -33,7 +45,7 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${inter.variable} ${plexMono.variable}`}>
+    <html lang="en" className={`${inter.variable} ${plexMono.variable} ${grotesk.variable}`}>
       <body>{children}</body>
     </html>
   );

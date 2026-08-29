@@ -24,13 +24,13 @@ interface Row {
   purchase_cost_centimes: string; notes: string | null;
 }
 
-/** Denser mark = further from the office. Never a colour. */
+/** On the shelf is green, out is violet, broken is amber, gone is red. */
 const STATUS_STYLE: Record<string, string> = {
-  available: 'border border-void/35',
-  assigned: 'bg-void text-pure border border-void',
-  repair: 'border-2 border-void',
-  retired: 'border border-void/30 text-void/50',
-  lost: 'border-2 border-void text-void',
+  available: 'tone-ok',
+  assigned: 'tone-accent',
+  repair: 'tone-warn',
+  retired: 'tone-quiet opacity-70',
+  lost: 'tone-danger',
 };
 
 export default async function EquipmentPage() {
@@ -120,7 +120,7 @@ export default async function EquipmentPage() {
                     </td>
                     <td className="py-3 pr-4">
                       <span
-                        className={`inline-block px-2 py-0.5 text-[12.5px] font-medium whitespace-nowrap ${
+                        className={`chip ${
                           STATUS_STYLE[item.status]
                         }`}
                       >

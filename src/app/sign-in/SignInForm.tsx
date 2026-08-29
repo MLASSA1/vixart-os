@@ -19,13 +19,13 @@ export function SignInForm() {
   const [state, formAction] = useActionState(signInAction, INITIAL);
 
   return (
-    <form action={formAction} className="mt-10 space-y-5">
+    <form action={formAction} className="mt-6 space-y-5">
       {state.error && (
         <div
           role="alert"
-          className="border-2 border-void bg-void px-4 py-3 text-pure"
+          className="tone-danger rounded-[10px] px-4 py-3"
         >
-          <p className="label">Sign-in refused</p>
+          <p className="text-[12.5px] font-bold tracking-wide uppercase">Sign-in refused</p>
           <p className="mt-1">{state.error}</p>
         </div>
       )}
@@ -41,7 +41,7 @@ export function SignInForm() {
           autoComplete="username"
           required
           autoFocus
-          className="mt-1.5 w-full border border-void bg-pure px-3 py-2.5 text-[15px] focus:border-[3px] focus:px-[10px] focus:py-[8px] focus:outline-none"
+          className="input mt-1.5"
         />
       </label>
 
@@ -55,7 +55,7 @@ export function SignInForm() {
           type="password"
           autoComplete="current-password"
           required
-          className="mt-1.5 w-full border border-void bg-pure px-3 py-2.5 text-[15px] focus:border-[3px] focus:px-[10px] focus:py-[8px] focus:outline-none"
+          className="input mt-1.5"
         />
       </label>
 

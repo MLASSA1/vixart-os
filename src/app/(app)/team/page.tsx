@@ -31,11 +31,11 @@ const ROLE_LABEL: Record<string, string> = {
   member: 'Team',
 };
 
-/** Denser mark = more reach. No colour anywhere. */
+/** Reach is marked with the accent; everyone else stays quiet. */
 const ROLE_STYLE: Record<string, string> = {
-  admin: 'bg-void text-pure border border-void',
-  moderator: 'border-2 border-void',
-  member: 'border border-void/40',
+  admin: 'tone-accent',
+  moderator: 'tone-quiet font-semibold',
+  member: 'tone-quiet',
 };
 
 const ROLE_EXPLAINS: Record<string, string> = {

@@ -26,10 +26,11 @@ interface Row {
 }
 
 const STATUS_STYLE: Record<string, string> = {
-  active: 'bg-void text-pure border border-void',
-  planned: 'border-2 border-void',
-  on_hold: 'border border-dashed border-void',
-  delivered: 'border border-void/35 text-void/50',
+  // Running is violet, waiting is quiet, stuck is amber, shipped is green.
+  active: 'tone-accent',
+  planned: 'tone-quiet',
+  on_hold: 'tone-warn border-dashed',
+  delivered: 'tone-ok',
 };
 
 export default async function ProjectsPage() {
@@ -96,7 +97,7 @@ export default async function ProjectsPage() {
                     </td>
                     <td className="py-3 pr-4">
                       <span
-                        className={`inline-block px-2 py-0.5 text-[12.5px] font-medium whitespace-nowrap ${
+                        className={`chip ${
                           STATUS_STYLE[row.status]
                         }`}
                       >

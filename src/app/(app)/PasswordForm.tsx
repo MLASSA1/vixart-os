@@ -38,7 +38,7 @@ export function PasswordForm({ label = 'Change password' }: { label?: string }) 
           autoComplete="new-password"
           minLength={12}
           required
-          className="mt-1.5 w-full border border-void bg-pure px-3 py-2.5 text-[15px] focus:border-[3px] focus:px-[10px] focus:py-[8px] focus:outline-none"
+          className="input mt-1.5"
         />
         <span className="mt-1 block text-[15px]" style={{ opacity: 0.52 }}>
           12 characters minimum.
@@ -56,7 +56,7 @@ export function PasswordForm({ label = 'Change password' }: { label?: string }) 
           autoComplete="new-password"
           minLength={12}
           required
-          className="mt-1.5 w-full border border-void bg-pure px-3 py-2.5 text-[15px] focus:border-[3px] focus:px-[10px] focus:py-[8px] focus:outline-none"
+          className="input mt-1.5"
         />
       </label>
 

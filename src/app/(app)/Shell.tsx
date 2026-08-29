@@ -42,6 +42,11 @@ function visible(item: NavItem, role: 'admin' | 'moderator' | 'member') {
   return true;
 }
 
+/**
+ * The sidebar is the one dark surface in the app — warm ink against the paper
+ * content, with the saffron accent marking exactly two things: the brand tick
+ * and wherever you are. Everything else on it stays quiet.
+ */
 export function Shell({
   user,
   urgent,
@@ -58,24 +63,28 @@ export function Shell({
   return (
     <div className="flex min-h-screen">
       {/* Sidebar — fixed, scrolls independently of the content. */}
-      <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r border-void md:flex">
-        <div className="border-b border-void px-6 py-6">
+      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col bg-void text-pure md:flex">
+        <div className="px-6 pt-7 pb-6">
           <Link href="/dashboard" className="block">
-            <span className="text-xl font-bold tracking-tight">VIXART OS</span>
+            <span className="display flex items-baseline gap-2 text-xl font-bold tracking-tight">
+              VIXART OS
+              {/* The brand tick: the accent's first of two appearances. */}
+              <span aria-hidden="true" className="inline-block h-2.5 w-2.5 rounded-[3px] bg-accent" />
+            </span>
           </Link>
-          <p className="label mt-1" style={{ opacity: 0.52 }}>
-            Agadir
+          <p className="mt-1 text-[12.5px] font-medium text-pure/45">
+            SOCIETE VIXART SARL — Agadir
           </p>
         </div>
 
-        <nav className="flex-1 overflow-y-auto py-3">
+        <nav className="flex-1 overflow-y-auto px-3 py-1">
           {GROUPS.map((group) => {
             const inGroup = items.filter((i) => i.group === group);
             if (inGroup.length === 0) return null;
             return (
-              <div key={group ?? 'main'} className="mb-3">
+              <div key={group ?? 'main'} className="mb-4">
                 {group && (
-                  <p className="label px-6 pt-3 pb-1 text-[11.5px] tracking-wide uppercase opacity-60">
+                  <p className="px-3 pt-3 pb-1.5 text-[11px] font-bold tracking-[0.1em] text-pure/35 uppercase">
                     {group}
                   </p>
                 )}
@@ -87,18 +96,18 @@ export function Shell({
                       key={item.href}
                       href={item.href}
                       aria-current={active ? 'page' : undefined}
-                      /* Active state: solid inversion. Never a colour. */
-                      className={`block px-6 py-2 text-[14.5px] ${
+                      /* Where you are: the accent's second appearance. */
+                      className={`mb-0.5 flex items-center justify-between rounded-lg px-3 py-2 text-[14.5px] transition-colors ${
                         active
-                          ? 'bg-void font-medium text-pure'
-                          : 'hover:bg-void hover:text-pure'
+                          ? 'bg-accent font-semibold text-pure'
+                          : 'text-pure/80 hover:bg-pure/10 hover:text-pure'
                       }`}
                     >
                       {item.label}
                       {item.href === '/attention' && urgent > 0 && (
                         <span
-                          className={`ml-2 inline-block min-w-[1.35rem] px-1.5 py-px text-center text-[12px] font-semibold ${
-                            active ? 'bg-pure text-void' : 'bg-void text-pure'
+                          className={`ml-2 inline-block min-w-[1.4rem] rounded-full px-1.5 py-px text-center text-[12px] font-bold ${
+                            active ? 'bg-pure text-accent-deep' : 'bg-accent text-pure'
                           }`}
                         >
                           {urgent}
@@ -112,35 +121,42 @@ export function Shell({
           })}
         </nav>
 
-        <div className="border-t border-void px-6 py-5">
-          <p className="font-semibold leading-tight">{user.name}</p>
-          <p className="label mt-0.5" style={{ opacity: 0.52 }}>
-            {user.role === 'admin'
-              ? 'Management'
-              : user.role === 'moderator'
-                ? 'Work moderator'
-                : (user.jobTitle ?? 'Team')}
-          </p>
-          <div className="mt-4 flex flex-col gap-2">
-            <Link href="/account" className="label underline underline-offset-4">
-              My account
-            </Link>
-            <form action={signOutAction}>
-              <button
-                type="submit"
-                className="label cursor-pointer underline underline-offset-4"
+        {/* The person, in a quiet inset card. */}
+        <div className="px-4 pt-2 pb-5">
+          <div className="rounded-xl bg-pure/[0.07] px-4 py-4">
+            <p className="leading-tight font-semibold">{user.name}</p>
+            <p className="mt-0.5 text-[12.5px] text-pure/50">
+              {user.role === 'admin'
+                ? 'Management'
+                : user.role === 'moderator'
+                  ? 'Work moderator'
+                  : (user.jobTitle ?? 'Team')}
+            </p>
+            <div className="mt-3 flex items-center gap-4 text-[13px]">
+              <Link
+                href="/account"
+                className="text-pure/70 underline-offset-4 hover:text-pure hover:underline"
               >
-                Sign out
-              </button>
-            </form>
+                My account
+              </Link>
+              <form action={signOutAction}>
+                <button
+                  type="submit"
+                  className="cursor-pointer text-pure/70 underline-offset-4 hover:text-pure hover:underline"
+                >
+                  Sign out
+                </button>
+              </form>
+            </div>
           </div>
         </div>
       </aside>
 
-      {/* Mobile bar — the sidebar collapses to a horizontal strip. */}
-      <div className="fixed inset-x-0 top-0 z-10 flex items-center gap-4 overflow-x-auto border-b border-void bg-pure px-4 py-3 md:hidden">
-        <Link href="/dashboard" className="font-bold whitespace-nowrap">
-          VIXART OS
+      {/* Mobile bar — the sidebar collapses to a dark horizontal strip. */}
+      <div className="fixed inset-x-0 top-0 z-10 flex items-center gap-1 overflow-x-auto bg-void px-3 py-2.5 text-pure md:hidden">
+        <Link href="/dashboard" className="display px-2 font-bold whitespace-nowrap">
+          VIXART
+          <span aria-hidden="true" className="ml-1 inline-block h-2 w-2 rounded-[2px] bg-accent" />
         </Link>
         {items.map((item) => {
           const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
@@ -148,8 +164,8 @@ export function Shell({
             <Link
               key={item.href}
               href={item.href}
-              className={`label whitespace-nowrap px-2 py-1 ${
-                active ? 'bg-void text-pure' : ''
+              className={`rounded-md px-2.5 py-1 text-[13px] whitespace-nowrap ${
+                active ? 'bg-accent font-semibold text-pure' : 'text-pure/75'
               }`}
             >
               {item.label}
@@ -157,12 +173,12 @@ export function Shell({
             </Link>
           );
         })}
-        <Link href="/account" className="label ml-auto whitespace-nowrap">
+        <Link href="/account" className="ml-auto px-2 text-[13px] whitespace-nowrap text-pure/75">
           {user.name}
         </Link>
       </div>
 
-      <main className="min-w-0 flex-1 px-6 pt-20 pb-24 md:px-10 md:pt-12">
+      <main className="min-w-0 flex-1 px-6 pt-20 pb-24 md:px-10 md:pt-10">
         <div className="mx-auto max-w-5xl">{children}</div>
       </main>
     </div>

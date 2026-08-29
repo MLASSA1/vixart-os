@@ -186,7 +186,7 @@ export default async function SystemPage() {
                   <td className="py-2">
                     <span
                       className={`inline-block px-2 py-0.5 text-[12.5px] font-medium ${
-                        g.enabled ? 'border border-void' : 'bg-void text-pure border border-void'
+                        g.enabled ? 'tone-ok' : 'tone-danger font-semibold'
                       }`}
                     >
                       {g.enabled ? 'Active' : 'SWITCHED OFF'}

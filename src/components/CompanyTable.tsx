@@ -23,21 +23,17 @@ export interface CompanyRow {
   last_contact: string | null;
 }
 
-/** Stage, without colour: the further along, the denser the mark. */
+/** Stage in tones: won is green, warming is violet, cold is quiet ink. */
 const STAGE_STYLE: Record<string, string> = {
-  client: 'bg-void text-pure border border-void',
-  prospect: 'border-2 border-void',
-  lead: 'border border-void',
-  dormant: 'border border-void/35 text-void/50',
+  client: 'tone-ok',
+  prospect: 'tone-accent',
+  lead: 'tone-quiet',
+  dormant: 'tone-quiet opacity-70',
 };
 
 export function Stage({ value }: { value: string }) {
   return (
-    <span
-      className={`inline-block px-2 py-0.5 text-[12.5px] font-medium whitespace-nowrap ${
-        STAGE_STYLE[value] ?? STAGE_STYLE.lead
-      }`}
-    >
+    <span className={`chip ${STAGE_STYLE[value] ?? STAGE_STYLE.lead}`}>
       {COMPANY_STAGE_LABELS[value] ?? value}
     </span>
   );

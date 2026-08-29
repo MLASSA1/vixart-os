@@ -41,7 +41,7 @@ export function AddLineForm({
           type="checkbox"
           checked={free}
           onChange={(e) => setFree(e.target.checked)}
-          className="h-4 w-4 accent-[#0B0B0F]"
+          className="h-4 w-4 accent-[#6D28D9]"
         />
         <span className="label">Free line — something not in the catalog</span>
       </label>

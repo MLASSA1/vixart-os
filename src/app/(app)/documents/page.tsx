@@ -30,10 +30,11 @@ interface Row {
 
 /** Draft is outlined, issued is ruled, paid is solid, cancelled struck through. */
 const STATUS_STYLE: Record<string, string> = {
-  brouillon: 'border border-dashed border-void/50',
-  emis: 'border-2 border-void',
-  paye: 'bg-void text-pure border border-void',
-  annule: 'border border-void/35 text-void/50 line-through',
+  // Draft is quiet, issued is money still out the door, paid is settled.
+  brouillon: 'tone-quiet border-dashed',
+  emis: 'tone-warn',
+  paye: 'tone-ok',
+  annule: 'tone-quiet line-through opacity-70',
 };
 
 export default async function DocumentsPage() {
@@ -111,11 +112,7 @@ export default async function DocumentsPage() {
                   </Link>
                 </td>
                 <td className="py-3 pr-4">
-                  <span
-                    className={`inline-block px-2 py-0.5 text-[12.5px] font-medium whitespace-nowrap ${
-                      STATUS_STYLE[row.status]
-                    }`}
-                  >
+                  <span className={`chip ${STATUS_STYLE[row.status]}`}>
                     {DOCUMENT_STATUS_LABELS[row.status]}
                   </span>
                 </td>

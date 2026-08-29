@@ -1,12 +1,10 @@
 /**
  * VIXART OS — interface primitives.
  *
- * Two colours, never a third. Hierarchy and state are carried by weight, case,
- * border thickness, fill and achromatic opacity — never by hue.
- *
- *   primary text     opacity 1
- *   secondary text   opacity 0.68
- *   metadata         opacity 0.52
+ * Theme "Studio dusk": warm paper ground, white cards, ink text, one saffron
+ * accent that is spent deliberately. Status may carry hue — muted tints from
+ * globals.css (.tone-*), never raw traffic-light colour. The two-colour law
+ * still governs the printed PDF, where it belongs.
  */
 
 import Link from 'next/link';
@@ -21,10 +19,11 @@ import type { ReactNode } from 'react';
 // ---------------------------------------------------------------------------
 
 const STATUS_STYLES: Record<string, string> = {
-  client: 'bg-void text-pure border-2 border-void',
-  prospect: 'border-2 border-void text-void',
-  lead: 'border border-void text-void',
-  dormant: 'border border-void/40 text-void/50',
+  // A client is won: green. A prospect is warm. A lead is quiet ink.
+  client: 'tone-ok',
+  prospect: 'tone-accent',
+  lead: 'tone-quiet',
+  dormant: 'tone-quiet opacity-70',
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -36,11 +35,7 @@ const STATUS_LABELS: Record<string, string> = {
 
 export function Status({ value }: { value: string }) {
   return (
-    <span
-      className={`label inline-block whitespace-nowrap px-2.5 py-1 leading-none ${
-        STATUS_STYLES[value] ?? STATUS_STYLES.lead
-      }`}
-    >
+    <span className={`chip ${STATUS_STYLES[value] ?? STATUS_STYLES.lead}`}>
       {STATUS_LABELS[value] ?? value}
     </span>
   );
@@ -60,13 +55,9 @@ export function PageHeader({
   actions?: ReactNode;
 }) {
   return (
-    <header className="mb-10 flex flex-wrap items-end justify-between gap-4 border-b-2 border-void pb-5">
+    <header className="mb-8 flex flex-wrap items-end justify-between gap-4 pb-1">
       <div>
-        {eyebrow && (
-          <p className="label" style={{ opacity: 0.52 }}>
-            {eyebrow}
-          </p>
-        )}
+        {eyebrow && <p className="eyebrow">{eyebrow}</p>}
         <h1 className="mt-1.5 text-3xl font-bold tracking-tight">{title}</h1>
       </div>
       {actions && <div className="flex flex-wrap gap-3">{actions}</div>}
@@ -84,9 +75,9 @@ export function Section({
   children: ReactNode;
 }) {
   return (
-    <section className="mt-12">
-      <div className="flex items-center justify-between gap-4 border-b border-void pb-2">
-        <h2 className="label">{title}</h2>
+    <section className="card mt-8 px-6 py-5">
+      <div className="flex items-center justify-between gap-4 border-b border-void/10 pb-3">
+        <h2 className="text-[15px] font-semibold">{title}</h2>
         {action}
       </div>
       <div className="mt-4">{children}</div>
@@ -108,7 +99,7 @@ export function Field({ label, value }: { label: string; value: ReactNode }) {
 
 export function Empty({ message, action }: { message: string; action?: ReactNode }) {
   return (
-    <div className="border border-dashed border-void/30 px-6 py-10 text-center">
+    <div className="rounded-[14px] border border-dashed border-void/25 bg-paper px-6 py-10 text-center">
       <p className="label" style={{ opacity: 0.52 }}>
         {message}
       </p>
@@ -117,12 +108,12 @@ export function Empty({ message, action }: { message: string; action?: ReactNode
   );
 }
 
-/** Error banner: heavy rule, inverted fill, uppercase. No alert colour. */
+/** Error banner: the danger tone. Red is reserved for exactly this. */
 export function ErrorBanner({ message }: { message?: string | null }) {
   if (!message) return null;
   return (
-    <div className="mb-6 border-2 border-void bg-void px-4 py-3 text-pure">
-      <p className="label">Error</p>
+    <div className="tone-danger mb-6 rounded-[10px] px-4 py-3">
+      <p className="text-[12.5px] font-bold tracking-wide uppercase">Error</p>
       <p className="prose-vixart mt-1">{message}</p>
     </div>
   );
@@ -186,8 +177,9 @@ function Wrapper({
 }
 
 const INPUT_CLASSES =
-  'mt-1.5 w-full border border-void bg-pure px-3 py-2.5 text-[15px] ' +
-  'focus:border-[3px] focus:px-[10px] focus:py-[8px] focus:outline-none';
+  'mt-1.5 w-full rounded-[9px] border border-void/25 bg-surface px-3 py-2.5 text-[15px] ' +
+  'transition-[border-color,box-shadow] focus:border-accent ' +
+  'focus:shadow-[0_0_0_3px_rgba(109,40,217,0.22)] focus:outline-none';
 
 export function TextInput(
   props: BaseInput & { type?: string; placeholder?: string; pattern?: string },
@@ -263,7 +255,7 @@ export function Checkbox({
         name={name}
         type="checkbox"
         defaultChecked={checked}
-        className="mt-1 h-4 w-4 shrink-0 accent-[#0B0B0F]"
+        className="mt-1 h-4 w-4 shrink-0 accent-[#6D28D9]"
       />
       <span>
         <span className="label block">{label}</span>

@@ -121,29 +121,29 @@ export default async function DashboardPage() {
       <PageHeader eyebrow={`Signed in as ${me.name}`} title="Dashboard" />
 
       {/* --- Headline figures ------------------------------------------------ */}
-      <div className="grid grid-cols-2 gap-x-8 gap-y-6 border-b border-void/15 pb-7 md:grid-cols-4">
-        <div>
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        <div className="card px-5 py-4">
           <p className="label">Paying clients</p>
           <p className="kpi mt-1">{counts.clients}</p>
           <Link href="/clients" className="hint underline underline-offset-4">
             View
           </Link>
         </div>
-        <div>
+        <div className="card px-5 py-4">
           <p className="label">Open leads</p>
           <p className="kpi mt-1">{counts.leads}</p>
           <Link href="/leads" className="hint underline underline-offset-4">
             View
           </Link>
         </div>
-        <div>
+        <div className="card px-5 py-4">
           <p className="label">Active projects</p>
           <p className="kpi mt-1">{counts.active_projects}</p>
           <Link href="/projects" className="hint underline underline-offset-4">
             View
           </Link>
         </div>
-        <div>
+        <div className="card px-5 py-4">
           <p className="label">Open tasks</p>
           <p className="kpi mt-1">{counts.open_tasks}</p>
           <p className="hint">
@@ -153,20 +153,20 @@ export default async function DashboardPage() {
       </div>
 
       {seesMoney && (
-        <div className="grid grid-cols-2 gap-x-8 gap-y-6 border-b border-void/15 py-7 md:grid-cols-4">
-          <div>
+        <div className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-4">
+          <div className="card px-5 py-4">
             <p className="label">Open deals</p>
             <p className="kpi mt-1">{money.open_deals}</p>
           </div>
-          <div>
+          <div className="card px-5 py-4">
             <p className="label">Pipeline value</p>
             <p className="kpi mt-1">{formatMAD(money.open_value)}</p>
           </div>
-          <div>
+          <div className="card px-5 py-4">
             <p className="label">Weighted forecast</p>
             <p className="kpi mt-1">{formatMAD(money.weighted)}</p>
           </div>
-          <div>
+          <div className="card px-5 py-4">
             <p className="label">Won to date</p>
             <p className="kpi mt-1">{formatMAD(money.won_value)}</p>
             <p className="hint">Signed, not yet invoiced.</p>
@@ -249,11 +249,11 @@ export default async function DashboardPage() {
 
       <Section title="Directory">
         <div className="grid grid-cols-2 gap-6 md:grid-cols-4">
-          <div>
+          <div className="card px-5 py-4">
             <p className="label">Client records</p>
             <p className="figure mt-1 text-xl">{counts.companies}</p>
           </div>
-          <div>
+          <div className="card px-5 py-4">
             <p className="label">Contacts</p>
             <p className="figure mt-1 text-xl">{counts.contacts}</p>
           </div>

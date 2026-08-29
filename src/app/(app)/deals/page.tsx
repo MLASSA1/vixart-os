@@ -26,12 +26,12 @@ interface Row {
   owner_name: string | null;
 }
 
-/** Stage mark, no colour: open stages are outlined, closed ones filled. */
+/** Stage tones: talking is quiet, closing is violet, won is green. */
 const STAGE_STYLE: Record<string, string> = {
-  proposal: 'border border-void',
-  negotiation: 'border-2 border-void',
-  won: 'bg-void text-pure border border-void',
-  lost: 'border border-void/35 text-void/50 line-through',
+  proposal: 'tone-quiet',
+  negotiation: 'tone-accent',
+  won: 'tone-ok',
+  lost: 'tone-quiet line-through opacity-70',
 };
 
 export default async function DealsPage() {

@@ -195,7 +195,7 @@ export function Builder({
 
       {/* The identity that will be printed, shown before it is committed. */}
       {client && (
-        <div className="mt-4 border border-void/20 px-4 py-3">
+        <div className="mt-4 rounded-xl border border-void/15 bg-paper px-4 py-3">
           <p className="label">Printed on the document</p>
           <p className="mt-1 font-semibold">{client.legalName || client.name}</p>
           {client.address && <p className="prose-vixart">{client.address}</p>}
@@ -256,7 +256,7 @@ export function Builder({
               1000n,
             );
             return (
-              <div key={line.key} className="border border-void/20 p-4">
+              <div key={line.key} className="rounded-xl border border-void/15 bg-surface p-4">
                 {/* Parallel names: the action reads these as arrays. */}
                 <input type="hidden" name="lineServiceId" value={line.serviceId} />
                 <input type="hidden" name="lineUnit" value={line.unit} />
@@ -354,7 +354,7 @@ export function Builder({
           <label className="mt-5 flex items-start gap-2">
             <input
               type="checkbox"
-              className="mt-1 h-4 w-4 accent-[#0B0B0F]"
+              className="mt-1 h-4 w-4 accent-[#6D28D9]"
               checked={exempt}
               onChange={(e) => setExempt(e.target.checked)}
             />
@@ -388,8 +388,8 @@ export function Builder({
         </div>
 
         {/* Live preview. The database has the last word on all of it. */}
-        <div className="border-2 border-void p-5">
-          <p className="label">Preview</p>
+        <div className="rounded-[14px] bg-void p-6 text-pure">
+          <p className="text-[12px] font-bold tracking-[0.09em] text-pure/45 uppercase">Preview</p>
           <dl className="mt-3 space-y-2">
             {totals.capped > 0n && (
               <>
@@ -411,7 +411,7 @@ export function Builder({
               <dt>TVA {(vatRateBp / 100).toFixed(0)} %</dt>
               <dd>{formatMAD(totals.vat)}</dd>
             </div>
-            <div className="flex justify-between border-t-2 border-void pt-2 text-lg font-bold">
+            <div className="flex justify-between border-t-2 border-accent pt-2 text-lg font-bold">
               <dt>Total TTC</dt>
               <dd>{formatMAD(totals.incl)}</dd>
             </div>
@@ -428,7 +428,7 @@ export function Builder({
               </>
             )}
           </dl>
-          <p className="hint mt-4">
+          <p className="mt-4 text-[13px] text-pure/50">
             Computed here so you can see it. The figures on the document itself are
             calculated by the database when it is issued.
           </p>
@@ -441,13 +441,13 @@ export function Builder({
       </label>
 
       {/* ---- save -------------------------------------------------------- */}
-      <div className="mt-8 border-t-2 border-void pt-5">
+      <div className="mt-8 border-t border-void/15 pt-5">
         <label className="flex items-start gap-2">
           <input
             type="checkbox"
             name="issueNow"
             value="yes"
-            className="mt-1 h-4 w-4 accent-[#0B0B0F]"
+            className="mt-1 h-4 w-4 accent-[#6D28D9]"
             checked={issueNow}
             onChange={(e) => setIssueNow(e.target.checked)}
           />

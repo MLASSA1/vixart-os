@@ -23,17 +23,18 @@ export interface TaskItem {
  * Only `urgent` inverts, so a board of urgent tasks still reads as a warning.
  */
 const PRIORITY_STYLE: Record<string, string> = {
-  urgent: 'bg-void text-pure border border-void font-semibold',
-  high: 'border-2 border-void font-medium',
-  normal: 'border border-void/40',
-  low: 'border border-void/25 text-void/55',
+  // Red is spent on exactly one thing: work that cannot wait.
+  urgent: 'tone-danger font-semibold',
+  high: 'tone-warn',
+  normal: 'tone-quiet',
+  low: 'tone-quiet opacity-70',
 };
 
 const STATUS_STYLE: Record<string, string> = {
-  todo: 'border border-void/40',
-  in_progress: 'border-2 border-void',
-  submitted: 'border-2 border-dashed border-void',
-  completed: 'bg-void text-pure border border-void',
+  todo: 'tone-quiet',
+  in_progress: 'tone-accent',
+  submitted: 'tone-warn border-dashed',
+  completed: 'tone-ok',
 };
 
 /** Which moves this viewer may make. The database enforces the same rule. */
