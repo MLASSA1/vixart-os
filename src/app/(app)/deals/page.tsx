@@ -150,19 +150,30 @@ export default async function DealsPage() {
                       {row.expected_close_date ? formatDate(row.expected_close_date) : '—'}
                     </td>
                     <td className="py-3">
-                      <div className="flex flex-wrap gap-1.5">
-                        {['proposal', 'negotiation', 'won']
-                          .filter((s) => s !== row.stage)
-                          .map((s) => (
-                            <form key={s} action={setDealStageAction}>
-                              <input type="hidden" name="dealId" value={row.id} />
-                              <input type="hidden" name="stage" value={s} />
-                              <button type="submit" className="btn btn-inverse btn-small">
-                                {DEAL_STAGE_LABELS[s]}
-                              </button>
-                            </form>
-                          ))}
-                      </div>
+                      {/* A closed deal gets NO one-click moves. The table
+                          re-sorts after every change, so rows jump position —
+                          and one stray click on a won deal was un-winning it
+                          and dropping it from the totals. Reopening a closed
+                          deal is a decision: it goes through the full form
+                          below, never through a button that moves under the
+                          cursor. */}
+                      {row.stage === 'won' || row.stage === 'lost' ? (
+                        <span className="hint">closed</span>
+                      ) : (
+                        <div className="flex flex-wrap gap-1.5">
+                          {['proposal', 'negotiation', 'won']
+                            .filter((s) => s !== row.stage)
+                            .map((s) => (
+                              <form key={s} action={setDealStageAction}>
+                                <input type="hidden" name="dealId" value={row.id} />
+                                <input type="hidden" name="stage" value={s} />
+                                <button type="submit" className="btn btn-inverse btn-small">
+                                  {DEAL_STAGE_LABELS[s]}
+                                </button>
+                              </form>
+                            ))}
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))}

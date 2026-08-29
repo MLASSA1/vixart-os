@@ -534,6 +534,35 @@ export const documentLine = pgTable(
 // an invoice is marked paid (drizzle/0016).
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Payments against an invoice — the advance first, the balance later.
+//
+// The advance is an AMOUNT in dirhams, whatever was agreed — 10%, 30%, all of
+// it — never a fixed half. Append-only: a payment is a fact, and a mistake is
+// corrected by delete and re-entry while the invoice is still open. When the
+// payments cover the net, the invoice settles itself; no button marks it paid.
+// ---------------------------------------------------------------------------
+
+export const documentPayment = pgTable(
+  'document_payment',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    documentId: uuid('document_id')
+      .notNull()
+      .references(() => document.id, { onDelete: 'restrict' }),
+    amountCentimes: bigint('amount_centimes', { mode: 'bigint' }).notNull(),
+    /** 'virement' | 'especes' | 'cheque' | 'carte' | 'autre'. */
+    method: text('method').notNull().default('virement'),
+    paidOn: date('paid_on').notNull().defaultNow(),
+    note: text('note'),
+    createdById: uuid('created_by_id')
+      .notNull()
+      .references(() => appUser.id, { onDelete: 'restrict' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('payment_by_document_idx').on(t.documentId, t.paidOn)],
+);
+
 export const financeEntry = pgTable(
   'finance_entry',
   {
@@ -550,6 +579,10 @@ export const financeEntry = pgTable(
     description: text('description'),
     companyId: uuid('company_id').references(() => company.id, { onDelete: 'set null' }),
     documentId: uuid('document_id').references(() => document.id),
+    /** Set when this line is one instalment, posted by the payment trigger. */
+    documentPaymentId: uuid('document_payment_id').references(() => documentPayment.id, {
+      onDelete: 'cascade',
+    }),
     reference: text('reference'),
     /** true when written by the revenue trigger rather than typed by hand. */
     isAutomatic: boolean('is_automatic').notNull().default(false),

@@ -12,10 +12,13 @@ import { computeDealTotals } from '@/lib/deal-totals';
 import { applyRate } from '@/lib/money';
 import { formatDate } from '@/lib/format';
 import { AddLineForm, DraftSettingsForm } from './DraftForms';
+import { Payments, type PaymentRow } from './Payments';
 import {
   addDocumentLineAction,
   deleteDraftAction,
+  deletePaymentAction,
   issueDocumentAction,
+  recordPaymentAction,
   removeDocumentLineAction,
   setDocumentStatusAction,
   updateDraftAction,
@@ -77,13 +80,22 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
                         ORDER BY p.effective_from DESC LIMIT 1), 0)::text AS price
         FROM service s WHERE s.is_active ORDER BY s.pillar, lower(s.name)
     `);
-    return { record, lines: lines.rows, services: services.rows };
+    const payments = await tx.execute<{
+      [k: string]: unknown;
+      id: string; amount: string; method: string; paid_on: string; note: string | null;
+    }>(sql`
+      SELECT id, amount_centimes::text AS amount, method, paid_on::text, note
+        FROM document_payment WHERE document_id = ${id}
+       ORDER BY paid_on, created_at
+    `);
+
+    return { record, lines: lines.rows, services: services.rows, payments: payments.rows };
   });
 
   const files = await listAttachments('document', id);
 
   if (!data) notFound();
-  const { record, lines, services } = data;
+  const { record, lines, services, payments } = data;
   const isDraft = record.status === 'brouillon';
 
   // A draft recomputes live; an issued document shows the frozen figures.
@@ -280,6 +292,29 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
         </div>
       </Section>
 
+      {/* Money received. Only an issued invoice can take money; the advance
+          is the first payment, whatever amount was agreed. */}
+      {record.doc_type === 'facture' && !isDraft && record.status !== 'annule' && (
+        <Section title="Payments">
+          <Payments
+            net={record.net_to_collect}
+            settled={record.status === 'paye'}
+            today={new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Casablanca' })}
+            payments={payments.map(
+              (p): PaymentRow => ({
+                id: String(p.id),
+                amount: String(p.amount),
+                method: String(p.method),
+                paidOn: String(p.paid_on),
+                note: (p.note as string) ?? null,
+              }),
+            )}
+            record={recordPaymentAction.bind(null, record.id)}
+            remove={deletePaymentAction}
+          />
+        </Section>
+      )}
+
       {isDraft ? (
         <>
           <Section title="Draft settings">
@@ -342,13 +377,18 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
           </p>
           {record.status === 'emis' && record.doc_type === 'facture' && (
             <div className="mt-4 flex flex-wrap gap-3">
-              <form action={setDocumentStatusAction}>
-                <input type="hidden" name="documentId" value={record.id} />
-                <input type="hidden" name="status" value="paye" />
-                <button type="submit" className="btn">
-                  Mark paid
-                </button>
-              </form>
+              {/* Once money is recorded, settling happens through payments —
+                  a manual "paid" beside a half-paid invoice would lie to the
+                  books. */}
+              {payments.length === 0 && (
+                <form action={setDocumentStatusAction}>
+                  <input type="hidden" name="documentId" value={record.id} />
+                  <input type="hidden" name="status" value="paye" />
+                  <button type="submit" className="btn">
+                    Mark paid
+                  </button>
+                </form>
+              )}
               <form action={setDocumentStatusAction}>
                 <input type="hidden" name="documentId" value={record.id} />
                 <input type="hidden" name="status" value="annule" />

@@ -3,7 +3,7 @@
 import { eq, sql } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { document, documentLine } from '@/db/schema';
+import { document, documentLine, documentPayment } from '@/db/schema';
 import { withUser } from '@/db/session';
 import { toCentimes, toMillis } from '@/lib/money';
 import { describeDbError } from '@/lib/db-errors';
@@ -441,4 +441,77 @@ export async function buildDocumentAction(
   revalidatePath('/documents');
   revalidatePath('/dashboard');
   redirect(`/documents/${newId}`);
+}
+
+// ---------------------------------------------------------------------------
+// Payments — the advance, then the balance.
+// ---------------------------------------------------------------------------
+
+const PAYMENT_ERRORS = {
+  payment_amount_positive: 'A payment has to be an amount above zero.',
+  payment_method_valid: 'Pick how the money arrived.',
+};
+
+/**
+ * Record money received against an issued invoice. The database enforces the
+ * rest: invoices only, no over-payment, and the invoice settles itself when
+ * the payments cover the net — the ledger line per payment is posted by the
+ * same trigger, with the real method and the real date.
+ */
+export async function recordPaymentAction(
+  documentId: string,
+  _previous: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  let amount: bigint;
+  try {
+    amount = toCentimes(String(formData.get('amount') ?? '').trim());
+  } catch {
+    return { error: 'The amount has to be in dirhams, like 4500 or 4500,50.' };
+  }
+  if (amount <= 0n) return { error: 'A payment has to be an amount above zero.' };
+
+  const method = String(formData.get('method') ?? 'virement');
+  const paidOn = String(formData.get('paidOn') ?? '').trim();
+  const note = String(formData.get('note') ?? '').trim() || null;
+
+  try {
+    await withUser(async (tx, user) => {
+      await tx.insert(documentPayment).values({
+        documentId,
+        amountCentimes: amount,
+        method,
+        paidOn: paidOn || undefined,
+        note,
+        createdById: user.id,
+      });
+    });
+  } catch (error) {
+    return { error: describeDbError(error, PAYMENT_ERRORS) };
+  }
+
+  revalidatePath(`/documents/${documentId}`);
+  revalidatePath('/documents');
+  revalidatePath('/finance');
+  revalidatePath('/dashboard');
+  return EMPTY_STATE;
+}
+
+/**
+ * Remove a mistaken payment. Only possible while the invoice is still open —
+ * once settled, payments are accounting facts and the trigger refuses. The
+ * ledger line it posted goes with it, by cascade.
+ */
+export async function deletePaymentAction(formData: FormData): Promise<void> {
+  const id = String(formData.get('paymentId') ?? '');
+  const documentId = String(formData.get('documentId') ?? '');
+  if (!id) return;
+
+  await withUser(async (tx) => {
+    await tx.delete(documentPayment).where(eq(documentPayment.id, id));
+  });
+
+  revalidatePath(`/documents/${documentId}`);
+  revalidatePath('/documents');
+  revalidatePath('/finance');
 }

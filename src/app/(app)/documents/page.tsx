@@ -25,6 +25,7 @@ interface Row {
   due_date: string | null;
   total_incl_vat: string;
   net_to_collect: string;
+  paid: string;
   line_count: string;
 }
 
@@ -49,6 +50,8 @@ export default async function DocumentsPage() {
              c.name AS company_name, c.id AS company_id,
              d.issue_date::text, d.due_date::text,
              d.total_incl_vat::text, d.net_to_collect::text,
+             coalesce((SELECT sum(p.amount_centimes) FROM document_payment p
+                        WHERE p.document_id = d.id), 0)::text AS paid,
              (SELECT count(*)::text FROM document_line l WHERE l.document_id = d.id) AS line_count
         FROM document d JOIN company c ON c.id = d.company_id
        ORDER BY CASE d.status WHEN 'brouillon' THEN 0 WHEN 'emis' THEN 1 ELSE 2 END,
@@ -68,10 +71,18 @@ export default async function DocumentsPage() {
   const quotes = rows.filter((r) => r.doc_type === 'devis');
   const invoices = rows.filter((r) => r.doc_type === 'facture');
   const unpaid = invoices.filter((r) => r.status === 'emis');
-  const outstanding = unpaid.reduce<bigint>((a, r) => a + BigInt(r.net_to_collect), 0n);
-  const collected = invoices
-    .filter((r) => r.status === 'paye')
-    .reduce<bigint>((a, r) => a + BigInt(r.net_to_collect), 0n);
+  // What is genuinely still out: net minus advances already received.
+  const outstanding = unpaid.reduce<bigint>(
+    (a, r) => a + (BigInt(r.net_to_collect) - BigInt(r.paid)),
+    0n,
+  );
+  // Collected = money that actually arrived: settled invoices in full, plus
+  // advances already received on invoices still open.
+  const collected = invoices.reduce<bigint>((a, r) => {
+    if (r.status === 'paye') return a + BigInt(r.net_to_collect);
+    if (r.status === 'emis') return a + BigInt(r.paid);
+    return a;
+  }, 0n);
 
   const table = (list: Row[], emptyMessage: string) =>
     list.length === 0 ? (

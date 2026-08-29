@@ -1,6 +1,6 @@
 'use server';
 
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, notInArray, sql } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { deal, dealLine } from '@/db/schema';
@@ -99,7 +99,10 @@ export async function setDealStageAction(formData: FormData): Promise<void> {
         stage: stage as (typeof allowed)[number],
         closedAt: stage === 'won' ? new Date() : null,
       })
-      .where(eq(deal.id, id));
+      // A closed deal cannot be moved by a quick button, on the server as
+      // well as in the UI — reopening clears closed_at and silently rewrites
+      // the won totals, so it only happens through the full form.
+      .where(and(eq(deal.id, id), notInArray(deal.stage, ['won', 'lost'])));
   });
 
   revalidatePath('/deals');
