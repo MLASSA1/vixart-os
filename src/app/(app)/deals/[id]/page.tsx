@@ -8,8 +8,13 @@ import { DEAL_STAGE_LABELS, SERVICE_UNIT_LABELS } from '@/lib/labels';
 import { formatMAD, fromCentimes, fromMillis } from '@/lib/money';
 import { computeDealTotals } from '@/lib/deal-totals';
 import { formatDate } from '@/lib/format';
-import { addDealLineAction, removeDealLineAction, setDiscountAction } from '../actions';
-import { AddLineForm, DiscountForm } from './LineForms';
+import {
+  addDealLineAction,
+  removeDealLineAction,
+  setAdvanceAction,
+  setDiscountAction,
+} from '../actions';
+import { AddLineForm, AdvanceForm, DiscountForm } from './LineForms';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,6 +28,7 @@ interface DealRow {
   expected_close_date: string | null;
   lost_reason: string | null;
   discount_centimes: string;
+  advance_centimes: string;
   company_id: string;
   company_name: string;
   company_retenue: boolean;
@@ -47,7 +53,8 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
     const d = await tx.execute<DealRow>(sql`
       SELECT d.id, d.title, d.description, d.stage, d.probability,
              d.expected_close_date::text AS expected_close_date, d.lost_reason,
-             d.discount_centimes::text, d.company_id, c.name AS company_name,
+             d.discount_centimes::text, d.advance_centimes::text,
+             d.company_id, c.name AS company_name,
              c.retenue_source AS company_retenue, u.full_name AS owner_name
         FROM deal d
         JOIN company c ON c.id = d.company_id
@@ -95,6 +102,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
   // All arithmetic lives in one tested place, so the figure shown here and the
   // figure that will print on the quote cannot drift apart.
   const discount = BigInt(record.discount_centimes);
+  const advance = BigInt(record.advance_centimes);
   const totals = computeDealTotals({
     lines: lines.map((l) => ({
       unitPriceCentimes: BigInt(l.unit_price_centimes),
@@ -260,6 +268,12 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
         <DiscountForm
           action={setDiscountAction.bind(null, record.id)}
           current={discount === 0n ? '' : fromCentimes(discount).replace('.', ',')}
+        />
+
+        <AdvanceForm
+          action={setAdvanceAction.bind(null, record.id)}
+          current={advance === 0n ? '' : fromCentimes(advance).replace('.', ',')}
+          totalCentimes={totals.totalInclVat.toString()}
         />
       </Section>
     </>

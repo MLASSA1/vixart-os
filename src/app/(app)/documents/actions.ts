@@ -79,9 +79,13 @@ export async function createDocumentAction(
           SELECT ${row.id}, service_id, label, unit, unit_price_centimes, quantity_millis, position
             FROM deal_line WHERE deal_id = ${dealId} ORDER BY position
         `);
+        // The discount AND the advance come across: both were agreed with the
+        // client on the deal, and an invoice that forgot the advance would ask
+        // for the whole sum up front.
         await tx.execute(sql`
-          UPDATE document SET discount_centimes =
-            (SELECT discount_centimes FROM deal WHERE id = ${dealId})
+          UPDATE document SET
+            discount_centimes = (SELECT discount_centimes FROM deal WHERE id = ${dealId}),
+            advance_expected_centimes = (SELECT advance_centimes FROM deal WHERE id = ${dealId})
           WHERE id = ${row.id}
         `);
       }

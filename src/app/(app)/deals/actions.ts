@@ -218,3 +218,38 @@ export async function setDiscountAction(
   revalidatePath('/deals');
   return EMPTY_STATE;
 }
+
+/**
+ * Set the advance the client pays to start.
+ *
+ * Stored in dirhams. The screen offers 20/30/50% shortcuts that compute the
+ * figure from the deal's own total, but what is kept is the amount: a deal
+ * whose value is corrected later must not silently rewrite what was agreed
+ * with the client.
+ */
+export async function setAdvanceAction(
+  dealId: string,
+  _previous: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  let advance: bigint;
+  try {
+    const raw = String(formData.get('advance') ?? '').trim();
+    advance = raw === '' ? 0n : toCentimes(raw);
+  } catch {
+    return { error: 'The advance could not be read. Use a figure like 5 000 or 5000,50.' };
+  }
+  if (advance < 0n) return { error: 'An advance cannot be negative.' };
+
+  try {
+    await withUser(async (tx) => {
+      await tx.update(deal).set({ advanceCentimes: advance }).where(eq(deal.id, dealId));
+    });
+  } catch (error) {
+    return { error: describeDbError(error, DEAL_ERRORS) };
+  }
+
+  revalidatePath(`/deals/${dealId}`);
+  revalidatePath('/deals');
+  return EMPTY_STATE;
+}

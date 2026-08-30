@@ -48,7 +48,9 @@ export async function addEntryAction(
   formData: FormData,
 ): Promise<FormState> {
   const parsed = entrySchema.safeParse({
-    direction: formData.get('direction') ?? 'expense',
+    // Expenses only. Money in comes from clients paying invoices, never from
+    // a monthly template — a database CHECK says the same thing.
+    direction: 'expense',
     category: formData.get('category') ?? '',
     paymentMethod: formData.get('paymentMethod') ?? 'virement',
     entryDate: formData.get('entryDate') ?? '',
@@ -126,15 +128,21 @@ const recurringSchema = z.object({
 });
 
 /**
- * Creates a template and immediately posts anything already due, so a cost
- * backdated to January lands as seven lines rather than waiting for tonight.
+ * Adds a charge to the monthly checklist.
+ *
+ * It posts nothing. A charge falls due and waits to be confirmed — the ledger
+ * line is written when the money actually goes, with the real date and the
+ * real amount. A backdated charge therefore appears as several unpaid months
+ * rather than several lines claiming money already left.
  */
 export async function addRecurringAction(
   _previous: FormState,
   formData: FormData,
 ): Promise<FormState> {
   const parsed = recurringSchema.safeParse({
-    direction: formData.get('direction') ?? 'expense',
+    // Expenses only. Money in comes from clients paying invoices, never from
+    // a monthly template — a database CHECK says the same thing.
+    direction: 'expense',
     category: formData.get('category') ?? '',
     paymentMethod: formData.get('paymentMethod') ?? 'virement',
     description: formData.get('description') ?? '',
@@ -165,9 +173,9 @@ export async function addRecurringAction(
         ...parsed.data,
         amountCentimes: amount,
         vatCentimes: vat,
+        kind: String(formData.get('kind') ?? 'fixed') === 'variable' ? 'variable' : 'fixed',
         createdById: user.id,
       });
-      await tx.execute(sql`SELECT app.post_due_recurring()`);
     });
   } catch (error) {
     return { error: describeDbError(error, FINANCE_ERRORS) };
@@ -188,7 +196,6 @@ export async function toggleRecurringAction(formData: FormData): Promise<void> {
   if (!id) return;
   await withUser(async (tx) => {
     await tx.update(recurringEntry).set({ isActive: active }).where(eq(recurringEntry.id, id));
-    if (active) await tx.execute(sql`SELECT app.post_due_recurring()`);
   });
   revalidatePath('/finance');
 }
@@ -204,11 +211,58 @@ export async function deleteRecurringAction(formData: FormData): Promise<void> {
   revalidatePath('/finance');
 }
 
-/** Runs the catch-up by hand. The nightly job does this anyway. */
-export async function postDueNowAction(): Promise<void> {
+/**
+ * Confirm a fixed charge as paid for one month.
+ *
+ * The amount is editable at the point of payment, because a fixed charge is
+ * only mostly fixed — rent with a repair added, or an electricity bill that
+ * is never the same twice. What lands in the ledger is what actually left the
+ * account, not what the template predicted.
+ */
+export async function payChargeAction(
+  _previous: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const charge = String(formData.get('chargeId') ?? '');
+  const period = String(formData.get('period') ?? '').trim();
+  const paidOn = String(formData.get('paidOn') ?? '').trim();
+  const method = String(formData.get('method') ?? '').trim();
+  if (!charge || !period) return { error: 'Which charge, and for which month?' };
+
+  let amount: bigint;
+  try {
+    amount = toCentimes(String(formData.get('amount') ?? '').trim());
+  } catch {
+    return { error: 'The amount could not be read. Use a figure like 11500 or 11500,50.' };
+  }
+  if (amount <= 0n) return { error: 'A payment has to be an amount above zero.' };
+
+  try {
+    await withUser(async (tx) => {
+      await tx.execute(sql`
+        SELECT app.pay_charge(${charge}::uuid, ${period}, ${amount.toString()}::bigint,
+                              ${paidOn || null}::date, ${method})
+      `);
+    });
+  } catch (error) {
+    return { error: describeDbError(error, FINANCE_ERRORS) };
+  }
+
+  revalidatePath('/finance');
+  revalidatePath('/dashboard');
+  return EMPTY_STATE;
+}
+
+/** Untick a month: it was not paid after all, or was recorded wrong. */
+export async function unpayChargeAction(formData: FormData): Promise<void> {
+  const charge = String(formData.get('chargeId') ?? '');
+  const period = String(formData.get('period') ?? '').trim();
+  if (!charge || !period) return;
+
   await withUser(async (tx) => {
-    await tx.execute(sql`SELECT app.post_due_recurring()`);
+    await tx.execute(sql`SELECT app.unpay_charge(${charge}::uuid, ${period})`);
   });
+
   revalidatePath('/finance');
   revalidatePath('/dashboard');
 }

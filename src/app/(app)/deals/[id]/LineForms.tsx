@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useRef } from 'react';
+import { useActionState, useState, useRef } from 'react';
 import { useFormStatus } from 'react-dom';
 import { ErrorBanner } from '@/components/ui';
 import { EMPTY_STATE, type FormState } from '@/lib/form-state';
@@ -95,6 +95,83 @@ export function DiscountForm({
       </div>
       <p className="hint mt-2">
         A fixed amount off the total, taken before VAT.
+      </p>
+    </form>
+  );
+}
+
+/**
+ * The advance the client pays to start.
+ *
+ * The percentage buttons are a calculator, not a stored setting: they fill the
+ * amount from the deal's own total and then get out of the way. What is saved
+ * is dirhams — because that is what the client transfers, what the invoice
+ * states, and what the books record.
+ */
+export function AdvanceForm({
+  action,
+  current,
+  totalCentimes,
+}: {
+  action: (state: FormState, formData: FormData) => Promise<FormState>;
+  current: string;
+  /** Total incl. VAT of this deal, centimes as a string. */
+  totalCentimes: string;
+}) {
+  const [state, formAction] = useActionState(action, EMPTY_STATE);
+  const [value, setValue] = useState(current);
+
+  const total = BigInt(totalCentimes);
+
+  function share(percent: number) {
+    // Half-up on centimes, the same rounding the rest of the money code uses.
+    const cents = (total * BigInt(percent) + 50n) / 100n;
+    setValue((cents / 100n).toString() + (cents % 100n ? ',' + (cents % 100n).toString().padStart(2, '0') : ''));
+  }
+
+  return (
+    <form action={formAction} className="mt-6 border-t border-void/10 pt-5">
+      <ErrorBanner message={state.error} />
+      <p className="label">Advance to start</p>
+      <p className="hint mt-0.5 mb-3">
+        What the client pays before work begins. The balance falls due on delivery.
+      </p>
+
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="block" htmlFor="advance">
+          <span className="label block">Amount (DH)</span>
+          <input
+            id="advance"
+            name="advance"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            className="input w-40"
+            placeholder="0"
+            inputMode="decimal"
+          />
+        </label>
+
+        {total > 0n && (
+          <div className="flex gap-1.5 pb-1">
+            {[20, 30, 50].map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => share(p)}
+                className="btn btn-inverse btn-small"
+              >
+                {p} %
+              </button>
+            ))}
+          </div>
+        )}
+
+        <Submit label="Save advance" busy="Saving…" />
+      </div>
+
+      <p className="hint mt-2">
+        Saved in dirhams. If the deal total changes later, this figure stays as
+        agreed until you change it.
       </p>
     </form>
   );

@@ -150,23 +150,44 @@ export const INCOME_CATEGORIES = [
   { value: 'autre_revenu', label: 'Other income' },
 ] as const;
 
+/**
+ * Expenses, grouped the way the agency actually spends.
+ *
+ * `fixed` — the same number every month, and the ones that go on the monthly
+ * checklist. `metered` — recurs monthly but the amount moves, so the checklist
+ * asks for it. `variable` — happens when it happens, logged as it happens.
+ */
 export const EXPENSE_CATEGORIES = [
-  { value: 'loyer', label: 'Rent' },
-  { value: 'electricite', label: 'Electricity' },
-  { value: 'eau', label: 'Water' },
-  { value: 'internet', label: 'Internet' },
-  { value: 'telephone', label: 'Phone' },
-  { value: 'equipement', label: 'Equipment' },
-  { value: 'logiciel', label: 'Software & subscriptions' },
-  { value: 'salaires', label: 'Salaries' },
-  { value: 'sous_traitance', label: 'Subcontractors' },
-  { value: 'marketing', label: 'Marketing' },
-  { value: 'deplacement', label: 'Travel' },
-  { value: 'impots', label: 'Taxes' },
-  { value: 'frais_bancaires', label: 'Bank fees' },
-  { value: 'fournitures', label: 'Supplies' },
-  { value: 'autre_depense', label: 'Other expense' },
+  // Fixed, month after month
+  { value: 'loyer', label: 'Rent', group: 'fixed' },
+  { value: 'salaires', label: 'Salaries', group: 'fixed' },
+  { value: 'internet', label: 'Internet', group: 'fixed' },
+  { value: 'telephone', label: 'Phone', group: 'fixed' },
+  { value: 'logiciel', label: 'Software & subscriptions', group: 'fixed' },
+  { value: 'impots', label: 'Taxes', group: 'fixed' },
+  { value: 'frais_bancaires', label: 'Bank fees', group: 'fixed' },
+  // Metered — arrives every month, never the same amount
+  { value: 'electricite', label: 'Electricity', group: 'metered' },
+  { value: 'eau', label: 'Water', group: 'metered' },
+  // Variable — as and when
+  { value: 'carburant', label: 'Fuel', group: 'variable' },
+  { value: 'repas', label: 'Food & meals', group: 'variable' },
+  { value: 'deplacement', label: 'Travel', group: 'variable' },
+  { value: 'equipement', label: 'Equipment & rentals', group: 'variable' },
+  { value: 'fournitures', label: 'Supplies', group: 'variable' },
+  { value: 'sous_traitance', label: 'Subcontractors', group: 'variable' },
+  { value: 'marketing', label: 'Marketing', group: 'variable' },
+  { value: 'autre_depense', label: 'Other expense', group: 'variable' },
 ] as const;
+
+/** The ones a recurring charge can use — everything except pure one-offs. */
+export const CHARGE_CATEGORIES = EXPENSE_CATEGORIES;
+
+export const EXPENSE_GROUP_LABELS: Record<string, string> = {
+  fixed: 'Fixed — same every month',
+  metered: 'Metered — every month, amount varies',
+  variable: 'Variable — as and when',
+};
 
 export const PAYMENT_METHODS = [
   { value: 'virement', label: 'Bank transfer' },

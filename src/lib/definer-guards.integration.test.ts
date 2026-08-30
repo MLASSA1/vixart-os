@@ -64,7 +64,7 @@ describe.skipIf(!HAS_DB)('SECURITY DEFINER functions guard their callers', () =>
     ).toEqual([]);
   });
 
-  it.skipIf(!APP)('refuses a member posting recurring costs', async () => {
+  it.skipIf(!APP)('refuses a member paying a charge or taking a number', async () => {
     const app = new Client({ connectionString: APP });
     await app.connect();
     try {
@@ -72,14 +72,16 @@ describe.skipIf(!HAS_DB)('SECURITY DEFINER functions guard their callers', () =>
         `SELECT id FROM app_user WHERE role='member' AND password_hash NOT LIKE 'NO-LOGIN%' LIMIT 1`);
       await app.query(`SELECT set_config('app.user_id',$1,false)`, [member.rows[0]!.id]);
       await app.query(`SELECT set_config('app.user_role','member',false)`);
-      await expect(app.query(`SELECT app.post_due_recurring()`))
+      await expect(app.query(`SELECT app.pay_charge(gen_random_uuid(), '2026-01', 100, current_date, 'virement')`))
+        .rejects.toThrow(/Only management/i);
+      await expect(app.query(`SELECT app.unpay_charge(gen_random_uuid(), '2026-01')`))
         .rejects.toThrow(/Only management/i);
       await expect(app.query(`SELECT * FROM app.next_document_number('facture', 2026)`))
         .rejects.toThrow(/Only management/i);
     } finally { await app.end(); }
   });
 
-  it.skipIf(!APP)('still lets an admin post them', async () => {
+  it.skipIf(!APP)('still lets an admin through', async () => {
     const app = new Client({ connectionString: APP });
     await app.connect();
     try {
@@ -87,8 +89,9 @@ describe.skipIf(!HAS_DB)('SECURITY DEFINER functions guard their callers', () =>
         `SELECT id FROM app_user WHERE role='admin' LIMIT 1`);
       await app.query(`SELECT set_config('app.user_id',$1,false)`, [admin.rows[0]!.id]);
       await app.query(`SELECT set_config('app.user_role','admin',false)`);
-      const r = await app.query<{ n: number }>(`SELECT app.post_due_recurring() AS n`);
-      expect(typeof r.rows[0]!.n).toBe('number');
+      const r = await app.query<{ n: number }>(
+        `SELECT app.unpay_charge(gen_random_uuid(), '2026-01') AS n`);
+      expect(r.rows[0]!.n).toBe(0);   // nothing to remove, and no refusal
     } finally { await app.end(); }
   });
 

@@ -2,11 +2,20 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Client } from 'pg';
 
 /**
- * Recurring costs post themselves, and never twice.
+ * Fixed charges are a checklist, not a timer.
  *
- * The whole design rests on that second half: the nightly job runs on a timer,
- * the app runs it on restart, and an admin can press a button. If any of those
- * could double-post, the accounts would drift with no obvious cause.
+ * They used to post themselves on their due day. That is a claim that money
+ * left the account, made by a calendar rather than by a bank: rent paid late,
+ * or skipped that month, still read as paid. Now a charge falls due and waits,
+ * and the ledger line is written when someone confirms the money went — with
+ * the date and the amount it really was.
+ *
+ * What has to hold:
+ *   - nothing is written until it is confirmed
+ *   - confirming twice writes one line, not two
+ *   - the amount at payment wins over the amount on the template
+ *   - unticking removes the line, so the books never show money that was
+ *     never spent
  */
 
 const URL = process.env.DATABASE_URL;
@@ -14,20 +23,15 @@ const URL = process.env.DATABASE_URL;
 async function reachable(): Promise<boolean> {
   if (!URL) return false;
   const c = new Client({ connectionString: URL, connectionTimeoutMillis: 2000 });
-  try {
-    await c.connect();
-    await c.end();
-    return true;
-  } catch {
-    return false;
-  }
+  try { await c.connect(); await c.end(); return true; } catch { return false; }
 }
 
 const HAS_DB = await reachable();
 const MARK = 'ZZZ recurring integration probe';
 
-describe.skipIf(!HAS_DB)('recurring finance (integration)', () => {
+describe.skipIf(!HAS_DB)('fixed charges (integration)', () => {
   let db: Client;
+  let chargeId = '';
 
   async function cleanup() {
     await db.query("SET app.bootstrap = 'on'");
@@ -35,146 +39,128 @@ describe.skipIf(!HAS_DB)('recurring finance (integration)', () => {
     await db.query('DELETE FROM recurring_entry WHERE description = $1', [MARK]);
   }
 
+  async function makeCharge(kind: 'fixed' | 'variable', amount: string, start = '2026-01-01') {
+    const r = await db.query<{ id: string }>(
+      `INSERT INTO recurring_entry
+         (direction, kind, amount_centimes, category, payment_method, description,
+          frequency, day_of_month, start_date, is_active)
+       VALUES ('expense', $1, $2, 'loyer', 'virement', $3, 'monthly', 1, $4, true)
+       RETURNING id`,
+      [kind, amount, MARK, start],
+    );
+    return r.rows[0]!.id;
+  }
+
   beforeAll(async () => {
     db = new Client({ connectionString: URL });
     await db.connect();
     await db.query("SET app.bootstrap = 'on'");
     await cleanup();
+    chargeId = await makeCharge('fixed', '1150000');
   });
 
-  afterAll(async () => {
-    if (!db) return;
-    await cleanup();
-    await db.end();
+  afterAll(async () => { if (db) { await cleanup(); await db.end(); } });
+
+  it('writes nothing until a month is confirmed', async () => {
+    const { rows } = await db.query(
+      `SELECT 1 FROM finance_entry WHERE recurring_entry_id = $1`, [chargeId]);
+    expect(rows).toHaveLength(0);
   });
 
-  it('catches up every missed period, then stops', async () => {
-    await db.query(
-      `INSERT INTO recurring_entry
-         (direction, amount_centimes, category, payment_method, description,
-          frequency, day_of_month, start_date)
-       VALUES ('expense', 600000, 'loyer', 'virement', $1, 'monthly', 5,
-               (current_date - interval '6 months')::date)`,
-      [MARK],
-    );
+  it('records the month with the date and amount that actually moved', async () => {
+    await db.query(`SELECT app.pay_charge($1, '2026-03', 1150000, '2026-03-04', 'virement')`,
+      [chargeId]);
 
-    const first = await db.query<{ n: number }>('SELECT app.post_due_recurring() AS n');
-    expect(first.rows[0]!.n).toBeGreaterThanOrEqual(6);
+    const { rows } = await db.query<{ amount: string; d: string; period: string; auto: boolean }>(
+      `SELECT amount_centimes::text AS amount, entry_date::text AS d,
+              period_key AS period, is_automatic AS auto
+         FROM finance_entry WHERE recurring_entry_id = $1`, [chargeId]);
 
-    // Running it again — nightly job, restart, button — must add nothing.
-    for (let i = 0; i < 3; i += 1) {
-      const again = await db.query<{ n: number }>('SELECT app.post_due_recurring() AS n');
-      expect(again.rows[0]!.n).toBe(0);
-    }
-
-    const lines = await db.query<{ lines: string; periods: string }>(
-      `SELECT count(*)::text AS lines, count(DISTINCT period_key)::text AS periods
-         FROM finance_entry WHERE description LIKE $1`,
-      [`${MARK}%`],
-    );
-    // One line per period, however many times the catch-up ran.
-    expect(lines.rows[0]!.lines).toBe(lines.rows[0]!.periods);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.amount).toBe('1150000');
+    expect(rows[0]!.d).toBe('2026-03-04');
+    expect(rows[0]!.period).toBe('2026-03');
+    // A person confirmed this, so it is not marked as machine-written.
+    expect(rows[0]!.auto).toBe(false);
   });
 
-  it('refuses a second line for a period even when inserted directly', async () => {
-    const { rows } = await db.query<{ id: string; period_key: string }>(
-      `SELECT recurring_entry_id AS id, period_key FROM finance_entry
-        WHERE description LIKE $1 LIMIT 1`,
-      [`${MARK}%`],
-    );
-    const existing = rows[0]!;
+  it('confirming the same month twice still writes one line', async () => {
+    await db.query(`SELECT app.pay_charge($1, '2026-03', 1150000, '2026-03-04', 'virement')`,
+      [chargeId]);
+    await db.query(`SELECT app.pay_charge($1, '2026-03', 9999999, '2026-03-09', 'especes')`,
+      [chargeId]);
 
+    const { rows } = await db.query<{ n: string; amount: string }>(
+      `SELECT count(*)::text AS n, max(amount_centimes)::text AS amount
+         FROM finance_entry WHERE recurring_entry_id = $1 AND period_key = '2026-03'`,
+      [chargeId]);
+    expect(rows[0]!.n).toBe('1');
+    // The first confirmation stands; a second does not overwrite it.
+    expect(rows[0]!.amount).toBe('1150000');
+  });
+
+  it('takes the amount actually paid, not the one on the template', async () => {
+    // Rent with a repair added — 11 500 due, 12 300 paid.
+    await db.query(`SELECT app.pay_charge($1, '2026-04', 1230000, '2026-04-02', 'virement')`,
+      [chargeId]);
+    const { rows } = await db.query<{ amount: string }>(
+      `SELECT amount_centimes::text AS amount FROM finance_entry
+        WHERE recurring_entry_id = $1 AND period_key = '2026-04'`, [chargeId]);
+    expect(rows[0]!.amount).toBe('1230000');
+  });
+
+  it('unticking removes the line entirely', async () => {
+    await db.query(`SELECT app.unpay_charge($1, '2026-04')`, [chargeId]);
+    const { rows } = await db.query(
+      `SELECT 1 FROM finance_entry WHERE recurring_entry_id = $1 AND period_key = '2026-04'`,
+      [chargeId]);
+    expect(rows).toHaveLength(0);
+  });
+
+  it('refuses a month before the charge existed', async () => {
+    const later = await makeCharge('fixed', '50000', '2026-06-01');
+    await expect(
+      db.query(`SELECT app.pay_charge($1, '2026-05', 50000, '2026-05-01', 'virement')`, [later]),
+    ).rejects.toThrow(/only starts/i);
+  });
+
+  it('refuses a period that is not a month', async () => {
+    await expect(
+      db.query(`SELECT app.pay_charge($1, 'March', 1000, '2026-03-01', 'virement')`, [chargeId]),
+    ).rejects.toThrow(/looks like 2026-08/i);
+  });
+
+  it('refuses a zero or negative amount', async () => {
+    await expect(
+      db.query(`SELECT app.pay_charge($1, '2026-07', 0, '2026-07-01', 'virement')`, [chargeId]),
+    ).rejects.toThrow(/above zero/i);
+  });
+
+  it('still refuses a second line for a period inserted directly', async () => {
     await expect(
       db.query(
         `INSERT INTO finance_entry
            (direction, amount_centimes, entry_date, category, payment_method,
-            description, is_automatic, recurring_entry_id, period_key)
-         VALUES ('expense', 600000, current_date, 'loyer', 'virement', $1, true, $2, $3)`,
-        [`${MARK} duplicate`, existing.id, existing.period_key],
+            description, recurring_entry_id, period_key, is_automatic)
+         VALUES ('expense', 1, current_date, 'loyer', 'virement', $1, $2, '2026-03', false)`,
+        [`${MARK} duplicate`, chargeId],
       ),
-    ).rejects.toThrow(/finance_one_line_per_period|duplicate key/i);
+    ).rejects.toThrow(/duplicate key|unique/i);
   });
 
-  it('does not post a period before it has arrived', async () => {
-    await cleanup();
-    await db.query(
-      `INSERT INTO recurring_entry
-         (direction, amount_centimes, category, payment_method, description,
-          frequency, day_of_month, start_date)
-       VALUES ('expense', 100000, 'internet', 'virement', $1, 'monthly', 28,
-               date_trunc('month', current_date)::date)`,
-      [MARK],
-    );
-
-    // Ask as if it were the 1st: day 28 has not come round yet.
-    const early = await db.query<{ n: number }>(
-      `SELECT app.post_due_recurring(date_trunc('month', current_date)::date) AS n`,
-    );
-    expect(early.rows[0]!.n).toBe(0);
-
-    // And as if it were the 28th, it posts exactly one.
-    const due = await db.query<{ n: number }>(
-      `SELECT app.post_due_recurring((date_trunc('month', current_date) + interval '27 days')::date) AS n`,
-    );
-    expect(due.rows[0]!.n).toBe(1);
+  it('a variable charge takes whatever was paid', async () => {
+    const meter = await makeCharge('variable', '80000');
+    await db.query(`SELECT app.pay_charge($1, '2026-03', 43700, '2026-03-11', 'especes')`, [meter]);
+    await db.query(`SELECT app.pay_charge($1, '2026-04', 121500, '2026-04-10', 'especes')`, [meter]);
+    const { rows } = await db.query<{ amounts: string }>(
+      `SELECT string_agg(amount_centimes::text, ',' ORDER BY period_key) AS amounts
+         FROM finance_entry WHERE recurring_entry_id = $1`, [meter]);
+    expect(rows[0]!.amounts).toBe('43700,121500');
   });
 
-  it('stops posting once the template is deactivated', async () => {
-    await cleanup();
-    await db.query(
-      `INSERT INTO recurring_entry
-         (direction, amount_centimes, category, payment_method, description,
-          frequency, day_of_month, start_date, is_active)
-       VALUES ('expense', 100000, 'logiciel', 'carte', $1, 'monthly', 1,
-               (current_date - interval '3 months')::date, false)`,
-      [MARK],
-    );
-    const result = await db.query<{ n: number }>('SELECT app.post_due_recurring() AS n');
-    expect(result.rows[0]!.n).toBe(0);
-  });
-
-  it('refuses to delete a template that has already posted', async () => {
-    await cleanup();
-    await db.query(
-      `INSERT INTO recurring_entry
-         (direction, amount_centimes, category, payment_method, description,
-          frequency, day_of_month, start_date)
-       VALUES ('expense', 250000, 'loyer', 'virement', $1, 'monthly', 1,
-               (current_date - interval '2 months')::date)`,
-      [MARK],
-    );
-    await db.query('SELECT app.post_due_recurring()');
-
-    // Those months' rent really was paid. The record has to survive, so the
-    // template is stopped rather than erased.
+  it('refuses to delete a charge that has months paid against it', async () => {
     await expect(
-      db.query('DELETE FROM recurring_entry WHERE description = $1', [MARK]),
-    ).rejects.toThrow(/violates foreign key|still referenced/i);
-
-    const lines = await db.query<{ n: string }>(
-      `SELECT count(*)::text AS n FROM finance_entry WHERE description LIKE $1`,
-      [`${MARK}%`],
-    );
-    expect(Number(lines.rows[0]!.n)).toBeGreaterThan(0);
-  });
-
-  it('allows deleting a template that never posted', async () => {
-    await cleanup();
-    await db.query(
-      `INSERT INTO recurring_entry
-         (direction, amount_centimes, category, payment_method, description,
-          frequency, day_of_month, start_date)
-       VALUES ('expense', 90000, 'logiciel', 'carte', $1, 'monthly', 15,
-               (current_date + interval '2 months')::date)`,
-      [MARK],
-    );
-    // Starts in the future, so nothing has posted — a mistyped template can
-    // still be removed outright.
-    await db.query('DELETE FROM recurring_entry WHERE description = $1', [MARK]);
-    const { rows } = await db.query<{ n: string }>(
-      'SELECT count(*)::text AS n FROM recurring_entry WHERE description = $1',
-      [MARK],
-    );
-    expect(rows[0]!.n).toBe('0');
+      db.query('DELETE FROM recurring_entry WHERE id = $1', [chargeId]),
+    ).rejects.toThrow();
   });
 });

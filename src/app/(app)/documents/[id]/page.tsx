@@ -38,6 +38,7 @@ interface DocRow {
   vat_rate_bp: number; vat_exemption_reason: string | null;
   withholding: boolean; withholding_rate_bp: number;
   discount_centimes: string;
+  advance_expected_centimes: string;
   total_excl_vat: string; total_vat: string; total_incl_vat: string;
   withheld: string; net_to_collect: string;
 }
@@ -59,7 +60,8 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
              c.identifiant_fiscal AS company_if,
              concat_ws(', ', c.address_line, c.city) AS company_address,
              d.issue_date::text AS issue_date, d.due_date::text AS due_date,
-             d.discount_centimes::text, d.total_excl_vat::text, d.total_vat::text,
+             d.discount_centimes::text, d.advance_expected_centimes::text,
+             d.total_excl_vat::text, d.total_vat::text,
              d.total_incl_vat::text, d.withheld::text, d.net_to_collect::text
         FROM document d JOIN company c ON c.id = d.company_id
        WHERE d.id = ${id}
@@ -298,6 +300,7 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
         <Section title="Payments">
           <Payments
             documentId={record.id}
+            advanceExpected={record.advance_expected_centimes}
             net={record.net_to_collect}
             settled={record.status === 'paye'}
             today={new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Casablanca' })}

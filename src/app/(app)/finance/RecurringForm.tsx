@@ -5,7 +5,6 @@ import { useFormStatus } from 'react-dom';
 import { ErrorBanner, FormGrid, TextInput } from '@/components/ui';
 import {
   EXPENSE_CATEGORIES,
-  INCOME_CATEGORIES,
   PAYMENT_METHODS,
   RECURRING_FREQUENCIES,
 } from '@/lib/labels';
@@ -28,7 +27,7 @@ export function RecurringForm({
   today: string;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
-  const [direction, setDirection] = useState<'income' | 'expense'>('expense');
+  const [kind, setKind] = useState<'fixed' | 'variable'>('fixed');
   const [state, formAction] = useActionState(
     async (previous: FormState, formData: FormData) => {
       const result = await action(previous, formData);
@@ -38,25 +37,33 @@ export function RecurringForm({
     EMPTY_STATE,
   );
 
-  const categories = direction === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
+
 
   return (
     <form ref={formRef} action={formAction} className="border border-void/25 p-5">
       <ErrorBanner message={state.error} />
 
-      <div className="mb-5 flex gap-2">
-        {(['expense', 'income'] as const).map((d) => (
+      {/* A charge is always money out. Money in arrives from clients paying
+          invoices, never from a monthly template — the old toggle here invited
+          recording income the agency does not actually receive. */}
+      <div className="mb-2 flex gap-2">
+        {(['fixed', 'variable'] as const).map((k) => (
           <button
-            key={d}
+            key={k}
             type="button"
-            onClick={() => setDirection(d)}
-            className={`btn ${direction === d ? '' : 'btn-inverse'}`}
+            onClick={() => setKind(k)}
+            className={`btn ${kind === k ? '' : 'btn-inverse'}`}
           >
-            {d === 'expense' ? 'Money out' : 'Money in'}
+            {k === 'fixed' ? 'Fixed amount' : 'Amount varies'}
           </button>
         ))}
       </div>
-      <input type="hidden" name="direction" value={direction} />
+      <p className="hint mb-5">
+        {kind === 'fixed'
+          ? 'The same figure every month — rent, internet, a subscription. One click to tick it off.'
+          : 'Recurs every month but never the same — electricity, water, fuel. The checklist asks for the amount.'}
+      </p>
+      <input type="hidden" name="kind" value={kind} />
 
       <FormGrid>
         <TextInput
@@ -65,12 +72,22 @@ export function RecurringForm({
           required
           placeholder="Office rent"
         />
-        <TextInput name="amount" label="Amount (DH)" required placeholder="6 000" />
+        <TextInput
+          name="amount"
+          label={kind === 'fixed' ? 'Amount (DH)' : 'Usual amount (DH)'}
+          required
+          placeholder="6 000"
+          hint={
+            kind === 'fixed'
+              ? undefined
+              : 'A starting point only — you correct it each month when you pay.'
+          }
+        />
 
         <label className="block" htmlFor="rec-category">
           <span className="label block">Category *</span>
-          <select id="rec-category" name="category" required className="input" key={direction}>
-            {categories.map((c) => (
+          <select id="rec-category" name="category" required className="input">
+            {EXPENSE_CATEGORIES.map((c) => (
               <option key={c.value} value={c.value}>
                 {c.label}
               </option>

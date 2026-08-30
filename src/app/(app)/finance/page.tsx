@@ -9,12 +9,14 @@ import { formatMAD } from '@/lib/money';
 import { formatDate } from '@/lib/format';
 import { EntryForm } from './EntryForm';
 import { RecurringForm } from './RecurringForm';
+import { ChargeChecklist, type ChargeRow } from './ChargeChecklist';
 import {
   addEntryAction,
   addRecurringAction,
   deleteEntryAction,
   deleteRecurringAction,
-  postDueNowAction,
+  payChargeAction,
+  unpayChargeAction,
   toggleRecurringAction,
 } from './actions';
 import { RECURRING_FREQUENCY_LABELS } from '@/lib/labels';
@@ -51,6 +53,12 @@ export default async function FinancePage({
 
   const { year: yearParam } = await searchParams;
   const year = Number(yearParam) || new Date().getFullYear();
+
+  // The month the checklist is about. Casablanca time: a charge ticked at
+  // 01:00 belongs to the month it is here, not in UTC.
+  const period = new Date().toLocaleDateString('en-CA', {
+    timeZone: 'Africa/Casablanca',
+  }).slice(0, 7);
   const today = new Date().toISOString().slice(0, 10);
 
   const data = await withUser(async (tx) => {
@@ -99,22 +107,32 @@ export default async function FinancePage({
     );
 
     // Recurring templates, with how many lines each has actually produced.
+    // Charges, each with THIS month's payment if it has been made. A charge
+    // is paid for a month exactly when a ledger line exists carrying its id
+    // and that period — the unique index on the pair is what makes the
+    // checklist reliable, and paying twice impossible.
     const recurring = await tx.execute<{
       [k: string]: unknown;
       id: string; direction: string; description: string; category: string;
-      amount_centimes: string; frequency: string; day_of_month: number;
+      kind: string; amount_centimes: string; frequency: string; day_of_month: number;
       start_date: string; end_date: string | null; is_active: boolean;
       posted_count: string; last_period: string | null;
+      paid_amount: string | null; paid_on: string | null; paid_method: string | null;
     }>(sql`
-      SELECT r.id, r.direction, r.description, r.category,
+      SELECT r.id, r.direction, r.description, r.category, r.kind,
              r.amount_centimes::text, r.frequency, r.day_of_month,
              r.start_date::text, r.end_date::text, r.is_active,
              (SELECT count(*)::text FROM finance_entry f
                WHERE f.recurring_entry_id = r.id) AS posted_count,
              (SELECT max(f.period_key) FROM finance_entry f
-               WHERE f.recurring_entry_id = r.id) AS last_period
+               WHERE f.recurring_entry_id = r.id) AS last_period,
+             p.amount_centimes::text AS paid_amount,
+             p.entry_date::text      AS paid_on,
+             p.payment_method        AS paid_method
         FROM recurring_entry r
-       ORDER BY r.is_active DESC, r.direction, lower(r.description)
+        LEFT JOIN finance_entry p
+          ON p.recurring_entry_id = r.id AND p.period_key = ${period}
+       ORDER BY r.is_active DESC, r.kind, lower(r.description)
     `);
 
     // What is owed to the tax authority: VAT charged on issued invoices, less
@@ -207,6 +225,31 @@ export default async function FinancePage({
     ? BigInt(data.byCategory[0]!.total)
     : 1n;
 
+  // Only live charges belong on the checklist; a stopped one is history.
+  const charges: ChargeRow[] = data.recurring
+    .filter((r) => r.is_active)
+    .map((r) => ({
+      id: String(r.id),
+      description: String(r.description),
+      category: String(r.category),
+      categoryLabel: CATEGORY_LABELS[String(r.category)] ?? String(r.category),
+      kind: r.kind === 'variable' ? 'variable' : 'fixed',
+      expected: String(r.amount_centimes),
+      dayOfMonth: Number(r.day_of_month),
+      paid: r.paid_amount
+        ? {
+            amount: String(r.paid_amount),
+            paidOn: String(r.paid_on),
+            method: String(r.paid_method),
+          }
+        : null,
+    }));
+
+  const periodLabel = new Date(`${period}-01T00:00:00`).toLocaleDateString('en-GB', {
+    month: 'long',
+    year: 'numeric',
+  });
+
   return (
     <>
       <PageHeader
@@ -227,22 +270,27 @@ export default async function FinancePage({
         }
       />
 
-      <div className="grid grid-cols-2 gap-6 border-b border-void/15 pb-6 md:grid-cols-4">
-        <div>
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        <div className="card px-5 py-4">
           <p className="label">Money in — {year}</p>
           <p className="kpi mt-1">{formatMAD(income)}</p>
+          {/* Named plainly, because the old page read as though income were
+              something that arrives monthly on its own. It is not: it is what
+              clients paid for work sold. */}
+          <p className="hint mt-1">Cash received from clients for work sold</p>
         </div>
-        <div>
+        <div className="card px-5 py-4">
           <p className="label">Money out — {year}</p>
           <p className="kpi mt-1">{formatMAD(expense)}</p>
+          <p className="hint mt-1">Charges and spending actually paid</p>
         </div>
-        <div>
+        <div className="card px-5 py-4">
           <p className="label">Result</p>
           {/* Loss is stated in words and by the minus sign, never in red. */}
           <p className="kpi mt-1">{formatMAD(profit)}</p>
           <p className="hint mt-1">{profit < 0n ? 'Loss' : 'Profit'}</p>
         </div>
-        <div>
+        <div className="card px-5 py-4">
           <p className="label">Awaiting payment</p>
           <p className="kpi mt-1">{formatMAD(data.outstanding.total)}</p>
           <p className="hint mt-1">
@@ -495,26 +543,29 @@ export default async function FinancePage({
         </Section>
       )}
 
-      {/* --- Recurring costs ------------------------------------------------ */}
-      <Section
-        title={`Recurring — ${data.recurring.length}`}
-        action={
-          <form action={postDueNowAction}>
-            <button type="submit" className="btn btn-small btn-inverse">
-              Post anything due now
-            </button>
-          </form>
-        }
-      >
+      {/* --- The monthly checklist ------------------------------------------ */}
+      <Section title={`Charges for ${periodLabel}`}>
         <p className="prose-vixart mb-4" style={{ opacity: 0.7 }}>
-          Rent, electricity, subscriptions — the costs that are the same figure
-          every month. These post themselves each night, and catch up on every
-          period missed if the stack was down. A period can only ever be posted
-          once, so nothing is counted twice.
+          Rent, salaries, internet and the meters. Nothing here is written to the
+          books until you say the money went — a charge falling due is not the
+          same as a charge being paid, and the amount is yours to correct when it
+          is not the usual one.
         </p>
 
+        <ChargeChecklist
+          charges={charges}
+          period={period}
+          periodLabel={periodLabel}
+          today={today}
+          pay={payChargeAction}
+          unpay={unpayChargeAction}
+        />
+      </Section>
+
+      {/* --- Managing the charges themselves -------------------------------- */}
+      <Section title={`All charges — ${data.recurring.length}`}>
         {data.recurring.length === 0 ? (
-          <Empty message="Nothing recurring yet — add rent and the utility bills below and stop typing them" />
+          <Empty message="No charges yet — add rent, internet and the rest below" />
         ) : (
           <ul className="border-t border-void/10">
             {data.recurring.map((r) => (
@@ -526,21 +577,20 @@ export default async function FinancePage({
                   <span className={`font-semibold ${r.is_active ? '' : 'opacity-50 line-through'}`}>
                     {r.description}
                   </span>
-                  <span className="hint ml-3">
-                    {CATEGORY_LABELS[r.category] ?? r.category} ·{' '}
-                    {RECURRING_FREQUENCY_LABELS[r.frequency] ?? r.frequency} · day{' '}
-                    {r.day_of_month}
+                  <span className={`chip ml-2 ${r.kind === 'variable' ? 'tone-quiet' : 'tone-accent'}`}>
+                    {r.kind === 'variable' ? 'varies' : 'fixed'}
                   </span>
                   <p className="hint">
-                    {r.posted_count} posted
-                    {r.last_period ? ` · last ${r.last_period}` : ' · nothing yet'}
+                    {CATEGORY_LABELS[r.category] ?? r.category} · due on the {r.day_of_month} ·{' '}
+                    {r.posted_count} month{Number(r.posted_count) === 1 ? '' : 's'} paid
+                    {r.last_period ? ` · last ${r.last_period}` : ''}
                     {r.end_date ? ` · ends ${formatDate(r.end_date)}` : ''}
                     {!r.is_active ? ' · stopped' : ''}
                   </p>
                 </div>
                 <div className="flex items-baseline gap-4">
                   <span className="code font-semibold">
-                    {r.direction === 'expense' ? '− ' : ''}
+                    {r.kind === 'variable' ? '~ ' : ''}
                     {formatMAD(BigInt(r.amount_centimes))}
                   </span>
                   <form action={toggleRecurringAction}>
@@ -550,9 +600,8 @@ export default async function FinancePage({
                       {r.is_active ? 'Stop' : 'Restart'}
                     </button>
                   </form>
-                  {/* Once it has posted, the lines are a record of money that
-                      moved — so it is stopped, not erased. The database
-                      refuses the delete either way. */}
+                  {/* Once months have been paid against it, those lines record
+                      money that moved — so it is stopped, not erased. */}
                   {Number(r.posted_count) === 0 && (
                     <form action={deleteRecurringAction}>
                       <input type="hidden" name="recurringId" value={r.id} />

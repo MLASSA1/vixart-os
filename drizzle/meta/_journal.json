@@ -246,6 +246,20 @@
       "when": 1787769546980,
       "tag": "0034_guard_definer_functions",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1787769546981,
+      "tag": "0035_charge_checklist",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1787769546982,
+      "tag": "0036_deal_advance",
+      "breakpoints": true
     }
   ]
 }

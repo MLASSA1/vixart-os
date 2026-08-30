@@ -214,6 +214,16 @@ export const deal = pgTable(
     valueCentimes: bigint('value_centimes', { mode: 'bigint' })
       .notNull()
       .default(sql`0`),
+    /**
+     * Agreed up-front payment in centimes; 0 means none.
+     *
+     * An amount, not a percentage: a percentage is how the conversation goes,
+     * an amount is what the client transfers. Keeping the amount means a deal
+     * value corrected later does not silently change what was agreed.
+     */
+    advanceCentimes: bigint('advance_centimes', { mode: 'bigint' })
+      .notNull()
+      .default(sql`0`),
     /** 'proposal' | 'negotiation' | 'won' | 'lost'. */
     stage: text('stage').notNull().default('proposal'),
     /** 0-100. Used for the weighted pipeline forecast. */
@@ -484,6 +494,10 @@ export const document = pgTable('document', {
   withholdingRateBp: integer('withholding_rate_bp').notNull().default(0),
 
   discountCentimes: bigint('discount_centimes', { mode: 'bigint' }).notNull().default(sql`0`),
+  /** The advance agreed on the deal, frozen here at creation. */
+  advanceExpectedCentimes: bigint('advance_expected_centimes', { mode: 'bigint' })
+    .notNull()
+    .default(sql`0`),
 
   totalExclVat: bigint('total_excl_vat', { mode: 'bigint' }).notNull().default(sql`0`),
   totalVat: bigint('total_vat', { mode: 'bigint' }).notNull().default(sql`0`),
@@ -656,7 +670,15 @@ export const RECURRING_FREQUENCIES = ['monthly', 'quarterly', 'yearly'] as const
 
 export const recurringEntry = pgTable('recurring_entry', {
   id: uuid('id').primaryKey().defaultRandom(),
+  /** Always 'expense'. Money in comes from clients, never from a template. */
   direction: text('direction').notNull().default('expense'),
+  /**
+   * 'fixed'    — the same amount every month (rent, internet).
+   * 'variable' — recurs monthly, amount moves (electricity, fuel, food).
+   * A variable charge asks for the amount when it is ticked as paid.
+   */
+  kind: text('kind').notNull().default('fixed'),
+  /** For a fixed charge the amount due; for a variable one, a typical figure. */
   amountCentimes: bigint('amount_centimes', { mode: 'bigint' }).notNull(),
   vatCentimes: bigint('vat_centimes', { mode: 'bigint' }).notNull().default(sql`0`),
   category: text('category').notNull(),

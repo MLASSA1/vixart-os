@@ -11,20 +11,15 @@ set -eu
 
 echo "[nightly] $(date '+%F %T') — starting"
 
-# --- 1. Post recurring costs that have fallen due ---------------------------
+# Fixed charges are NOT posted here any more.
 #
-# Idempotent by construction: finance_entry has a unique index on
-# (recurring_entry_id, period_key), so a period can only ever be posted once.
-# It catches up every missed period, so a stack that was off for three weeks
-# comes back with three weeks of rent recorded rather than one.
-POSTED=$(psql -qtAX -c "SET app.bootstrap = 'on'; SELECT app.post_due_recurring();" 2>&1 | tail -1)
-if [ "${POSTED}" -eq "${POSTED}" ] 2>/dev/null; then
-  echo "[nightly] recurring entries posted: ${POSTED}"
-else
-  echo "[nightly] recurring posting FAILED: ${POSTED}"
-fi
+# They used to post themselves on their due day, which is a claim that money
+# left the account made by a calendar rather than by a bank. Rent paid late, or
+# skipped, still showed as paid. They are now confirmed on the Finance page,
+# one tick per charge per month, and the ledger line carries the date and the
+# amount that actually moved.
 
-# --- 2. Back up ---------------------------------------------------------------
+# --- Back up ------------------------------------------------------------------
 sh /usr/local/bin/backup.sh
 
 echo "[nightly] $(date '+%F %T') — done"

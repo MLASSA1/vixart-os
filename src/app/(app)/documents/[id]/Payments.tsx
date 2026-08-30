@@ -47,6 +47,7 @@ function Submit() {
 
 export function Payments({
   documentId,
+  advanceExpected,
   net,
   payments,
   settled,
@@ -55,6 +56,8 @@ export function Payments({
   remove,
 }: {
   documentId: string;
+  /** Advance agreed on the deal, centimes as a string. '0' if none. */
+  advanceExpected: string;
   /** net_to_collect, centimes as a string. */
   net: string;
   payments: PaymentRow[];
@@ -91,6 +94,17 @@ export function Payments({
           {settled ? 'Settled in full' : paid > 0n ? `${formatMAD(rest)} remaining` : 'Nothing received yet'}
         </p>
       </div>
+      {/* The advance agreed on the deal, shown against what has arrived. It is
+          a term, not a movement: it never posts anything by itself. */}
+      {BigInt(advanceExpected) > 0n && (
+        <p className="hint mt-2">
+          {paid >= BigInt(advanceExpected)
+            ? `Advance of ${formatMAD(BigInt(advanceExpected))} agreed on the deal — received.`
+            : `Advance of ${formatMAD(BigInt(advanceExpected))} agreed on the deal to start work` +
+              (paid > 0n ? ` — ${formatMAD(BigInt(advanceExpected) - paid)} of it still to come.` : '.')}
+        </p>
+      )}
+
       <div className="mt-3 h-2 overflow-hidden rounded-full bg-void/10">
         <div
           className={`h-full rounded-full ${settled ? 'bg-ok' : 'bg-accent'}`}
