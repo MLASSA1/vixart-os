@@ -46,6 +46,7 @@ function Submit() {
 }
 
 export function Payments({
+  documentId,
   net,
   payments,
   settled,
@@ -53,6 +54,7 @@ export function Payments({
   record,
   remove,
 }: {
+  documentId: string;
   /** net_to_collect, centimes as a string. */
   net: string;
   payments: PaymentRow[];
@@ -108,6 +110,9 @@ export function Payments({
               {!settled && (
                 <form action={remove}>
                   <input type="hidden" name="paymentId" value={p.id} />
+                  {/* The action revalidates /documents/<id>; without this it
+                      revalidated /documents/ and the bar above went stale. */}
+                  <input type="hidden" name="documentId" value={documentId} />
                   <button type="submit" className="hint cursor-pointer underline underline-offset-4">
                     Remove
                   </button>

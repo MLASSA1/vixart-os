@@ -297,6 +297,7 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
       {record.doc_type === 'facture' && !isDraft && record.status !== 'annule' && (
         <Section title="Payments">
           <Payments
+            documentId={record.id}
             net={record.net_to_collect}
             settled={record.status === 'paye'}
             today={new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Casablanca' })}

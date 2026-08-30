@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Client } from 'pg';
+import { restoreDocumentCounters } from './test-support';
 
 /**
  * Advance payments, proven at the database.
@@ -78,6 +79,8 @@ describe.skipIf(!HAS_DB)('advance payments (integration)', () => {
   afterAll(async () => {
     if (!db) return;
     await purge();
+    // Issuing burns real numbers; give them back.
+    await restoreDocumentCounters(db);
     await db.end();
   });
 

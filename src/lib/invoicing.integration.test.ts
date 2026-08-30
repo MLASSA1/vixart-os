@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Client } from 'pg';
+import { restoreDocumentCounters } from './test-support';
 
 /**
  * Integration tests against a real PostgreSQL.

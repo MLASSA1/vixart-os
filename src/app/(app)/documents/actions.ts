@@ -514,4 +514,7 @@ export async function deletePaymentAction(formData: FormData): Promise<void> {
   revalidatePath(`/documents/${documentId}`);
   revalidatePath('/documents');
   revalidatePath('/finance');
+  // Removing a payment drops its ledger line by cascade, so the money figures
+  // on the dashboard move too.
+  revalidatePath('/dashboard');
 }

@@ -109,14 +109,6 @@ export async function setDealStageAction(formData: FormData): Promise<void> {
   revalidatePath('/');
 }
 
-export async function deleteDealAction(formData: FormData): Promise<void> {
-  const id = String(formData.get('dealId') ?? '');
-  if (!id) return;
-  await withUser(async (tx) => {
-    await tx.delete(deal).where(eq(deal.id, id));
-  });
-  revalidatePath('/deals');
-}
 
 // ---------------------------------------------------------------------------
 // Deal lines — services picked onto the deal

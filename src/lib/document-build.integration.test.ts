@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Client } from 'pg';
+import { restoreDocumentCounters } from './test-support';
 
 /**
  * A quote and an invoice, built the way the new screen builds them: header,
@@ -60,6 +61,8 @@ describe.skipIf(!HAS_DB)('building a document in one transaction', () => {
       await db.query(`ALTER TABLE document ENABLE TRIGGER document_immutable`);
     }
     await db.query(`DELETE FROM company WHERE id=$1`, [companyId]);
+    // Issuing burns real numbers; give them back.
+    await restoreDocumentCounters(db);
     await db.end();
   });
 
