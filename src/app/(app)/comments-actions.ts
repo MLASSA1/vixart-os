@@ -7,7 +7,7 @@ import { withUser } from '@/db/session';
 import { describeDbError } from '@/lib/db-errors';
 import { EMPTY_STATE, type FormState } from '@/lib/form-state';
 
-const ENTITY_TYPES = ['project', 'task', 'company'] as const;
+const ENTITY_TYPES = ['project', 'task', 'company', 'prep'] as const;
 type EntityType = (typeof ENTITY_TYPES)[number];
 
 export async function addCommentAction(

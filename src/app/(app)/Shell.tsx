@@ -25,6 +25,9 @@ const NAV: NavItem[] = [
   { href: '/companies', label: 'All clients', group: 'Relationships' },
   { href: '/deals', label: 'Deals', group: 'Work', minRole: 'moderator' },
   { href: '/projects', label: 'Projects', group: 'Work' },
+  // Everyone gets this one: it is where the work is thought about before it is
+  // assigned, and it belongs to whoever is doing the thinking.
+  { href: '/prep', label: 'Prep', group: 'Work' },
   { href: '/services', label: 'Services', group: 'Work' },
   { href: '/documents', label: 'Quotes & invoices', group: 'Work', minRole: 'admin' },
   { href: '/finance', label: 'Finance', group: 'Work', minRole: 'admin' },

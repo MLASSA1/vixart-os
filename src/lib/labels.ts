@@ -234,3 +234,16 @@ export const RECURRING_FREQUENCIES = [
 ] as const;
 
 export const RECURRING_FREQUENCY_LABELS = toMap(RECURRING_FREQUENCIES);
+
+/** What a piece of preparation is. Plain data — imported from both sides. */
+export const PREP_KINDS = [
+  { value: 'idea', label: 'Idea' },
+  { value: 'script', label: 'Script' },
+  { value: 'shotlist', label: 'Shot list' },
+  { value: 'moodboard', label: 'References & mood' },
+  { value: 'location', label: 'Location' },
+  { value: 'music', label: 'Music & sound' },
+  { value: 'other', label: 'Other' },
+] as const;
+
+export const PREP_KIND_LABELS = toMap(PREP_KINDS);

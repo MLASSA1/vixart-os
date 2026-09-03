@@ -1,37 +1,47 @@
 import type { Metadata } from 'next';
-import { IBM_Plex_Mono, Inter, Space_Grotesk } from 'next/font/google';
+import localFont from 'next/font/local';
 import './globals.css';
 
 /**
- * Inter carries the whole interface. IBM Plex Mono is kept only for figures
- * that must align in a column and codes that get copied — not for labels,
- * buttons or headings, which read badly in uppercase mono.
+ * The three faces, served from this repository rather than fetched at build.
  *
- * The VIX ART display face appears nowhere here: it is a brand signature, not
- * an interface face.
+ * They used to come through next/font/google, which downloads them while the
+ * image is being built. That worked until the build machine could not reach
+ * Google — and then the whole thing failed on a font, with the application
+ * itself perfectly fine. For a system whose entire premise is that it runs on
+ * a machine VIXART controls, a build that phones out to Mountain View is a
+ * dependency nobody agreed to.
+ *
+ * 352 KB of woff2 in src/app/fonts, latin and latin-ext, exactly the weights
+ * used. The build now needs no network at all.
+ *
+ * Inter carries the interface. Space Grotesk takes headings and big figures.
+ * IBM Plex Mono is kept for what it is good at: figures that must line up in a
+ * column, and codes that get copied — ICE, tax IDs, document numbers.
  */
-const inter = Inter({
-  subsets: ['latin', 'latin-ext'],
-  weight: ['400', '500', '600', '700'],
+const inter = localFont({
+  src: [
+    { path: './fonts/inter-400-latin.woff2', weight: '400', style: 'normal' },
+    { path: './fonts/inter-500-latin.woff2', weight: '500', style: 'normal' },
+    { path: './fonts/inter-600-latin.woff2', weight: '600', style: 'normal' },
+    { path: './fonts/inter-700-latin.woff2', weight: '700', style: 'normal' },
+  ],
   variable: '--font-interface',
   display: 'block',
 });
 
-/**
- * Space Grotesk carries headings and big figures — enough character to feel
- * like a studio built this, without costing body-text legibility, which stays
- * Inter's job.
- */
-const grotesk = Space_Grotesk({
-  subsets: ['latin'],
-  weight: ['500', '600', '700'],
+const grotesk = localFont({
+  src: [
+    { path: './fonts/grotesk-500-latin.woff2', weight: '500', style: 'normal' },
+    { path: './fonts/grotesk-600-latin.woff2', weight: '600', style: 'normal' },
+    { path: './fonts/grotesk-700-latin.woff2', weight: '700', style: 'normal' },
+  ],
   variable: '--font-display',
   display: 'block',
 });
 
-const plexMono = IBM_Plex_Mono({
-  subsets: ['latin', 'latin-ext'],
-  weight: ['500'],
+const plexMono = localFont({
+  src: [{ path: './fonts/plexmono-500-latin.woff2', weight: '500', style: 'normal' }],
   variable: '--font-figures',
   display: 'block',
 });

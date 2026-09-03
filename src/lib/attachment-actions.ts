@@ -8,7 +8,7 @@ import { removeStored, storeUpload } from '@/lib/uploads';
 import { describeDbError } from '@/lib/db-errors';
 import { EMPTY_STATE, type FormState } from '@/lib/form-state';
 
-const ENTITIES = ['task', 'project', 'company', 'contact', 'document', 'finance_entry'] as const;
+const ENTITIES = ['task', 'project', 'company', 'contact', 'document', 'finance_entry', 'prep'] as const;
 type EntityType = (typeof ENTITIES)[number];
 
 /**

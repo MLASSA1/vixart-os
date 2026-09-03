@@ -60,6 +60,13 @@ async function main() {
          EXECUTE format('GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO %I', r);
          EXECUTE format('GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA app TO %I', r);
 
+         -- The team directory: names, titles and roles, with password_hash
+         -- structurally out of reach rather than merely unselected. The prep
+         -- board shows who wrote what, so every signed-in person needs it —
+         -- it was created for the agent roles and never granted to the app,
+         -- which only surfaced when a page finally tried to read it.
+         EXECUTE format('GRANT SELECT ON app.team_directory TO %I', r);
+
          -- Tables created by future migrations inherit automatically.
          EXECUTE format('ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO %I', r);
          EXECUTE format('ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO %I', r);

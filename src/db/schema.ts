@@ -762,3 +762,37 @@ export type RecurringEntry = typeof recurringEntry.$inferSelect;
 export type Attachment = typeof attachment.$inferSelect;
 export type Equipment = typeof equipment.$inferSelect;
 export type ServicePrice = typeof servicePrice.$inferSelect;
+
+// ---------------------------------------------------------------------------
+// Prep — what a video needs before it is shot.
+//
+// Private while it is being written, shared with the whole team the moment it
+// is marked ready. That rule is enforced by row level security, not by this
+// file: see drizzle/0037.
+// ---------------------------------------------------------------------------
+
+export const prep = pgTable(
+  'prep',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    title: text('title').notNull(),
+    /** idea | script | shotlist | moodboard | location | music | other */
+    kind: text('kind').notNull().default('idea'),
+    body: text('body'),
+    projectId: uuid('project_id').references(() => project.id, { onDelete: 'set null' }),
+    companyId: uuid('company_id').references(() => company.id, { onDelete: 'set null' }),
+    /** Who wrote it. Not transferable — a trigger refuses to move it. */
+    ownerId: uuid('owner_id')
+      .notNull()
+      .references(() => appUser.id, { onDelete: 'restrict' }),
+    /** 'draft' — only the owner sees it. 'ready' — the team sees it. */
+    status: text('status').notNull().default('draft'),
+    readyAt: timestamp('ready_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('prep_by_owner_idx').on(t.ownerId, t.status),
+    index('prep_by_project_idx').on(t.projectId),
+  ],
+);
