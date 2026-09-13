@@ -7,11 +7,19 @@
 
 services:
   app:
-    ports:
-      # LOOPBACK ONLY. The base file binds 0.0.0.0, which is right on a laptop
-      # and wrong on a VPS: it would put the application on a public port with
-      # no TLS, reachable around nginx and around the certificate. nginx is the
-      # only way in, and it talks to this over 127.0.0.1.
+    # `!override` REPLACES the base list instead of adding to it.
+    #
+    # Compose merges sequences by concatenation, so without this the app
+    # inherits the base file's "4100:3000" AND gains "127.0.0.1:4100:3000",
+    # then fails to start because the first binding already owns the port the
+    # second one wants — a container colliding with itself.
+    #
+    # The failure was loud, which was lucky. Had the two entries not collided,
+    # the app would have come up bound to 0.0.0.0 as well, published on a bare
+    # port with no TLS, reachable around nginx and around the certificate —
+    # exactly what this overlay exists to prevent, silently not prevented.
+    ports: !override
+      # LOOPBACK ONLY. nginx is the only way in, over 127.0.0.1.
       - "127.0.0.1:${APP_PORT:-4000}:3000"
     environment:
       # Auth.js builds its callback URLs from this and marks its cookies
@@ -27,7 +35,9 @@ services:
       options: { max-size: "10m", max-file: "3" }
 
   db:
-    ports:
+    # Identical to the base entry today, so the merge happens to be harmless —
+    # stated explicitly anyway, so it stays correct if the base file changes.
+    ports: !override
       # Loopback for psql over an SSH tunnel. Never the public interface.
       - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     restart: always
