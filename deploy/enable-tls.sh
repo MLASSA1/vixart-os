@@ -11,11 +11,17 @@
 set -euo pipefail
 
 DOMAIN=visionxart.cloud
-IP=$(curl -s --max-time 10 ifconfig.me || echo unknown)
+# -4 is load-bearing: this VPS has IPv6, and without it ifconfig.me answers
+# with the v6 address, which never matches the A record and blocks the script
+# on DNS that is in fact correct.
+IP=$(curl -4 -s --max-time 10 ifconfig.me || echo unknown)
 
 echo "[tls] this machine is ${IP}"
 for host in "$DOMAIN" "www.$DOMAIN"; do
-  RESOLVED=$(dig +short "$host" A | tail -1)
+  # Ask the authoritative nameserver, not a cache: a resolver may still be
+  # holding the old answer long after the record itself is correct.
+  NS=$(dig +short NS "$DOMAIN" | head -1)
+  RESOLVED=$(dig +short "$host" A @"${NS:-1.1.1.1}" | tail -1)
   echo "[tls] ${host} resolves to ${RESOLVED:-nothing}"
   if [[ "$RESOLVED" != "$IP" ]]; then
     echo "[tls] STOP: ${host} does not point here yet." >&2
