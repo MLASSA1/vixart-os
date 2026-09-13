@@ -194,6 +194,62 @@ each member sets their own password** — it is not a dismissible reminder.
 
 ---
 
+## Hosting — visionxart.cloud
+
+The agency's system runs on VIXART's own VPS (`srv1846565.hstgr.cloud`,
+187.127.230.169), on its own domain, beside the client-facing sites already
+there. nginx owns 443 for all of them, so this joins that arrangement rather
+than bringing a second proxy: **the app listens on 127.0.0.1:4100 and nginx is
+the only way in.**
+
+```
+internet ──► nginx :443 (TLS)  ──► 127.0.0.1:4100 ──► app container
+                                    │
+                                    └── db + backup containers, private network
+```
+
+Nothing but nginx is exposed. The database publishes 127.0.0.1:5432 for psql
+over an SSH tunnel and is unreachable from anywhere else.
+
+### Deploying a change
+
+```bash
+ssh visionxart
+cd /opt/clients/vixart-os && bash scripts/deploy.sh
+```
+
+Pulls main, rebuilds at `nice 15` — one core is shared with eight live sites
+and a deploy must not make them slow — restarts, and waits for
+`/api/health`. Idempotent: migrations are journalled so they apply once, and
+the seed skips a database that already has companies in it.
+
+### The production overlay
+
+`docker-compose.prod.yml` changes what only matters in public:
+
+| | |
+|---|---|
+| `ports: !override` | Loopback only. **`!override` is load-bearing** — Compose merges sequences, so without it the base file's `0.0.0.0` binding survives alongside this one and the app is published on a bare port with no TLS |
+| `AUTH_URL` | Auth.js builds callbacks from it and marks cookies Secure; without it sign-in redirects to localhost |
+| `restart: always` | A reboot brings the agency's system back without anyone logging in |
+| capped json logs | 10 MB × 3 per service, so a year of logs cannot fill the disk |
+
+### Certificates
+
+`bash deploy/enable-tls.sh` issues for `visionxart.cloud` and `www`, converts
+port 80 to a redirect, and installs the renewal timer. It refuses to run until
+DNS actually points here, because Let's Encrypt verifies by fetching over HTTP
+from whatever the name resolves to and would otherwise fail with a confusing
+error.
+
+### Secrets
+
+Generated **on the VPS**, in `/opt/clients/vixart-os/.env`, mode 600. Nothing is
+copied from a laptop: a secret that has sat in a local file and a shell history
+is not a production secret. They are not in this repository and never will be.
+
+---
+
 ## Backup and restore
 
 > This section is written to be followed without being an engineer.
