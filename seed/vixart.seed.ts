@@ -83,7 +83,18 @@ const TEAM = [
 // prospects in it is a competitor's shopping list.
 async function loadPipeline(): Promise<SeedCompany[]> {
   try {
-    const local = (await import('./pipeline.local')) as { PIPELINE: SeedCompany[] };
+    // The specifier is assembled at runtime, on purpose.
+    //
+    // seed/pipeline.local.ts is gitignored — it holds the real client list and
+    // the repository is public. Written as a literal, TypeScript tries to
+    // resolve it while type-checking and fails on any machine that does not
+    // have it, which is every machine except Amin's. That made the repository
+    // unbuildable from a clean clone: found when the VPS tried.
+    //
+    // A non-literal specifier is opaque to the resolver and still perfectly
+    // valid at runtime, where the catch below already handles its absence.
+    const localModule = './pipeline' + '.local';
+    const local = (await import(localModule)) as { PIPELINE: SeedCompany[] };
     console.log('[seed] using seed/pipeline.local.ts');
     return local.PIPELINE;
   } catch {
