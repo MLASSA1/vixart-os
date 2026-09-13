@@ -1,0 +1,42 @@
+# VIXART OS — production overlay, for the VPS.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# What it changes, and why each one matters once the machine is on the public
+# internet rather than a laptop.
+
+services:
+  app:
+    ports:
+      # LOOPBACK ONLY. The base file binds 0.0.0.0, which is right on a laptop
+      # and wrong on a VPS: it would put the application on a public port with
+      # no TLS, reachable around nginx and around the certificate. nginx is the
+      # only way in, and it talks to this over 127.0.0.1.
+      - "127.0.0.1:${APP_PORT:-4000}:3000"
+    environment:
+      # Auth.js builds its callback URLs from this and marks its cookies
+      # Secure. Without it, sign-in redirects land on http://localhost and the
+      # session cookie is refused by the browser.
+      AUTH_URL: ${AUTH_URL}
+      AUTH_TRUST_HOST: "true"
+    # A VPS reboot should bring the agency's system back without anyone logging
+    # in to start it.
+    restart: always
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  db:
+    ports:
+      # Loopback for psql over an SSH tunnel. Never the public interface.
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    restart: always
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  backup:
+    restart: always
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
