@@ -36,7 +36,23 @@ const HAS_DB = await reachable();
  *   set_own_password — writes only WHERE id = app.current_user_id(), which is
  *     a tighter guard than a role check.
  */
-const EXEMPT = new Set(['lookup_login', 'actor_name', 'set_own_password']);
+const EXEMPT = new Set([
+  'lookup_login',
+  'actor_name',
+  'set_own_password',
+  // Both run BEFORE anyone is authenticated — that is their entire purpose, so
+  // there is no role for them to check and no session for RLS to evaluate.
+  //
+  // login_retry_after returns a number of seconds and nothing else. It counts
+  // rows in login_attempt, never touches app_user, and answers identically for
+  // an address that exists and one that does not, so it cannot be used to
+  // discover who has an account.
+  //
+  // record_login_attempt only appends to that same table. Nothing in the
+  // application routes to either of them except the sign-in path itself.
+  'login_retry_after',
+  'record_login_attempt',
+]);
 
 describe.skipIf(!HAS_DB)('SECURITY DEFINER functions guard their callers', () => {
   let db: Client;
