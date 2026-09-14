@@ -86,14 +86,39 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         email: { label: 'Email address', type: 'email' },
         password: { label: 'Password', type: 'password' },
       },
-      async authorize(credentials) {
+      async authorize(credentials, request) {
         const email = typeof credentials?.email === 'string' ? credentials.email : '';
         const password =
           typeof credentials?.password === 'string' ? credentials.password : '';
 
         if (!email || !password) return null;
 
-        const result = await getDb().execute<LoginRow>(
+        // Who is asking. nginx sets X-Forwarded-For; the last hop it appends is
+        // the one it actually saw, and the only entry a client cannot forge by
+        // sending a header of its own.
+        const forwarded = request?.headers?.get('x-forwarded-for') ?? '';
+        const ip = forwarded.split(',').map((s) => s.trim()).filter(Boolean).pop() ?? null;
+
+        const db = getDb();
+
+        // Before the password is even looked at: has this account, or this
+        // address, been guessed at too much lately?
+        const gate = await db.execute<{ retry_after: number }>(
+          sql`SELECT app.login_retry_after(${email}, ${ip}) AS retry_after`,
+        );
+        const retryAfter = Number(gate.rows[0]?.retry_after ?? 0);
+        if (retryAfter > 0) {
+          // Deliberately the same refusal a wrong password gets. Telling an
+          // attacker they have hit a limit tells them the limit exists, how
+          // fast it trips, and that the address they are trying is worth
+          // trying — none of which they are owed.
+          await db.execute(
+            sql`SELECT app.record_login_attempt(${email}, ${ip}, false)`,
+          );
+          return null;
+        }
+
+        const result = await db.execute<LoginRow>(
           sql`SELECT * FROM app.lookup_login(${email})`,
         );
         const row = result.rows[0];
@@ -101,6 +126,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         // Comparison runs even with no account: constant response time.
         const hash = row?.password_hash ?? DECOY_HASH;
         const matches = await compare(password, hash);
+
+        const ok = Boolean(row && matches && row.is_active);
+        await db.execute(sql`SELECT app.record_login_attempt(${email}, ${ip}, ${ok})`);
 
         if (!row || !matches || !row.is_active) return null;
 
