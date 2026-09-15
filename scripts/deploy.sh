@@ -35,8 +35,12 @@ nice -n 15 $COMPOSE build app
 echo "[deploy] restarting"
 $COMPOSE up -d
 
-echo "[deploy] waiting for health"
-for i in $(seq 1 60); do
+# Five minutes, not two. This VPS has one core shared with eight other sites,
+# and a cold start runs migrations, the seed check and the Next.js boot before
+# it answers. At 120s the script declared a deploy failed that had in fact
+# succeeded — a health check that cries wolf teaches you to ignore it.
+echo "[deploy] waiting for health (up to 5 min — one core, cold start)"
+for i in $(seq 1 150); do
   if curl -sf --max-time 3 "http://127.0.0.1:${APP_PORT:-4000}/api/health" >/dev/null 2>&1; then
     echo "[deploy] healthy: $(curl -s http://127.0.0.1:${APP_PORT:-4000}/api/health)"
     echo "[deploy] done"
@@ -45,6 +49,6 @@ for i in $(seq 1 60); do
   sleep 2
 done
 
-echo "[deploy] FAILED: not healthy after 120s. Recent log:" >&2
+echo "[deploy] FAILED: not healthy after 5 minutes. Recent log:" >&2
 $COMPOSE logs --tail 30 app >&2
 exit 1
