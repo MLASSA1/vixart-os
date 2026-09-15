@@ -186,6 +186,92 @@ describe.skipIf(!HAS_DB)('retainers (integration)', () => {
     await db.query(`DELETE FROM retainer WHERE id=$1`, [id]);
   });
 
+
+  // --- the cases that cost money: billing a client who has left ------------
+  //
+  // Each of these proves the retainer DID draft while it was live and then
+  // stopped. A test that only asserts 0 would pass against a function that
+  // never drafted anything at all.
+
+  it('a non-renewing term drafts while live, then nothing the following period', async () => {
+    await purge();
+    companyId = (await db.query<{ id: string }>(
+      `INSERT INTO company (name, status, relationship, retenue_source)
+       VALUES ($1,'client','client',false) RETURNING id`, [MARK])).rows[0]!.id;
+
+    // Three months from 1 January, does NOT renew: the term ends 2026-04-01.
+    const id = await make({ start: '2026-01-01', term: 3, auto: false, day: 1 });
+
+    // Inside the term it bills, so the mechanism is known to work.
+    expect(await draft('2026-02-01')).toBe(1);
+    expect(await draft('2026-03-01')).toBe(1);
+
+    // April IS the expiry date — the term is over, so April is not billable.
+    expect(await draft('2026-04-01')).toBe(0);
+    // And the following period, which is the one that would reach a client
+    // who has already gone.
+    expect(await draft('2026-05-01')).toBe(0);
+    expect(await draft('2026-06-01')).toBe(0);
+
+    const { rows } = await db.query<{ periods: string }>(
+      `SELECT coalesce(string_agg(retainer_period, ',' ORDER BY retainer_period), '') AS periods
+         FROM document WHERE retainer_id=$1`, [id]);
+    expect(rows[0]!.periods).toBe('2026-02,2026-03');
+    await db.query(`DELETE FROM document WHERE retainer_id=$1`, [id]);
+    await db.query(`DELETE FROM retainer WHERE id=$1`, [id]);
+  });
+
+  it('a retainer ended early inside its term stops drafting from that point', async () => {
+    await purge();
+    companyId = (await db.query<{ id: string }>(
+      `INSERT INTO company (name, status, relationship, retenue_source)
+       VALUES ($1,'client','client',false) RETURNING id`, [MARK])).rows[0]!.id;
+
+    // Twelve-month commitment, renewing — a long way from its natural end.
+    const id = await make({ start: '2026-01-01', term: 12, auto: true, day: 1 });
+
+    expect(await draft('2026-02-01')).toBe(1);
+    expect(await draft('2026-03-01')).toBe(1);
+
+    // The client leaves in March, eight months inside the commitment. This is
+    // exactly what endRetainerAction writes: status, reason, and the end date.
+    await db.query(
+      `UPDATE retainer
+          SET status='ended', end_reason='Went in-house', ended_on='2026-03-20', end_date='2026-03-20'
+        WHERE id=$1`, [id]);
+
+    // Nothing from here on, including the months it would still have been
+    // inside its committed term.
+    expect(await draft('2026-04-01')).toBe(0);
+    expect(await draft('2026-05-01')).toBe(0);
+    expect(await draft('2027-01-01')).toBe(0);
+
+    const { rows } = await db.query<{ periods: string }>(
+      `SELECT coalesce(string_agg(retainer_period, ',' ORDER BY retainer_period), '') AS periods
+         FROM document WHERE retainer_id=$1`, [id]);
+    expect(rows[0]!.periods).toBe('2026-02,2026-03');
+    await db.query(`DELETE FROM document WHERE retainer_id=$1`, [id]);
+    await db.query(`DELETE FROM retainer WHERE id=$1`, [id]);
+  });
+
+  it('an end date alone stops it, even with the status left active', async () => {
+    // Belt and braces: the status check and the term check are independent, so
+    // neither one carries the rule alone.
+    await purge();
+    companyId = (await db.query<{ id: string }>(
+      `INSERT INTO company (name, status, relationship, retenue_source)
+       VALUES ($1,'client','client',false) RETURNING id`, [MARK])).rows[0]!.id;
+
+    const id = await make({ start: '2026-01-01', term: 12, auto: true, day: 1 });
+    expect(await draft('2026-02-01')).toBe(1);
+
+    await db.query(`UPDATE retainer SET end_date='2026-02-20' WHERE id=$1`, [id]);
+    expect(await draft('2026-03-01')).toBe(0);
+
+    await db.query(`DELETE FROM document WHERE retainer_id=$1`, [id]);
+    await db.query(`DELETE FROM retainer WHERE id=$1`, [id]);
+  });
+
   // --- MRR -----------------------------------------------------------------
 
   it('counts only active retainers towards MRR', async () => {
