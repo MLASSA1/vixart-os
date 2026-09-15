@@ -19,6 +19,22 @@ echo "[nightly] $(date '+%F %T') — starting"
 # one tick per charge per month, and the ledger line carries the date and the
 # amount that actually moved.
 
+# --- Draft this month's retainer invoices -------------------------------------
+#
+# Safe to automate BECAUSE it produces drafts. A draft has no number, no legal
+# standing and moves no money — it is paperwork prepared for a person to check.
+# Issuing stays a human act, and nothing here will ever do it.
+#
+# Idempotent by construction: document has a unique index on
+# (retainer_id, retainer_period), so a month can be drafted once however many
+# times this runs, restarts, or is triggered by hand from the Retainers screen.
+DRAFTED=$(psql -qtAX -c "SET app.bootstrap = 'on'; SELECT app.draft_retainer_invoices();" 2>&1 | tail -1)
+if [ "${DRAFTED}" -eq "${DRAFTED}" ] 2>/dev/null; then
+  echo "[nightly] retainer drafts created: ${DRAFTED}"
+else
+  echo "[nightly] retainer drafting FAILED: ${DRAFTED}"
+fi
+
 # --- Back up ------------------------------------------------------------------
 sh /usr/local/bin/backup.sh
 

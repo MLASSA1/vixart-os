@@ -80,6 +80,9 @@ export default async function DashboardPage() {
     `);
 
     let money = { open_value: 0n, weighted: 0n, won_value: 0n, open_deals: 0 };
+    // Recurring revenue, and the part of it that is at risk. A retainer whose
+    // client nobody has spoken to in a month is the one that does not renew.
+    let recurring = { mrr: 0n, active: 0, at_risk: 0 };
     if (seesMoney) {
       const d = await tx.execute<{
         [k: string]: unknown;
@@ -91,6 +94,27 @@ export default async function DashboardPage() {
                count(*) FILTER (WHERE stage IN ('proposal','negotiation'))::text AS open_deals
           FROM deal
       `);
+      const rec = await tx.execute<{
+        [k: string]: unknown; mrr: string; active: string; at_risk: string;
+      }>(sql`
+        SELECT coalesce(sum(r.monthly_centimes),0)::text AS mrr,
+               count(*)::text AS active,
+               count(*) FILTER (
+                 WHERE NOT EXISTS (
+                   SELECT 1 FROM interaction i
+                    WHERE i.company_id = r.company_id
+                      AND i.occurred_at > now() - interval '30 days')
+               )::text AS at_risk
+          FROM retainer r
+         WHERE r.status = 'active'
+      `);
+      const rr = rec.rows[0];
+      recurring = {
+        mrr: BigInt(rr?.mrr ?? '0'),
+        active: Number(rr?.active ?? 0),
+        at_risk: Number(rr?.at_risk ?? 0),
+      };
+
       const r = d.rows[0];
       money = {
         open_value: BigInt(r?.open_value ?? '0'),
@@ -111,10 +135,11 @@ export default async function DashboardPage() {
       myTasks: myTasks.rows,
       activity: feed.rows as ActivityItem[],
       money,
+        recurring,
     };
   });
 
-  const { counts, activeClients, myTasks, activity, money } = data;
+  const { counts, activeClients, myTasks, activity, money, recurring } = data;
 
   return (
     <>
@@ -157,6 +182,14 @@ export default async function DashboardPage() {
           <div className="card px-5 py-4">
             <p className="label">Open deals</p>
             <p className="kpi mt-1">{money.open_deals}</p>
+          </div>
+          <div className="card px-5 py-4">
+            <p className="label">Monthly recurring</p>
+            <p className="kpi mt-1">{formatMAD(recurring.mrr)}</p>
+            <p className="hint mt-1">
+              {recurring.active} retainer{recurring.active === 1 ? '' : 's'}
+              {recurring.at_risk > 0 ? ` · ${recurring.at_risk} gone quiet` : ''}
+            </p>
           </div>
           <div className="card px-5 py-4">
             <p className="label">Pipeline value</p>

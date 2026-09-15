@@ -39,6 +39,9 @@ interface Row {
 export async function getAttention(): Promise<AttentionItem[]> {
   return withUser(async (tx, user) => {
     const isAdmin = user.role === 'admin';
+    // Retainers are revenue contracts: the same reach as deals, which is
+    // moderator and above, not the narrower money-only reach of an invoice.
+    const isModerator = user.role === 'admin' || user.role === 'moderator';
     const canSignOff = user.role === 'admin' || user.role === 'moderator';
 
     const result = await tx.execute<Row>(sql`
@@ -125,6 +128,48 @@ export async function getAttention(): Promise<AttentionItem[]> {
       HAVING count(*) > 0
 
       UNION ALL
+      -- A retainer whose monthly draft was never made though its billing day
+      -- has passed. Nothing was billed, so nothing will be paid.
+      SELECT 'retainer_undrafted', count(*)::text, NULL, min(c.name)
+        FROM retainer r
+        JOIN company c ON c.id = r.company_id
+       WHERE ${isModerator}
+         AND r.status = 'active'
+         AND r.billing_day < extract(day FROM current_date)
+         AND app.retainer_term_end(r.start_date, r.term_months, r.auto_renew, r.end_date) > current_date
+         AND NOT EXISTS (
+           SELECT 1 FROM document d
+            WHERE d.retainer_id = r.id
+              AND d.retainer_period = to_char(current_date, 'YYYY-MM'))
+      HAVING count(*) > 0
+
+      UNION ALL
+      -- A draft that was made and never issued. Until it has a number it is
+      -- not an invoice and the client owes nothing.
+      SELECT 'retainer_unissued', count(*)::text, NULL, min(c.name)
+        FROM document d
+        JOIN retainer r ON r.id = d.retainer_id
+        JOIN company c ON c.id = d.company_id
+       WHERE ${isModerator}
+         AND d.status = 'brouillon'
+         AND d.retainer_period IS NOT NULL
+         AND d.issue_date < current_date
+      HAVING count(*) > 0
+
+      UNION ALL
+      -- Out of the committed term and inside the renewal window. This is the
+      -- moment a client actually leaves.
+      SELECT 'retainer_renewal', count(*)::text, NULL, min(c.name)
+        FROM retainer r
+        JOIN company c ON c.id = r.company_id
+       WHERE ${isModerator}
+         AND r.status = 'active'
+         AND NOT app.retainer_in_committed_term(r.start_date, r.term_months)
+         AND app.retainer_term_end(r.start_date, r.term_months, r.auto_renew, r.end_date)
+             <= current_date + 30
+      HAVING count(*) > 0
+
+      UNION ALL
       -- An active client nobody has spoken to in a month.
       SELECT 'gone_quiet', count(*)::text, NULL, min(c.name)
         FROM company c
@@ -186,6 +231,30 @@ export async function getAttention(): Promise<AttentionItem[]> {
       (n) => `${n} ${plural(n, 'draft has', 'drafts have')} been sitting for over a week`,
       () => 'A draft has no number and no legal standing until it is issued.',
       '/documents');
+
+    push('retainer_undrafted', 'now',
+      (n) => `${n} ${plural(n, 'retainer has', 'retainers have')} not been billed this month`,
+      (_n, row) =>
+        row?.ref
+          ? `The billing day has passed and no draft exists — ${row.ref} among them.`
+          : 'The billing day has passed and no draft exists.',
+      '/retainers');
+
+    push('retainer_unissued', 'soon',
+      (n) => `${n} retainer ${plural(n, 'draft is', 'drafts are')} waiting to be issued`,
+      (_n, row) =>
+        row?.ref
+          ? `A draft has no number, so nothing is owed yet — ${row.ref} among them.`
+          : 'A draft has no number, so nothing is owed yet.',
+      '/documents');
+
+    push('retainer_renewal', 'soon',
+      (n) => `${n} ${plural(n, 'retainer is', 'retainers are')} up for renewal within 30 days`,
+      (_n, row) =>
+        row?.ref
+          ? `Out of the committed term — this is when a client leaves. ${row.ref} among them.`
+          : 'Out of the committed term — this is when a client leaves.',
+      '/retainers');
 
     push('gone_quiet', 'soon',
       (n) => `${n} ${plural(n, 'client has', 'clients have')} gone quiet`,

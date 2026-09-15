@@ -517,6 +517,10 @@ export const document = pgTable('document', {
   advanceExpectedCentimes: bigint('advance_expected_centimes', { mode: 'bigint' })
     .notNull()
     .default(sql`0`),
+  /** Set when this draft was produced from a retainer's monthly billing. */
+  retainerId: uuid('retainer_id'),
+  /** 'YYYY-MM'. Unique with retainerId: a period is drafted once, ever. */
+  retainerPeriod: text('retainer_period'),
 
   totalExclVat: bigint('total_excl_vat', { mode: 'bigint' }).notNull().default(sql`0`),
   totalVat: bigint('total_vat', { mode: 'bigint' }).notNull().default(sql`0`),
@@ -813,5 +817,57 @@ export const prep = pgTable(
   (t) => [
     index('prep_by_owner_idx').on(t.ownerId, t.status),
     index('prep_by_project_idx').on(t.projectId),
+  ],
+);
+
+// ---------------------------------------------------------------------------
+// Retainers — the monthly contracts the agency is moving towards.
+//
+// A retainer is a COMMITTED term, not a rolling month. An open-ended monthly
+// lets a client take the first month — the audit, the brand work, the setup,
+// the heavy end — and leave before the compounding work pays for itself. The
+// commitment is therefore in the table: termMonths, three by default, which is
+// the shortest term that makes the first month worth doing.
+//
+// endDate is derived from start + term unless explicitly set; the arithmetic
+// lives in app.retainer_term_end() so every screen and the drafting job agree.
+// ---------------------------------------------------------------------------
+
+export const retainer = pgTable(
+  'retainer',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    companyId: uuid('company_id')
+      .notNull()
+      .references(() => company.id, { onDelete: 'restrict' }),
+    label: text('label').notNull(),
+    /** What the client pays each month, in centimes. Never a float. */
+    monthlyCentimes: bigint('monthly_centimes', { mode: 'bigint' }).notNull(),
+    /** The VAT rate in force when the contract was agreed, frozen onto it. */
+    vatRateBp: integer('vat_rate_bp').notNull(),
+
+    startDate: date('start_date').notNull(),
+    /** The commitment, in months. Three by default. */
+    termMonths: integer('term_months').notNull().default(3),
+    autoRenew: boolean('auto_renew').notNull().default(true),
+    /** Explicit override. NULL means derive it from start + term. */
+    endDate: date('end_date'),
+
+    /** Capped at 28 so February is never a special case. */
+    billingDay: integer('billing_day').notNull().default(1),
+    /** 'active' | 'paused' | 'ended' */
+    status: text('status').notNull().default('active'),
+    endedOn: date('ended_on'),
+    /** Required when ending. The most useful column this table will have. */
+    endReason: text('end_reason'),
+
+    notes: text('notes'),
+    createdById: uuid('created_by_id').references(() => appUser.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('retainer_by_company_idx').on(t.companyId),
+    index('retainer_active_idx').on(t.status, t.billingDay),
   ],
 );

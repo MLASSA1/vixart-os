@@ -24,6 +24,9 @@ const NAV: NavItem[] = [
   { href: '/leads', label: 'Leads', group: 'Relationships' },
   { href: '/companies', label: 'All clients', group: 'Relationships' },
   { href: '/deals', label: 'Deals', group: 'Work', minRole: 'moderator' },
+  // The monthly contracts. Beside Deals because it is where a deal goes
+  // when it stops being a one-off.
+  { href: '/retainers', label: 'Retainers', group: 'Work', minRole: 'moderator' },
   { href: '/projects', label: 'Projects', group: 'Work' },
   // Everyone gets this one: it is where the work is thought about before it is
   // assigned, and it belongs to whoever is doing the thinking.
