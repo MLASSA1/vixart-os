@@ -281,6 +281,13 @@
       "when": 1787769546985,
       "tag": "0039_hygiene",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1787769546986,
+      "tag": "0040_service_accounts_and_purge",
+      "breakpoints": true
     }
   ]
 }

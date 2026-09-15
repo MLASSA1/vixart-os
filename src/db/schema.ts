@@ -100,6 +100,16 @@ export const appUser = pgTable(
    * the Team screen who were never staff.
    */
   isAssignable: boolean('is_assignable').notNull().default(true),
+  /**
+   * True for the retired agent identities, which exist only to own rows in the
+   * append-only activity log.
+   *
+   * Deliberately independent of password_hash. An authorization flag keyed on
+   * a credential string stops protecting anything the day that string changes,
+   * and says the wrong thing meanwhile: what makes this not a person is what
+   * it IS, not what is stored in its password column.
+   */
+  isServiceAccount: boolean('is_service_account').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
