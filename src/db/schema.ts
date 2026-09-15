@@ -19,6 +19,7 @@ import {
   integer,
   pgEnum,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -870,4 +871,80 @@ export const retainer = pgTable(
     index('retainer_by_company_idx').on(t.companyId),
     index('retainer_active_idx').on(t.status, t.billingDay),
   ],
+);
+
+// ---------------------------------------------------------------------------
+// Team chat — threads, messages, and where each person has read up to.
+//
+// A message is a RECORD: fifteen minutes to fix a typo, then it stands, and
+// nothing is ever deleted. Same principle as the activity log — a history that
+// can be tidied is a history nobody can rely on.
+//
+// Visibility follows the parent. A thread about a client is visible to whoever
+// can see that client; the policy says so as a subquery rather than a copy, so
+// if client visibility ever narrows, threads narrow with it.
+// ---------------------------------------------------------------------------
+
+export const thread = pgTable(
+  'thread',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    /** 'general' | 'company' | 'project' — and exactly one target to match. */
+    kind: text('kind').notNull().default('general'),
+    companyId: uuid('company_id').references(() => company.id, { onDelete: 'cascade' }),
+    projectId: uuid('project_id').references(() => project.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    createdById: uuid('created_by_id')
+      .notNull()
+      .references(() => appUser.id, { onDelete: 'restrict' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    /** Lifted by every new message, so the list sorts by real activity. */
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('thread_by_company_idx').on(t.companyId),
+    index('thread_by_project_idx').on(t.projectId),
+    index('thread_recent_idx').on(t.updatedAt),
+  ],
+);
+
+export const message = pgTable(
+  'message',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    threadId: uuid('thread_id')
+      .notNull()
+      .references(() => thread.id, { onDelete: 'cascade' }),
+    authorId: uuid('author_id')
+      .notNull()
+      .references(() => appUser.id, { onDelete: 'restrict' }),
+    /** Frozen at send: the message still says who wrote it after they leave. */
+    authorName: text('author_name').notNull(),
+    body: text('body').notNull(),
+    /** Set by the trigger on any edit. A silent correction rewrites a record. */
+    editedAt: timestamp('edited_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('message_by_thread_idx').on(t.threadId, t.createdAt)],
+);
+
+/**
+ * How far each person has read in each thread.
+ *
+ * One timestamp, not per-message receipts. Nobody needs to know that Adam read
+ * message 41 at 14:02, and storing it would turn a chat into a surveillance
+ * log. This answers the only question the interface actually asks.
+ */
+export const threadRead = pgTable(
+  'thread_read',
+  {
+    threadId: uuid('thread_id')
+      .notNull()
+      .references(() => thread.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => appUser.id, { onDelete: 'cascade' }),
+    lastReadAt: timestamp('last_read_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.threadId, t.userId] })],
 );

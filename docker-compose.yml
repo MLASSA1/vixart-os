@@ -83,6 +83,12 @@ services:
       BACKUP_RETENTION: ${BACKUP_RETENTION:-30}
     volumes:
       - backups:/backups
+      # Read-only, and the reason it is here: the nightly dump covers
+      # PostgreSQL and nothing else, so every uploaded file — invoice scans,
+      # client references, anything posted into a thread — was unprotected. A
+      # database restored without them comes back with rows pointing at bytes
+      # that no longer exist.
+      - uploads:/uploads:ro
       - ./scripts/backup.sh:/usr/local/bin/backup.sh:ro
       - ./scripts/backup-daemon.sh:/usr/local/bin/backup-daemon.sh:ro
       - ./scripts/nightly.sh:/usr/local/bin/nightly.sh:ro

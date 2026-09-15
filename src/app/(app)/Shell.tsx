@@ -20,6 +20,8 @@ const NAV: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard' },
   { href: '/attention', label: 'Needs attention' },
   { href: '/my-work', label: 'My work' },
+  // Everyone. A thread about a client is filtered by who can see that client.
+  { href: '/chat', label: 'Chat' },
   { href: '/clients', label: 'Clients', group: 'Relationships' },
   { href: '/leads', label: 'Leads', group: 'Relationships' },
   { href: '/companies', label: 'All clients', group: 'Relationships' },

@@ -32,15 +32,59 @@ mv "$TMP" "$TARGET"
 SIZE="$(du -h "$TARGET" | cut -f1)"
 echo "[backup] OK — $TARGET ($SIZE)"
 
-# ---- retention: keep only the N most recent ----
-COUNT="$(ls -1 "$BACKUP_DIR"/vixart_*.sql.gz 2>/dev/null | wc -l | tr -d ' ')"
-if [ "$COUNT" -gt "$BACKUP_RETENTION" ]; then
-  EXCESS=$((COUNT - BACKUP_RETENTION))
-  echo "[backup] retention $BACKUP_RETENTION — removing $EXCESS old file(s)"
-  ls -1 "$BACKUP_DIR"/vixart_*.sql.gz | sort | head -n "$EXCESS" | while read -r OLD; do
-    echo "[backup]   pruning $OLD"
-    rm -f "$OLD"
-  done
+# ---- the uploaded files -----------------------------------------------------
+#
+# pg_dump covers the database and nothing else. Every attachment lives on the
+# uploads volume and PostgreSQL stores only a path to it — so a dump restored
+# on its own comes back with rows pointing at bytes that are gone.
+#
+# A separate archive rather than folded into the dump: a 25 MB file has no
+# business inside a SQL text stream, and keeping them apart means the database
+# can be restored quickly without waiting for the files.
+UPLOADS_DIR="${UPLOADS_DIR:-/uploads}"
+if [ -d "$UPLOADS_DIR" ]; then
+  FILES_TARGET="$BACKUP_DIR/vixart_files_${STAMP}.tar.gz"
+  FILES_TMP="$FILES_TARGET.partial"
+  echo "[backup] archiving uploaded files from $UPLOADS_DIR"
+
+  # -C so the archive holds paths relative to the volume root, matching what
+  # attachment.stored_path records.
+  if tar -czf "$FILES_TMP" -C "$UPLOADS_DIR" . 2>/dev/null; then
+    mv "$FILES_TMP" "$FILES_TARGET"
+    FSIZE="$(du -h "$FILES_TARGET" | cut -f1)"
+    FCOUNT="$(find "$UPLOADS_DIR" -type f 2>/dev/null | wc -l | tr -d " ")"
+    echo "[backup] OK — $FILES_TARGET ($FSIZE, $FCOUNT file(s))"
+  else
+    rm -f "$FILES_TMP"
+    # Loud, not silent. A backup that quietly stops covering half the system is
+    # worse than no backup, because it is still trusted.
+    echo "[backup] FAILED to archive uploaded files — the dump is fine, the FILES ARE NOT PROTECTED" >&2
+  fi
+else
+  echo "[backup] no $UPLOADS_DIR mounted — files not archived"
 fi
 
-echo "[backup] backups on disk: $(ls -1 "$BACKUP_DIR"/vixart_*.sql.gz 2>/dev/null | wc -l | tr -d ' ')"
+# ---- retention: keep only the N most recent, of BOTH kinds ------------------
+#
+# The file archives are pruned on the same schedule as the dumps. They were not,
+# at first: the glob was vixart_*.sql.gz, which does not match a .tar.gz, so the
+# archives would have accumulated every night until the disk filled — a backup
+# routine that takes the machine down is not a backup routine.
+prune() {
+  PATTERN="$1"
+  LABEL="$2"
+  COUNT="$(ls -1 $PATTERN 2>/dev/null | wc -l | tr -d ' ')"
+  if [ "$COUNT" -gt "$BACKUP_RETENTION" ]; then
+    EXCESS=$((COUNT - BACKUP_RETENTION))
+    echo "[backup] retention $BACKUP_RETENTION — removing $EXCESS old $LABEL"
+    ls -1 $PATTERN | sort | head -n "$EXCESS" | while read -r OLD; do
+      echo "[backup]   pruning $OLD"
+      rm -f "$OLD"
+    done
+  fi
+}
+
+prune "$BACKUP_DIR/vixart_[0-9]*.sql.gz" "dump(s)"
+prune "$BACKUP_DIR/vixart_files_*.tar.gz" "file archive(s)"
+
+echo "[backup] on disk: $(ls -1 "$BACKUP_DIR"/vixart_[0-9]*.sql.gz 2>/dev/null | wc -l | tr -d ' ') dump(s), $(ls -1 "$BACKUP_DIR"/vixart_files_*.tar.gz 2>/dev/null | wc -l | tr -d ' ') file archive(s)"
