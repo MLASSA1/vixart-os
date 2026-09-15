@@ -84,6 +84,27 @@ function extractSql(source: string): string[] {
   return found;
 }
 
+
+/** Replace every `${…}` — nesting included — with NULL. */
+function substituteInterpolations(source: string): string {
+  let out = '';
+  for (let i = 0; i < source.length; i += 1) {
+    if (source[i] === '$' && source[i + 1] === '{') {
+      let depth = 1;
+      let j = i + 2;
+      for (; j < source.length && depth > 0; j += 1) {
+        if (source[j] === '{') depth += 1;
+        else if (source[j] === '}') depth -= 1;
+      }
+      out += 'NULL';
+      i = j - 1;
+      continue;
+    }
+    out += source[i];
+  }
+  return out;
+}
+
 describe.skipIf(!HAS_DB)('every page query plans against the real schema', () => {
   let db: Client;
 
@@ -106,7 +127,12 @@ describe.skipIf(!HAS_DB)('every page query plans against the real schema', () =>
     for (const file of files) {
       for (const raw of extractSql(readFileSync(file, 'utf8'))) {
         // Bound parameters are irrelevant to planning; NULL keeps the shape.
-        const query = raw.replace(/\$\{[^}]*\}/g, 'NULL').trim();
+        //
+        // Depth-aware on purpose. `${`${a} b`}` is ONE interpolation, and the
+        // obvious /\$\{[^}]*\}/ stops at the first closing brace, leaving
+        // ` b`}` behind and turning valid SQL into a syntax error it then
+        // reports as a broken query.
+        const query = substituteInterpolations(raw).trim();
 
         // Only reads. Planning an INSERT or UPDATE is safe in principle, but
         // not worth the risk of a stray statement against a live database.

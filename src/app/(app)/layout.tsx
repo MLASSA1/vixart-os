@@ -3,6 +3,7 @@ import { auth } from '@/auth';
 import { PasswordForm } from './PasswordForm';
 import { Shell } from './Shell';
 import { getAttention, urgentCount } from '@/lib/attention';
+import { unreadCount } from '@/lib/notifications';
 
 export const dynamic = 'force-dynamic';
 
@@ -53,7 +54,7 @@ export default async function AppLayout({
   const attention = await getAttention();
 
   return (
-    <Shell user={user} urgent={urgentCount(attention)}>
+    <Shell user={user} urgent={urgentCount(attention)} unread={await unreadCount()}>
       {children}
     </Shell>
   );

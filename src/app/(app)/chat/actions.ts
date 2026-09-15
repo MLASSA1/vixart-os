@@ -9,6 +9,7 @@ import { removeStored, storeUpload } from '@/lib/uploads';
 import { attachment } from '@/db/schema';
 import { describeDbError } from '@/lib/db-errors';
 import { EMPTY_STATE, type FormState } from '@/lib/form-state';
+import { findMentions, type MentionCandidate } from '@/lib/mentions';
 
 /**
  * Team chat.
@@ -140,8 +141,70 @@ export async function postMessageAction(
     }
   }
 
+  // ---- mentions -----------------------------------------------------------
+  //
+  // Parsed from the text the author actually wrote, against a candidate list
+  // the DATABASE produced. The query below runs under this person's own
+  // policies and is scoped to the thread, so a name can only resolve to
+  // somebody who is genuinely able to open it — a mention cannot pull a
+  // colleague into a conversation they are not allowed to see.
+  //
+  // That matters more than it looks: a notification's visibility is its
+  // recipient, not the thing it points at, so there is no second line of
+  // defence. A wrongly-created one would be perfectly readable and link to a
+  // 404.
+  let unreachable: string[] = [];
+  if (body.includes('@')) {
+    unreachable = await withUser(async (tx, user) => {
+      const people = await tx.execute<{ id: string; full_name: string }>(sql`
+        SELECT u.id, u.full_name
+          FROM app.team_directory u
+         WHERE u.is_active
+           -- Assignable: a service account is not a person and has no inbox.
+           AND EXISTS (SELECT 1 FROM app_user a
+                        WHERE a.id = u.id AND a.is_assignable AND NOT a.is_service_account)
+           -- And can open this thread. Asked of the thread table, so the
+           -- answer comes from its policy rather than a copy of it.
+           AND EXISTS (SELECT 1 FROM thread t WHERE t.id = ${threadId})
+      `);
+
+      const candidates: MentionCandidate[] = people.rows.map((r) => ({
+        id: String(r.id),
+        fullName: String(r.full_name),
+      }));
+
+      const { matched, unmatched } = findMentions(body, candidates);
+
+      const title = `${user.name ?? 'Someone'} mentioned you`;
+      const link = `/chat/${threadId}`;
+      const preview = body.slice(0, 160);
+
+      for (const person of matched) {
+        if (person.id === user.id) continue;   // naming yourself is not news
+        await tx.execute(sql`
+          SELECT app.notify(
+            ${person.id}::uuid, 'mentioned', ${title}, ${link}, ${preview},
+            'message', ${messageId}::uuid)
+        `);
+      }
+
+      return unmatched;
+    });
+  }
+
   revalidatePath('/chat');
   revalidatePath(`/chat/${threadId}`);
+
+  if (unreachable.length > 0) {
+    // Not swallowed. The author believes they told someone.
+    return {
+      error:
+        `Message sent. ${unreachable.map((n) => '@' + n).join(', ')} ` +
+        `${unreachable.length === 1 ? 'was' : 'were'} not notified — ` +
+        'no one of that name can see this thread.',
+    };
+  }
+
   return EMPTY_STATE;
 }
 

@@ -35,6 +35,18 @@ else
   echo "[nightly] retainer drafting FAILED: ${DRAFTED}"
 fi
 
+# --- Notify on work that has fallen overdue -----------------------------------
+#
+# Overdue is a STATE, not an event, so it is swept rather than triggered. The
+# partial unique index means a task overdue for a week produces one
+# notification rather than seven — nobody reads the seventh.
+OVERDUE=$(psql -qtAX -c "SET app.bootstrap = 'on'; SELECT app.notify_overdue_tasks();" 2>&1 | tail -1)
+if [ "${OVERDUE}" -eq "${OVERDUE}" ] 2>/dev/null; then
+  echo "[nightly] overdue notifications raised: ${OVERDUE}"
+else
+  echo "[nightly] overdue sweep FAILED: ${OVERDUE}"
+fi
+
 # --- Back up ------------------------------------------------------------------
 sh /usr/local/bin/backup.sh
 

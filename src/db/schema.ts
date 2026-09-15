@@ -948,3 +948,35 @@ export const threadRead = pgTable(
   },
   (t) => [primaryKey({ columns: [t.threadId, t.userId] })],
 );
+
+// ---------------------------------------------------------------------------
+// Notifications — in-app only. Nothing in this system contacts anyone.
+//
+// A notification belongs to ONE person and its visibility is its recipient,
+// not the thing it points at. That keeps the inbox query free of joins — and
+// it means a notification must never be created for someone who cannot open
+// what it links to, because there is no second line of defence.
+// ---------------------------------------------------------------------------
+
+export const notification = pgTable(
+  'notification',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    recipientId: uuid('recipient_id')
+      .notNull()
+      .references(() => appUser.id, { onDelete: 'cascade' }),
+    /** task_assigned | mentioned | task_overdue | task_awaiting_signoff */
+    kind: text('kind').notNull(),
+    /** Frozen at creation: a record of a moment, not a live join. */
+    title: text('title').notNull(),
+    body: text('body'),
+    link: text('link').notNull(),
+    entityType: text('entity_type'),
+    entityId: uuid('entity_id'),
+    actorId: uuid('actor_id').references(() => appUser.id, { onDelete: 'set null' }),
+    actorName: text('actor_name'),
+    readAt: timestamp('read_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('notification_inbox_idx').on(t.recipientId, t.createdAt)],
+);

@@ -68,11 +68,24 @@ export default async function ThreadPage({ params }: { params: Promise<{ id: str
        ORDER BY m.created_at
     `);
 
-    return { record, messages: msgs.rows };
+    // Who may be named here: a real person who can open this thread. Asked of
+    // the thread table so the answer comes from its policy, not a copy.
+    const people = await tx.execute<{ id: string; full_name: string }>(sql`
+      SELECT u.id, u.full_name
+        FROM app.team_directory u
+       WHERE u.is_active
+         AND EXISTS (SELECT 1 FROM app_user a
+                      WHERE a.id = u.id AND a.is_assignable AND NOT a.is_service_account)
+         AND EXISTS (SELECT 1 FROM thread t WHERE t.id = ${id})
+         AND u.id <> ${me.id}
+       ORDER BY u.full_name
+    `);
+
+    return { record, messages: msgs.rows, mentionable: people.rows };
   });
 
   if (!data) notFound();
-  const { record, messages } = data;
+  const { record, messages, mentionable } = data;
 
   // Opening the thread is reading it. One timestamp, not a receipt per message.
   await markThreadReadAction(id);
@@ -156,7 +169,13 @@ export default async function ThreadPage({ params }: { params: Promise<{ id: str
       </Section>
 
       <Section title="Say something">
-        <PostMessageForm action={postMessageAction.bind(null, id)} />
+        <PostMessageForm
+          action={postMessageAction.bind(null, id)}
+          mentionable={mentionable.map((p) => ({
+            id: String(p.id),
+            fullName: String(p.full_name),
+          }))}
+        />
         <p className="hint mt-3">
           Fifteen minutes to correct a typo. After that it stands, and nothing here
           is ever deleted — it is a record, like the activity log.

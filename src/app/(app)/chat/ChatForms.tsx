@@ -97,9 +97,17 @@ export function NewThreadForm({
 /** Post a message, with an optional file. */
 export function PostMessageForm({
   action,
+  mentionable,
 }: {
   action: (state: FormState, formData: FormData) => Promise<FormState>;
+  /**
+   * People who can actually open THIS thread. The server computed it; the
+   * picker only offers what it was given, and the server checks again anyway
+   * — this list is a convenience, not the rule.
+   */
+  mentionable: ReadonlyArray<{ id: string; fullName: string }>;
 }) {
+  const bodyRef = useRef<HTMLTextAreaElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [tooBig, setTooBig] = useState(false);
@@ -121,11 +129,36 @@ export function PostMessageForm({
       <ErrorBanner message={state.error} />
 
       <textarea
+        ref={bodyRef}
         name="body"
         rows={3}
         className="input mt-0"
         placeholder="Write to the team…"
       />
+
+      {mentionable.length > 0 && (
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          <span className="hint">Mention:</span>
+          {mentionable.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              className="btn btn-inverse btn-small"
+              onClick={() => {
+                const el = bodyRef.current;
+                if (!el) return;
+                // Written into the text, because the text is what the server
+                // reads. Nothing about who was mentioned travels separately.
+                const sep = el.value && !el.value.endsWith(' ') ? ' ' : '';
+                el.value = `${el.value}${sep}@${p.fullName} `;
+                el.focus();
+              }}
+            >
+              @{p.fullName}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="mt-3 flex flex-wrap items-center gap-3">
         <label className="hint cursor-pointer underline underline-offset-4">

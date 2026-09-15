@@ -18,6 +18,7 @@ interface NavItem {
  */
 const NAV: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard' },
+  { href: '/inbox', label: 'Inbox' },
   { href: '/attention', label: 'Needs attention' },
   { href: '/my-work', label: 'My work' },
   // Everyone. A thread about a client is filtered by who can see that client.
@@ -58,11 +59,14 @@ function visible(item: NavItem, role: 'admin' | 'moderator' | 'member') {
 export function Shell({
   user,
   urgent,
+  unread,
   children,
 }: {
   user: { name: string; jobTitle: string | null; role: 'admin' | 'moderator' | 'member' };
   /** How many things are waiting on this person right now. */
   urgent: number;
+  /** Unread notifications addressed to this person. */
+  unread: number;
   children: ReactNode;
 }) {
   const pathname = usePathname();
@@ -112,6 +116,15 @@ export function Shell({
                       }`}
                     >
                       {item.label}
+                      {item.href === '/inbox' && unread > 0 && (
+                        <span
+                          className={`ml-2 inline-block min-w-[1.4rem] rounded-full px-1.5 py-px text-center text-[12px] font-bold ${
+                            active ? 'bg-pure text-accent-deep' : 'bg-accent text-pure'
+                          }`}
+                        >
+                          {unread}
+                        </span>
+                      )}
                       {item.href === '/attention' && urgent > 0 && (
                         <span
                           className={`ml-2 inline-block min-w-[1.4rem] rounded-full px-1.5 py-px text-center text-[12px] font-bold ${
@@ -177,6 +190,7 @@ export function Shell({
               }`}
             >
               {item.label}
+              {item.href === '/inbox' && unread > 0 && ` (${unread})`}
               {item.href === '/attention' && urgent > 0 && ` (${urgent})`}
             </Link>
           );
