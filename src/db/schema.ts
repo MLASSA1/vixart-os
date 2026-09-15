@@ -91,6 +91,15 @@ export const appUser = pgTable(
     passwordHash: text('password_hash').notNull(),
     mustChangePassword: boolean('must_change_password').notNull().default(true),
     isActive: boolean('is_active').notNull().default(true),
+  /**
+   * False for service accounts that exist only to own historical rows.
+   * Never offered in a people picker, never listed as team.
+   *
+   * Distinct from isActive, which describes a PERSON who has stopped working
+   * here. Marking a service account inactive would put two departed staff on
+   * the Team screen who were never staff.
+   */
+  isAssignable: boolean('is_assignable').notNull().default(true),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

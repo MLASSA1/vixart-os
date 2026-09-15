@@ -62,6 +62,9 @@ export default async function TeamPage() {
               OR EXISTS (SELECT 1 FROM interaction i WHERE i.author_id = u.id)
               OR EXISTS (SELECT 1 FROM activity a WHERE a.actor_id = u.id)) AS has_history
         FROM app_user u
+       -- Service accounts own rows in the append-only activity log, so they
+       -- cannot be deleted. They are not team, so they are not listed.
+       WHERE u.is_assignable
        ORDER BY u.is_active DESC,
                 CASE u.role WHEN 'admin' THEN 0 WHEN 'moderator' THEN 1 ELSE 2 END,
                 lower(u.full_name)

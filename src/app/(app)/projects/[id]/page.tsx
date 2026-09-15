@@ -69,7 +69,10 @@ export default async function ProjectPage({
                 t.due_date NULLS LAST
     `);
     const members = await tx.execute<{ id: string; full_name: string }>(
-      sql`SELECT id, full_name FROM app_user WHERE is_active ORDER BY full_name`,
+      sql`SELECT id, full_name FROM app_user
+           -- is_assignable excludes the retired agent service accounts:
+           -- they own historical rows and can never be given work.
+           WHERE is_active AND is_assignable ORDER BY full_name`,
     );
     const comments = await tx.execute<CommentItem & { [k: string]: unknown }>(sql`
       SELECT id, author_name, author_id, body, created_at::text

@@ -121,7 +121,7 @@ export async function getAttention(): Promise<AttentionItem[]> {
       -- Team members still on the password the installer generated.
       SELECT 'initial_passwords', count(*)::text, NULL, NULL
         FROM app_user u
-       WHERE ${isAdmin} AND u.is_active AND u.must_change_password
+       WHERE ${isAdmin} AND u.is_active AND u.is_assignable AND u.must_change_password
       HAVING count(*) > 0
 
       UNION ALL
