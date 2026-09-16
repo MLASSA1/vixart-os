@@ -165,6 +165,23 @@ async function main() {
     }
     console.log(`[seed] ${TEAM.length} team accounts (shared initial password)`);
 
+    // --- General ---
+    // 0046 creates this too, but on a blank database that migration runs
+    // before a single account exists, and `thread.created_by_id` is NOT NULL
+    // with a foreign key — there is nobody to attribute it to yet. By here
+    // there is. ON CONFLICT DO NOTHING against `thread_one_general`, so a
+    // General that already exists is never duplicated.
+    //
+    // The client and project channels need no line of their own: their
+    // triggers fire as those records are inserted below.
+    await pg.query(`
+      INSERT INTO thread (kind, title, created_by_id, is_default)
+      SELECT 'general', 'General', app.channel_author(), true
+       WHERE app.channel_author() IS NOT NULL
+      ON CONFLICT DO NOTHING
+    `);
+    console.log('[seed] General channel');
+
     // --- Pipeline ---
     const PIPELINE = await loadPipeline();
     for (const record of PIPELINE) {
