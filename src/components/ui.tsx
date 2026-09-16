@@ -119,6 +119,20 @@ export function ErrorBanner({ message }: { message?: string | null }) {
   );
 }
 
+/**
+ * It worked, with a caveat. Warn tone, never danger: red is for something that
+ * did not happen, and this happened.
+ */
+export function NoticeBanner({ message }: { message?: string | null }) {
+  if (!message) return null;
+  return (
+    <div className="tone-warn mb-6 rounded-[10px] px-4 py-3">
+      <p className="text-[12.5px] font-bold tracking-wide uppercase">Done, with a note</p>
+      <p className="prose-vixart mt-1">{message}</p>
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Buttons and action links
 // ---------------------------------------------------------------------------

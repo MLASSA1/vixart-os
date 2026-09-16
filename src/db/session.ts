@@ -22,7 +22,8 @@ export interface UserContext {
   name: string;
 }
 
-type Tx = Parameters<Parameters<Database['transaction']>[0]>[0];
+/** The transaction handle handed to every `withUser` body. */
+export type Tx = Parameters<Parameters<Database['transaction']>[0]>[0];
 
 /**
  * Opens a transaction, injects the session identity into it, runs the work.

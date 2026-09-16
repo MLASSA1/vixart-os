@@ -434,9 +434,31 @@ onto it at issue time.
 npm test
 ```
 
-27 tests cover the money arithmetic and the document totals: rounding, float
-traps, the Moroccan format, 0% VAT, withholding at source. The tests for gapless
-numbering and document immutability arrive at step 3, with the tables they need.
+Two kinds of test, in one command.
+
+The **unit** tests are pure: money arithmetic and document totals — rounding,
+float traps, the Moroccan format, 0% VAT, withholding at source — the mention
+parser, the amount in words, and two source scans (`render-safety`, which
+forbids calling a server action during a render, and the SECURITY DEFINER
+guard). They run anywhere, with nothing installed.
+
+The **integration** tests need the database, and they connect as
+`vixart_app` — the NOBYPASSRLS role — so every visibility assertion is really
+made against the policies rather than around them. They cover RLS, the document
+counter, immutability, retainers, notifications, and the chat server action
+driven end to end.
+
+`vitest.config.ts` reads `.env.local` then `.env` into the environment, which is
+what makes the second kind run at all. Before it did, `npm test` reported a
+confident green with 142 of 226 tests quietly skipped, because every integration
+file skips itself when it cannot reach `DATABASE_URL` and nothing had put one
+there. If the database is genuinely down they still skip — that is the point of
+the mechanism — so read the file count, not just the colour:
+
+```
+Test Files  26 passed (26)
+     Tests  235 passed (235)
+```
 
 ---
 

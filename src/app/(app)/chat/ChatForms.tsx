@@ -2,7 +2,7 @@
 
 import { useActionState, useRef, useState } from 'react';
 import { useFormStatus } from 'react-dom';
-import { ErrorBanner } from '@/components/ui';
+import { ErrorBanner, NoticeBanner } from '@/components/ui';
 import { EMPTY_STATE, type FormState } from '@/lib/form-state';
 import { ALLOWED_SUMMARY, allowedTypesForInput, formatBytes, MAX_UPLOAD_BYTES } from '@/lib/upload-types';
 
@@ -127,6 +127,7 @@ export function PostMessageForm({
   return (
     <form ref={formRef} action={formAction} className="card px-5 py-4">
       <ErrorBanner message={state.error} />
+      <NoticeBanner message={state.notice} />
 
       <textarea
         ref={bodyRef}

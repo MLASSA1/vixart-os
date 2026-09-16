@@ -3,7 +3,7 @@
 import { eq, sql } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { message, thread, threadRead } from '@/db/schema';
+import { message, thread } from '@/db/schema';
 import { withUser } from '@/db/session';
 import { removeStored, storeUpload } from '@/lib/uploads';
 import { attachment } from '@/db/schema';
@@ -115,7 +115,8 @@ export async function postMessageAction(
     } catch (error) {
       revalidatePath(`/chat/${threadId}`);
       return {
-        error: `Message sent, but the file was not: ${
+        error: null,
+        notice: `Message sent, but the file was not: ${
           error instanceof Error ? error.message : 'it could not be stored.'
         }`,
       };
@@ -137,7 +138,7 @@ export async function postMessageAction(
       // The row failed, so the bytes have nothing pointing at them.
       await removeStored(stored.storedPath);
       revalidatePath(`/chat/${threadId}`);
-      return { error: `Message sent, but the file was not: ${describeDbError(error, {})}` };
+      return { error: null, notice: `Message sent, but the file was not: ${describeDbError(error, {})}` };
     }
   }
 
@@ -198,7 +199,8 @@ export async function postMessageAction(
   if (unreachable.length > 0) {
     // Not swallowed. The author believes they told someone.
     return {
-      error:
+      error: null,
+      notice:
         `Message sent. ${unreachable.map((n) => '@' + n).join(', ')} ` +
         `${unreachable.length === 1 ? 'was' : 'were'} not notified — ` +
         'no one of that name can see this thread.',
@@ -234,16 +236,3 @@ export async function editMessageAction(
   return EMPTY_STATE;
 }
 
-/** Mark the thread read up to now, for this person only. */
-export async function markThreadReadAction(threadId: string): Promise<void> {
-  await withUser(async (tx, user) => {
-    await tx
-      .insert(threadRead)
-      .values({ threadId, userId: user.id })
-      .onConflictDoUpdate({
-        target: [threadRead.threadId, threadRead.userId],
-        set: { lastReadAt: sql`now()` },
-      });
-  });
-  revalidatePath('/chat');
-}

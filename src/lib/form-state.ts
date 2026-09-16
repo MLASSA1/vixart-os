@@ -8,6 +8,15 @@
 
 export interface FormState {
   error: string | null;
+  /**
+   * The work went through, but there is something to say about it — a message
+   * posted whose attachment was refused, a mention that landed on nobody.
+   *
+   * Separate from `error` because the forms reset on `!error`, and a success
+   * dressed as a failure leaves the text sitting in the box where it invites a
+   * second, duplicate send.
+   */
+  notice?: string | null;
 }
 
 export const EMPTY_STATE: FormState = { error: null };

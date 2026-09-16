@@ -4,9 +4,10 @@ import { sql } from 'drizzle-orm';
 import { auth } from '@/auth';
 import { ButtonLink, PageHeader, Section } from '@/components/ui';
 import { withUser } from '@/db/session';
+import { markThreadRead } from '@/lib/chat-read';
 import { formatBytes } from '@/lib/upload-types';
 import { since } from '@/lib/format';
-import { editMessageAction, markThreadReadAction, postMessageAction } from '../actions';
+import { editMessageAction, postMessageAction } from '../actions';
 import { EditMessageForm, PostMessageForm } from '../ChatForms';
 
 export const dynamic = 'force-dynamic';
@@ -81,14 +82,17 @@ export default async function ThreadPage({ params }: { params: Promise<{ id: str
        ORDER BY u.full_name
     `);
 
+    // Opening the thread is reading it: one timestamp, not a receipt per
+    // message. Done here, in the transaction that just proved the thread is
+    // visible, rather than in an action — an action would revalidate, and a
+    // revalidate during render is what made this page 500.
+    await markThreadRead(tx, me.id, id);
+
     return { record, messages: msgs.rows, mentionable: people.rows };
   });
 
   if (!data) notFound();
   const { record, messages, mentionable } = data;
-
-  // Opening the thread is reading it. One timestamp, not a receipt per message.
-  await markThreadReadAction(id);
 
   const about =
     record.kind === 'general'
