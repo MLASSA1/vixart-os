@@ -21,27 +21,38 @@ import { findMentions, type MentionCandidate } from '@/lib/mentions';
  */
 
 const CHAT_ERRORS = {
-  thread_title_present: 'Give the thread a name.',
-  thread_kind_valid: 'A thread is general, about a client, or about a project.',
-  thread_target_matches_kind: 'That thread kind does not match what it points at.',
+  thread_title_present: 'Give the channel a name.',
+  thread_kind_valid: 'A channel is general, about a client, or about a project.',
+  thread_target_matches_kind: 'That channel kind does not match what it points at.',
+  thread_insert: 'Only an administrator or a moderator can open a channel.',
+  thread_one_general: 'There is already a General channel.',
+  thread_one_per_project: 'That project already has its channel.',
+  thread_one_per_company: 'That client already has its channel.',
   message_body_present: 'Write something first.',
 };
 
-export async function createThreadAction(
+/**
+ * Open a channel by hand.
+ *
+ * Every project and every client already has one, so this is for the extra —
+ * a second channel on a big project, one about a client that is not yet a
+ * client. Restricted to admins and moderators, and restricted by
+ * `thread_insert` rather than by this function: the button is hidden from a
+ * member, and the policy is what actually stops them.
+ */
+export async function createChannelAction(
   _previous: FormState,
   formData: FormData,
 ): Promise<FormState> {
-  const kind = String(formData.get('kind') ?? 'general');
+  const kind = String(formData.get('kind') ?? '');
   const title = String(formData.get('title') ?? '').trim();
   const target = String(formData.get('targetId') ?? '').trim() || null;
 
-  if (!title) return { error: 'Give the thread a name.' };
-  if (!['general', 'company', 'project'].includes(kind)) {
-    return { error: 'A thread is general, about a client, or about a project.' };
+  if (kind !== 'company' && kind !== 'project') {
+    return { error: 'Pick the project or client this is about.' };
   }
-  if (kind !== 'general' && !target) {
-    return { error: kind === 'company' ? 'Which client?' : 'Which project?' };
-  }
+  if (!target) return { error: kind === 'company' ? 'Which client?' : 'Which project?' };
+  if (!title) return { error: 'Give the channel a name.' };
 
   let newId: string;
   try {
@@ -56,7 +67,7 @@ export async function createThreadAction(
           createdById: user.id,
         })
         .returning({ id: thread.id });
-      if (!row) throw new Error('The thread could not be created.');
+      if (!row) throw new Error('The channel could not be opened.');
       return row.id;
     });
   } catch (error) {

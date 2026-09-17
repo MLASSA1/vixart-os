@@ -51,6 +51,12 @@ describe.skipIf(!HAS_DB)('purging a populated probe company', () => {
     await db.query(`UPDATE document SET corrects_id=NULL WHERE company_id IN (SELECT id FROM company WHERE name IN ($1,$2))`, [PROBE, KEEP]);
     await db.query(`DELETE FROM document WHERE company_id IN (SELECT id FROM company WHERE name IN ($1,$2))`, [PROBE, KEEP]);
     await db.query(`DELETE FROM company WHERE name IN ($1,$2)`, [PROBE, KEEP]);
+    // Notifications have no foreign key to point at — `entity_type` is
+    // polymorphic, so nothing cascades. Left behind, they are fake items in
+    // the REAL inbox of whoever the probe task was assigned to, and a few more
+    // arrive every time the suite runs. Twenty had reached the founder's
+    // before anyone looked.
+    await db.query(`DELETE FROM notification WHERE title IN ($1,$2)`, [PROBE, KEEP]);
   }
 
   beforeAll(async () => {

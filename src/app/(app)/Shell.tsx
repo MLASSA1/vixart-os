@@ -21,8 +21,6 @@ const NAV: NavItem[] = [
   { href: '/inbox', label: 'Inbox' },
   { href: '/attention', label: 'Needs attention' },
   { href: '/my-work', label: 'My work' },
-  // Everyone. A thread about a client is filtered by who can see that client.
-  { href: '/chat', label: 'Chat' },
   { href: '/clients', label: 'Clients', group: 'Relationships' },
   { href: '/leads', label: 'Leads', group: 'Relationships' },
   { href: '/companies', label: 'All clients', group: 'Relationships' },
@@ -37,6 +35,8 @@ const NAV: NavItem[] = [
   { href: '/services', label: 'Services', group: 'Work' },
   { href: '/documents', label: 'Quotes & invoices', group: 'Work', minRole: 'admin' },
   { href: '/finance', label: 'Finance', group: 'Work', minRole: 'admin' },
+  // Everyone. A channel about a client is filtered by who can see that client.
+  { href: '/chat', label: 'Chat', group: 'Agency' },
   { href: '/team', label: 'Team', group: 'Agency' },
   { href: '/equipment', label: 'Equipment', group: 'Agency' },
   { href: '/system', label: 'System', group: 'Agency', minRole: 'admin' },
@@ -71,6 +71,13 @@ export function Shell({
 }) {
   const pathname = usePathname();
   const items = NAV.filter((i) => visible(i, user.role));
+  /**
+   * Chat fills the pane instead of sitting in the reading column. Every other
+   * screen is a document and wants the measure; a channel list and a message
+   * river want the room, and want to scroll inside themselves rather than
+   * moving the page.
+   */
+  const roomy = pathname === '/chat' || pathname.startsWith('/chat/');
 
   return (
     <div className="flex min-h-screen">
@@ -200,9 +207,15 @@ export function Shell({
         </Link>
       </div>
 
-      <main className="min-w-0 flex-1 px-6 pt-20 pb-24 md:px-10 md:pt-10">
-        <div className="mx-auto max-w-5xl">{children}</div>
-      </main>
+      {roomy ? (
+        <main className="flex min-h-screen min-w-0 flex-1 flex-col pt-14 md:pt-0">
+          {children}
+        </main>
+      ) : (
+        <main className="min-w-0 flex-1 px-6 pt-20 pb-24 md:px-10 md:pt-10">
+          <div className="mx-auto max-w-5xl">{children}</div>
+        </main>
+      )}
     </div>
   );
 }

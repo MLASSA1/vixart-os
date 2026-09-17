@@ -204,6 +204,64 @@ describe.skipIf(!HAS_DB)('default channels (integration)', () => {
     expect(rows).toHaveLength(1);
   });
 
+  // --- who may open one ----------------------------------------------------
+
+  it('lets a member cause the automatic channel by adding a client', async () => {
+    // company_insert allows any authenticated person, so this path has to keep
+    // working: a policy about chat must not be able to fail an insert about a
+    // client.
+    const { rows: m } = await owner.query<{ id: string }>(
+      `SELECT id FROM app_user WHERE role='member' AND is_active AND is_assignable
+         AND NOT is_service_account LIMIT 1`);
+    await actAs(m[0]!.id, 'member');
+
+    const id = (await app.query<{ id: string }>(
+      `INSERT INTO company (name, status, relationship) VALUES ($1,'client','client') RETURNING id`,
+      [`${MARK} member added`])).rows[0]!.id;
+
+    const { rows } = await app.query<{ created_by_id: string }>(
+      `SELECT created_by_id FROM thread WHERE company_id=$1`, [id]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.created_by_id).toBe(m[0]!.id);
+  });
+
+  it('refuses a member opening a channel by hand', async () => {
+    const { rows: m } = await owner.query<{ id: string }>(
+      `SELECT id FROM app_user WHERE role='member' AND is_active AND is_assignable
+         AND NOT is_service_account LIMIT 1`);
+    await actAs(m[0]!.id, 'member');
+
+    await expect(
+      app.query(`INSERT INTO thread (kind, title, created_by_id) VALUES ('general',$1,$2)`,
+        [`${MARK} member general`, m[0]!.id]),
+    ).rejects.toThrow(/row-level security/i);
+  });
+
+  it('lets a moderator open one by hand', async () => {
+    const { rows: mod } = await owner.query<{ id: string }>(
+      `SELECT id FROM app_user WHERE role='moderator' AND is_active LIMIT 1`);
+    await actAs(mod[0]!.id, 'moderator');
+
+    const { rows: c } = await app.query<{ id: string }>(
+      `SELECT id FROM company WHERE name = $1`, [`${MARK} co`]);
+    const { rows } = await app.query<{ id: string }>(
+      `INSERT INTO thread (kind, title, company_id, created_by_id)
+       VALUES ('company',$1,$2,$3) RETURNING id`,
+      [`${MARK} by hand`, c[0]!.id, mod[0]!.id]);
+    expect(rows).toHaveLength(1);
+  });
+
+  it('refuses anyone opening a channel in someone else\'s name', async () => {
+    const { rows: mod } = await owner.query<{ id: string }>(
+      `SELECT id FROM app_user WHERE role='moderator' AND is_active LIMIT 1`);
+    await actAs(mod[0]!.id, 'moderator');
+
+    await expect(
+      app.query(`INSERT INTO thread (kind, title, created_by_id) VALUES ('general',$1,$2)`,
+        [`${MARK} forged`, adminId]),
+    ).rejects.toThrow(/row-level security/i);
+  });
+
   // --- the backfill --------------------------------------------------------
 
   it('gave every existing client and project exactly one channel', async () => {

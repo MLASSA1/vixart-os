@@ -26,6 +26,9 @@ describe.skipIf(!HAS_DB)('team chat (integration)', () => {
   let app: Client;
   let alice = '';
   let bob = '';
+  // Since 0047 a channel is opened by a moderator. These fixtures are about
+  // what happens INSIDE one, so they need somebody who can make them.
+  let boss = '';
   let serviceId = '';
   let companyId = '';
   let generalId = '';
@@ -34,6 +37,15 @@ describe.skipIf(!HAS_DB)('team chat (integration)', () => {
   async function actAs(userId: string, role: string) {
     await app.query(`SELECT set_config('app.user_id',$1,false)`, [userId]);
     await app.query(`SELECT set_config('app.user_role',$1,false)`, [role]);
+  }
+
+  /** Opens a general channel as the moderator, per 0047. */
+  async function openChannel(title: string): Promise<string> {
+    await actAs(boss, 'moderator');
+    const { rows } = await app.query<{ id: string }>(
+      `INSERT INTO thread (kind, title, created_by_id) VALUES ('general',$1,$2) RETURNING id`,
+      [title, boss]);
+    return rows[0]!.id;
   }
 
   async function purge() {
@@ -56,6 +68,9 @@ describe.skipIf(!HAS_DB)('team chat (integration)', () => {
     bob = people.rows[1]!.id;
     serviceId = (await owner.query<{ id: string }>(
       `SELECT id FROM app_user WHERE is_service_account LIMIT 1`)).rows[0]!.id;
+    boss = (await owner.query<{ id: string }>(
+      `SELECT id FROM app_user WHERE role IN ('admin','moderator') AND is_active
+        ORDER BY created_at LIMIT 1`)).rows[0]!.id;
 
     companyId = (await owner.query<{ id: string }>(
       `INSERT INTO company (name, status, relationship) VALUES ($1,'client','client') RETURNING id`,
@@ -72,21 +87,21 @@ describe.skipIf(!HAS_DB)('team chat (integration)', () => {
 
   // --- threads -------------------------------------------------------------
 
-  it('lets a person open a general thread, and everyone read it', async () => {
-    await actAs(alice, 'member');
+  it('lets a moderator open a general thread, and everyone read it', async () => {
+    await actAs(boss, 'moderator');
     generalId = (await app.query<{ id: string }>(
       `INSERT INTO thread (kind, title, created_by_id) VALUES ('general',$1,$2) RETURNING id`,
-      [`${MARK} general`, alice])).rows[0]!.id;
+      [`${MARK} general`, boss])).rows[0]!.id;
 
     await actAs(bob, 'member');
     expect((await app.query(`SELECT 1 FROM thread WHERE id=$1`, [generalId])).rows).toHaveLength(1);
   });
 
   it('makes a client thread follow who can see the client', async () => {
-    await actAs(alice, 'member');
+    await actAs(boss, 'moderator');
     clientThreadId = (await app.query<{ id: string }>(
       `INSERT INTO thread (kind, title, company_id, created_by_id) VALUES ('company',$1,$2,$3) RETURNING id`,
-      [`${MARK} client`, companyId, alice])).rows[0]!.id;
+      [`${MARK} client`, companyId, boss])).rows[0]!.id;
 
     // company_select is is_authenticated(), so a colleague sees it — the point
     // is that the thread asks the company, rather than carrying its own copy
@@ -113,10 +128,10 @@ describe.skipIf(!HAS_DB)('team chat (integration)', () => {
   });
 
   it('refuses a thread whose kind and target disagree', async () => {
-    await actAs(alice, 'member');
+    await actAs(boss, 'moderator');
     await expect(
       app.query(`INSERT INTO thread (kind, title, company_id, created_by_id) VALUES ('general',$1,$2,$3)`,
-        [`${MARK} bad`, companyId, alice]),
+        [`${MARK} bad`, companyId, boss]),
     ).rejects.toThrow(/thread_target_matches_kind/);
   });
 
@@ -186,9 +201,8 @@ describe.skipIf(!HAS_DB)('team chat (integration)', () => {
     const id = (await app.query<{ id: string }>(
       `INSERT INTO message (thread_id, author_id, author_name, body) VALUES ($1,$2,'Alice','here') RETURNING id`,
       [generalId, alice])).rows[0]!.id;
-    const other = (await app.query<{ id: string }>(
-      `INSERT INTO thread (kind, title, created_by_id) VALUES ('general',$1,$2) RETURNING id`,
-      [`${MARK} other`, alice])).rows[0]!.id;
+    const other = await openChannel(`${MARK} other`);
+    await actAs(alice, 'member');
     await expect(
       app.query(`UPDATE message SET thread_id=$2 WHERE id=$1`, [id, other]),
     ).rejects.toThrow(/only the text/i);
@@ -221,10 +235,8 @@ describe.skipIf(!HAS_DB)('team chat (integration)', () => {
   // --- unread --------------------------------------------------------------
 
   it('counts unread per person, and not your own messages', async () => {
+    const t = await openChannel(`${MARK} unread`);
     await actAs(alice, 'member');
-    const t = (await app.query<{ id: string }>(
-      `INSERT INTO thread (kind, title, created_by_id) VALUES ('general',$1,$2) RETURNING id`,
-      [`${MARK} unread`, alice])).rows[0]!.id;
     await app.query(
       `INSERT INTO message (thread_id, author_id, author_name, body) VALUES ($1,$2,'Alice','one')`, [t, alice]);
 

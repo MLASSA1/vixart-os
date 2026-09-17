@@ -50,6 +50,13 @@ describe.skipIf(!HAS_DB)('a whole engagement, end to end', () => {
     }
     await db.query(`DELETE FROM task WHERE project_id IN
       (SELECT p.id FROM project p JOIN company c ON c.id=p.company_id WHERE c.name=$1)`, [MARK]);
+    // Notifications have no foreign key to point at — `entity_type` is
+    // polymorphic, so nothing cascades. Left behind, they are fake items in
+    // the REAL inboxes of whoever the probe task was assigned to, and they
+    // accumulate a few more every time the suite runs. Twenty of them had
+    // reached the founder's before anyone looked.
+    await db.query(`DELETE FROM notification WHERE title = $1`, [MARK]);
+
     await db.query(`DELETE FROM project WHERE company_id IN (SELECT id FROM company WHERE name=$1)`, [MARK]);
     await db.query(`DELETE FROM deal_line WHERE deal_id IN
       (SELECT d.id FROM deal d JOIN company c ON c.id=d.company_id WHERE c.name=$1)`, [MARK]);

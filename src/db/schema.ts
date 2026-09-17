@@ -897,6 +897,13 @@ export const thread = pgTable(
     createdById: uuid('created_by_id')
       .notNull()
       .references(() => appUser.id, { onDelete: 'restrict' }),
+    /**
+     * Opened automatically for its parent, by the triggers in 0046. Separates
+     * the channel that is always there from one somebody opened alongside it —
+     * and it is what the three partial unique indexes key on, so a project
+     * cannot end up with two automatic channels.
+     */
+    isDefault: boolean('is_default').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     /** Lifted by every new message, so the list sorts by real activity. */
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

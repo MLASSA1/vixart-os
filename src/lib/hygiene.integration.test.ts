@@ -37,6 +37,27 @@ describe.skipIf(!HAS_DB)('hygiene (integration)', () => {
 
   afterAll(async () => { if (db) { await purgeFixtures(); await db.end(); } });
 
+  // --- what the suite leaves behind ----------------------------------------
+
+  it('leaves no probe notifications in a real inbox', async () => {
+    /**
+     * The tests assign probe tasks to REAL team members, because that is the
+     * only way to exercise the assignment rules honestly. The notify trigger
+     * then writes to those people's inboxes — and `notification.entity_id` is
+     * polymorphic, so it has no foreign key and nothing cascades when the task
+     * is deleted. Both probe suites used to delete the task and leave the
+     * notification.
+     *
+     * Twenty had collected in the founder's inbox before anyone looked, and a
+     * few more arrived every time `npm test` ran. This runs before those files
+     * do, so a leak shows up on the next run rather than never.
+     */
+    const { rows } = await db.query<{ title: string; n: string }>(
+      `SELECT title, count(*)::text AS n FROM notification
+        WHERE title LIKE 'ZZZ%' GROUP BY title ORDER BY title`);
+    expect(rows).toEqual([]);
+  });
+
   // --- the service accounts ------------------------------------------------
 
   it('marks exactly the NO-LOGIN accounts unassignable', async () => {
