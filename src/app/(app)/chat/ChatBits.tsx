@@ -12,16 +12,30 @@
  * name. The hue is a hash of the name, so the same person is the same colour on
  * everybody's screen without anything being stored anywhere.
  */
-export function Avatar({ name, size = 36 }: { name: string; size?: number }) {
-  const initials = name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0]?.toUpperCase() ?? '')
-    .join('');
-
+/** Same name, same hue, on everybody's screen — without storing anything. */
+export function hueFor(name: string): number {
   let hash = 0;
   for (let i = 0; i < name.length; i += 1) hash = (hash * 31 + name.charCodeAt(i)) % 360;
+  return hash;
+}
+
+export function Avatar({ name, size = 36 }: { name: string; size?: number }) {
+  /**
+   * Two letters, always.
+   *
+   * One initial per word is the usual rule and it is useless here: the team is
+   * Adam, Aya, Abdelkbir and Azzedine, so four of seven people would wear an
+   * identical A. A single name therefore gives up its first two letters —
+   * Ad, Ay, Ab, Az — which tells them apart at a glance.
+   */
+  const words = name.split(/\s+/).filter(Boolean);
+  const initials = (
+    words.length > 1
+      ? (words[0]?.[0] ?? '') + (words[1]?.[0] ?? '')
+      : (words[0] ?? '').slice(0, 2)
+  ).toUpperCase();
+
+  const hash = hueFor(name);
 
   return (
     <span

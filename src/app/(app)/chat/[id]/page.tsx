@@ -81,20 +81,23 @@ export default async function ChannelPage({ params }: { params: Promise<{ id: st
 
   return (
     <>
-      <header className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-void/10 px-5 py-3.5">
-        <h1 className="display text-[19px] font-bold">
-          <span aria-hidden="true" className="text-void/30">#</span> {record.title}
-        </h1>
-        {about ? (
-          <p className="hint">
-            <Link href={about.href} className="underline underline-offset-4">
-              {about.name}
-            </Link>
-            {' — whoever can see that record can read this.'}
+      <header className="flex shrink-0 items-center gap-3 border-b border-void/10 bg-surface px-4 py-2.5 sm:px-5">
+        <span aria-hidden="true" className="text-[19px] leading-none text-void/25">#</span>
+        <div className="min-w-0">
+          <h1 className="display truncate text-[16px] font-bold leading-tight">{record.title}</h1>
+          <p className="hint truncate text-[12.5px] leading-tight">
+            {about ? (
+              <>
+                <Link href={about.href} className="underline underline-offset-2">
+                  {about.name}
+                </Link>
+                {' — whoever can see that record can read this.'}
+              </>
+            ) : (
+              'Everyone on the team.'
+            )}
           </p>
-        ) : (
-          <p className="hint">Everyone on the team.</p>
-        )}
+        </div>
       </header>
 
       <MessagePane

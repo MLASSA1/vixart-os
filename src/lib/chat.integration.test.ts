@@ -49,7 +49,17 @@ describe.skipIf(!HAS_DB)('team chat (integration)', () => {
   }
 
   async function purge() {
-    await owner.query(`DELETE FROM attachment WHERE entity_type='message'`);
+    // Scoped to this file's own probe threads, and nothing else.
+    //
+    // It used to read `DELETE FROM attachment WHERE entity_type='message'` —
+    // every message attachment in the database, whoever uploaded it. Amin
+    // attached a file in General at 01:51 and the next `npm test` deleted its
+    // row at 02:02. The bytes survived on the uploads volume, so the row could
+    // be rebuilt, but the original filename was gone: nothing else records it.
+    await owner.query(
+      `DELETE FROM attachment WHERE entity_type='message' AND entity_id IN
+         (SELECT m.id FROM message m JOIN thread t ON t.id = m.thread_id
+           WHERE t.title LIKE $1)`, [`${MARK}%`]);
     await owner.query(`DELETE FROM thread_read WHERE thread_id IN (SELECT id FROM thread WHERE title LIKE $1)`, [`${MARK}%`]);
     await owner.query(`DELETE FROM message WHERE thread_id IN (SELECT id FROM thread WHERE title LIKE $1)`, [`${MARK}%`]);
     await owner.query(`DELETE FROM thread WHERE title LIKE $1`, [`${MARK}%`]);

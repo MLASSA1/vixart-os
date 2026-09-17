@@ -4,6 +4,7 @@ import { useActionState, useEffect, useRef, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { ErrorBanner, NoticeBanner } from '@/components/ui';
 import { EMPTY_STATE, type FormState } from '@/lib/form-state';
+import { Avatar } from './ChatBits';
 import {
   ALLOWED_SUMMARY,
   allowedTypesForInput,
@@ -219,18 +220,40 @@ export function Composer({
     el.focus();
   }
 
+  /** Grows with the text, up to the cap the stylesheet sets. */
+  function fit(el: HTMLTextAreaElement) {
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  }
+
   return (
-    <form
-      ref={formRef}
-      action={formAction}
-      className="border-t border-void/10 bg-surface px-5 py-3"
-    >
+    <form ref={formRef} action={formAction}>
       <ErrorBanner message={state.error} />
       <NoticeBanner message={state.notice} />
 
+      {fileName && (
+        <div className="mb-1.5 flex items-center gap-2">
+          <span className={`chip ${tooBig ? 'tone-danger' : 'tone-accent'}`}>
+            {fileName}
+            {tooBig ? ` — over ${formatBytes(MAX_UPLOAD_BYTES)}` : ''}
+          </span>
+          <button
+            type="button"
+            className="hint cursor-pointer underline underline-offset-4"
+            onClick={() => {
+              if (fileRef.current) fileRef.current.value = '';
+              setFileName(null);
+              setTooBig(false);
+            }}
+          >
+            Remove
+          </button>
+        </div>
+      )}
+
       <div className="relative">
         {picking && (
-          <ul className="absolute bottom-full left-0 z-10 mb-1.5 w-64 overflow-hidden rounded-xl border border-void/15 bg-surface shadow-lg">
+          <ul className="absolute bottom-full left-0 z-10 mb-2 w-64 overflow-hidden rounded-xl border border-void/15 bg-surface py-1 shadow-lg">
             {matches.map((p, i) => (
               <li key={p.id}>
                 <button
@@ -240,10 +263,11 @@ export function Composer({
                     choose(p.fullName);
                   }}
                   onMouseEnter={() => setHighlight(i)}
-                  className={`flex w-full cursor-pointer items-center px-3 py-2 text-left text-[14px] ${
+                  className={`flex w-full cursor-pointer items-center gap-2.5 px-3 py-1.5 text-left text-[14px] ${
                     i === highlight ? 'bg-accent text-pure' : 'hover:bg-void/[0.06]'
                   }`}
                 >
+                  <Avatar name={p.fullName} size={22} />
                   {p.fullName}
                 </button>
               </li>
@@ -251,82 +275,93 @@ export function Composer({
           </ul>
         )}
 
-        <textarea
-          ref={bodyRef}
-          name="body"
-          rows={2}
-          className="input mt-0 resize-none"
-          placeholder="Write to the team…   @ to mention"
-          onInput={(e) => {
-            setQuery(readQuery(e.currentTarget));
-            setHighlight(0);
-          }}
-          onKeyDown={(e) => {
-            if (picking) {
-              if (e.key === 'ArrowDown') {
-                e.preventDefault();
-                setHighlight((h) => (h + 1) % matches.length);
-                return;
-              }
-              if (e.key === 'ArrowUp') {
-                e.preventDefault();
-                setHighlight((h) => (h - 1 + matches.length) % matches.length);
-                return;
-              }
-              if (e.key === 'Enter' || e.key === 'Tab') {
-                e.preventDefault();
-                const picked = matches[highlight];
-                if (picked) choose(picked.fullName);
-                return;
-              }
-              if (e.key === 'Escape') {
-                e.preventDefault();
-                setQuery(null);
-                return;
-              }
-            }
-            // Enter sends, shift+Enter starts a line. Nothing is ever sent
-            // while the picker is open — that Enter belongs to the picker.
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              formRef.current?.requestSubmit();
-            }
-          }}
-        />
-      </div>
+        <div className="composer">
+          <label
+            className="composer-icon"
+            title={`Attach a file — ${ALLOWED_SUMMARY}`}
+            aria-label="Attach a file"
+          >
+            {/* A paperclip, because that is what everyone reaches for. */}
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+            </svg>
+            <input
+              ref={fileRef}
+              type="file"
+              name="file"
+              accept={allowedTypesForInput()}
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                setFileName(f ? f.name : null);
+                // The browser check is a courtesy; the server refuses it too,
+                // and that is the one that counts.
+                setTooBig(Boolean(f && f.size > MAX_UPLOAD_BYTES));
+              }}
+            />
+          </label>
 
-      <div className="mt-2 flex flex-wrap items-center gap-3">
-        <label className="hint cursor-pointer underline underline-offset-4">
-          Attach a file
-          <input
-            ref={fileRef}
-            type="file"
-            name="file"
-            accept={allowedTypesForInput()}
-            className="hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              setFileName(f ? f.name : null);
-              // The browser check is a courtesy; the server refuses it too,
-              // and that is the one that counts.
-              setTooBig(Boolean(f && f.size > MAX_UPLOAD_BYTES));
+          <textarea
+            ref={bodyRef}
+            name="body"
+            rows={1}
+            placeholder="Message the team…"
+            onInput={(e) => {
+              fit(e.currentTarget);
+              setQuery(readQuery(e.currentTarget));
+              setHighlight(0);
+            }}
+            onKeyDown={(e) => {
+              if (picking) {
+                if (e.key === 'ArrowDown') {
+                  e.preventDefault();
+                  setHighlight((h) => (h + 1) % matches.length);
+                  return;
+                }
+                if (e.key === 'ArrowUp') {
+                  e.preventDefault();
+                  setHighlight((h) => (h - 1 + matches.length) % matches.length);
+                  return;
+                }
+                if (e.key === 'Enter' || e.key === 'Tab') {
+                  e.preventDefault();
+                  const picked = matches[highlight];
+                  if (picked) choose(picked.fullName);
+                  return;
+                }
+                if (e.key === 'Escape') {
+                  e.preventDefault();
+                  setQuery(null);
+                  return;
+                }
+              }
+              // Enter sends, shift+Enter starts a line. Nothing is ever sent
+              // while the picker is open — that Enter belongs to the picker.
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                formRef.current?.requestSubmit();
+              }
             }}
           />
-        </label>
 
-        {fileName && (
-          <span className={`chip ${tooBig ? 'tone-danger' : 'tone-quiet'}`}>
-            {fileName}
-            {tooBig ? ` — over ${formatBytes(MAX_UPLOAD_BYTES)}` : ''}
-          </span>
-        )}
-
-        <span className="hint ml-auto hidden sm:inline">Enter sends · Shift+Enter new line</span>
-        <Submit label="Send" busy="Sending…" />
+          <Send />
+        </div>
       </div>
-
-      <p className="hint mt-1.5 text-[12px]">{ALLOWED_SUMMARY}</p>
     </form>
+  );
+}
+
+/** The round accent button, and the only loud thing on the bar. */
+function Send() {
+  const { pending } = useFormStatus();
+  return (
+    <button type="submit" className="composer-send" disabled={pending} aria-label="Send">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M4 12l16-8-6 8 6 8z" />
+      </svg>
+    </button>
   );
 }
 
@@ -349,21 +384,26 @@ export function EditMessageForm({
     return (
       <button
         type="button"
-        className="hint cursor-pointer underline underline-offset-4"
+        className="cursor-pointer text-[11.5px] font-medium text-void/45 hover:text-void hover:underline"
         onClick={() => setOpen(true)}
       >
-        Correct
+        Edit
       </button>
     );
   }
 
   return (
-    <form action={formAction} className="mt-2 w-full">
+    <form action={formAction} className="mt-1 w-[min(60ch,78vw)]">
       <ErrorBanner message={state.error} />
       <input type="hidden" name="messageId" value={messageId} />
-      <textarea name="body" rows={2} className="input mt-0" defaultValue={body} />
-      <div className="mt-2 flex items-center gap-3">
-        <Submit label="Save" busy="Saving…" />
+      <textarea
+        name="body"
+        rows={2}
+        className="input mt-0 text-[14.5px]"
+        defaultValue={body}
+        autoFocus
+      />
+      <div className="mt-1.5 flex items-center justify-end gap-3">
         <button
           type="button"
           className="hint cursor-pointer underline underline-offset-4"
@@ -371,6 +411,7 @@ export function EditMessageForm({
         >
           Cancel
         </button>
+        <Submit label="Save" busy="Saving…" />
       </div>
     </form>
   );

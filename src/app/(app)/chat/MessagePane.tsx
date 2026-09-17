@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { MessageRow } from '@/lib/chat-queries';
 import type { FormState } from '@/lib/form-state';
 import { formatBytes } from '@/lib/upload-types';
-import { Avatar, clockTime, dayLabel, MentionText } from './ChatBits';
+import { Avatar, clockTime, dayLabel, hueFor, MentionText } from './ChatBits';
 import { Composer, EditMessageForm } from './ChatForms';
 
 /**
@@ -106,7 +106,7 @@ export function MessagePane({
 
   return (
     <div
-      className="relative flex min-h-0 flex-1 flex-col"
+      className="chat-ground relative flex min-h-0 flex-1 flex-col"
       onDragOver={(e) => {
         if (!e.dataTransfer.types.includes('Files')) return;
         e.preventDefault();
@@ -127,88 +127,120 @@ export function MessagePane({
       }}
     >
       {dragging && (
-        <div className="pointer-events-none absolute inset-3 z-20 flex items-center justify-center rounded-2xl border-2 border-dashed border-accent bg-accent/[0.06]">
+        <div className="pointer-events-none absolute inset-3 z-20 flex items-center justify-center rounded-2xl border-2 border-dashed border-accent bg-accent/[0.07]">
           <p className="text-accent-deep font-semibold">Drop to attach</p>
         </div>
       )}
 
-      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+      <div ref={scrollRef} className="chat-scroll min-h-0 flex-1 overflow-y-auto px-4 py-3 sm:px-6">
         {messages.length === 0 && (
-          <p className="hint py-10 text-center">
-            Nothing here yet. The first message is below.
-          </p>
+          <div className="flex h-full flex-col items-center justify-center gap-2 py-16 text-center">
+            <p className="text-[15px] font-semibold">No messages yet</p>
+            <p className="hint max-w-xs">Say the first thing. Everyone who can see this channel will read it.</p>
+          </div>
         )}
 
         {messages.map((m, i) => {
           const day = dayLabel(m.created_at);
           const newDay = day !== lastDay;
           lastDay = day;
+          const mine = m.author_id === meId;
+          // A new day always starts a fresh run, so the name comes back.
           const grouped = !newDay && sameGroup(messages[i - 1], m);
           const image = (m.file_mime ?? '').startsWith('image/');
 
           return (
             <div key={m.id}>
               {newDay && (
-                <div className="my-4 flex items-center gap-3">
-                  <span className="h-px flex-1 bg-void/10" />
-                  <span className="chip tone-quiet">{day}</span>
-                  <span className="h-px flex-1 bg-void/10" />
+                <div className="my-3 flex justify-center">
+                  <span className="daypill">{day}</span>
                 </div>
               )}
 
-              <div className={`flex gap-3 ${grouped ? 'mt-0.5' : 'mt-3'}`}>
-                <div className="w-9 shrink-0">
-                  {!grouped && <Avatar name={m.author_name} />}
+              <div
+                className={`msg-row flex items-start gap-2 ${grouped ? 'mt-0.5' : 'mt-2.5'} ${
+                  mine ? 'flex-row-reverse' : ''
+                }`}
+              >
+                {/* Held open even when empty, so a run of messages stays in
+                    one column instead of stepping left under the avatar. */}
+                <div className="w-8 shrink-0">
+                  {!grouped && !mine && <Avatar name={m.author_name} size={32} />}
                 </div>
 
-                <div className="min-w-0 flex-1">
-                  {!grouped && (
-                    <p className="leading-tight">
-                      <span className="font-semibold">{m.author_name}</span>
-                      <span className="hint"> · {clockTime(m.created_at)}</span>
-                      {m.edited_at && <span className="hint"> · corrected</span>}
-                    </p>
-                  )}
+                <div className={`flex min-w-0 flex-col ${mine ? 'items-end' : 'items-start'}`}>
+                  <div
+                    className={`bubble ${mine ? 'bubble-out' : 'bubble-in'} ${
+                      !grouped ? (mine ? 'bubble-out-first' : 'bubble-in-first') : ''
+                    }`}
+                  >
+                    {/* The coloured name, as a group chat does it — only on the
+                        first of a run, and never on your own. */}
+                    {!grouped && !mine && (
+                      <p
+                        className="mb-0.5 text-[13px] font-bold"
+                        style={{ color: `hsl(${hueFor(m.author_name)} 46% 38%)` }}
+                      >
+                        {m.author_name}
+                      </p>
+                    )}
 
-                  <div className="prose-vixart whitespace-pre-wrap">
-                    <MentionText body={m.body} names={names} />
+                    {m.file_id && (
+                      <div className={m.body === '(file)' ? 'mb-0.5' : 'mb-1.5'}>
+                        {/* Never a static path: the only way to the bytes is
+                            the authenticated route, which re-checks who asks. */}
+                        {image ? (
+                          <a href={`/api/files/${m.file_id}`} target="_blank" rel="noreferrer">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={`/api/files/${m.file_id}`}
+                              alt={m.file_name ?? 'Attachment'}
+                              className="max-h-80 w-full rounded-[11px] object-cover"
+                            />
+                          </a>
+                        ) : (
+                          <a
+                            href={`/api/files/${m.file_id}`}
+                            className={`flex items-center gap-2.5 rounded-[11px] px-2.5 py-2 ${
+                              mine ? 'bg-void/[0.06] hover:bg-void/[0.1]' : 'bg-void/[0.045] hover:bg-void/[0.08]'
+                            }`}
+                          >
+                            <span
+                              aria-hidden="true"
+                              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-void/10 text-[15px]"
+                            >
+                              ▤
+                            </span>
+                            <span className="min-w-0">
+                              <span className="block truncate text-[13.5px] font-semibold">
+                                {m.file_name}
+                              </span>
+                              <span className="block text-[11.5px] text-void/50">
+                                {m.file_size ? formatBytes(Number(m.file_size)) : ''}
+                              </span>
+                            </span>
+                          </a>
+                        )}
+                      </div>
+                    )}
+
+                    {/* "(file)" is the placeholder the action writes when a
+                        file travels alone. Showing it would be showing the
+                        database's private business to the reader. */}
+                    {!(m.file_id && m.body === '(file)') && (
+                      <span className="whitespace-pre-wrap">
+                        <MentionText body={m.body} names={names} />
+                      </span>
+                    )}
+
+                    <span className="bubble-time">
+                      {m.edited_at && <span className="mr-1 italic">edited</span>}
+                      {clockTime(m.created_at)}
+                    </span>
                   </div>
 
-                  {m.file_id && (
-                    <div className="mt-1.5">
-                      {/* Never a static path: the only way to the bytes is the
-                          authenticated route, which re-checks who is asking. */}
-                      {image ? (
-                        <a href={`/api/files/${m.file_id}`} target="_blank" rel="noreferrer">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={`/api/files/${m.file_id}`}
-                            alt={m.file_name ?? 'Attachment'}
-                            className="max-h-72 rounded-xl border border-void/10"
-                          />
-                        </a>
-                      ) : (
-                        <a
-                          href={`/api/files/${m.file_id}`}
-                          className="flex max-w-sm items-center gap-3 rounded-xl border border-void/15 px-3 py-2 hover:bg-void/[0.04]"
-                        >
-                          <span aria-hidden="true" className="text-void/35 text-lg">▤</span>
-                          <span className="min-w-0 flex-1">
-                            <span className="block truncate text-[14px] font-medium">
-                              {m.file_name}
-                            </span>
-                            <span className="hint text-[12px]">
-                              {m.file_size ? formatBytes(Number(m.file_size)) : ''}
-                              {m.file_mime ? ` · ${m.file_mime}` : ''}
-                            </span>
-                          </span>
-                        </a>
-                      )}
-                    </div>
-                  )}
-
-                  {m.editable && m.author_id === meId && (
-                    <div className="mt-0.5">
+                  {m.editable && mine && (
+                    <div className="msg-actions mt-0.5 pr-1">
                       <EditMessageForm action={editAction} messageId={m.id} body={m.body} />
                     </div>
                   )}
@@ -219,13 +251,15 @@ export function MessagePane({
         })}
       </div>
 
-      <Composer
-        action={postAction}
-        mentionable={mentionable}
-        dropped={dropped}
-        onDropConsumed={() => setDropped(null)}
-        onSent={poll}
-      />
+      <div className="px-3 pb-3 sm:px-5">
+        <Composer
+          action={postAction}
+          mentionable={mentionable}
+          dropped={dropped}
+          onDropConsumed={() => setDropped(null)}
+          onSent={poll}
+        />
+      </div>
     </div>
   );
 }
