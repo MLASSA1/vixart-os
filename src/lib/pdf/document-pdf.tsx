@@ -40,6 +40,24 @@ Font.register({
   ],
 });
 
+/**
+ * Figures are IBM Plex Mono, per the brand standard.
+ *
+ * From a TTF, NOT from the .woff2 the interface uses. The woff2 appears to
+ * work — @react-pdf embeds it and the text layer extracts correctly — and then
+ * draws nothing at all. Every figure in the line-item table came out invisible
+ * while remaining selectable: a quote that looks like it has no prices on it
+ * and still passes every check that does not involve looking at the pixels.
+ * The TTF is converted from that same woff2, so both stay the same face.
+ *
+ * It matters on a document of figures: Inter's digits are proportional, so a
+ * column of amounts does not line up on the decimal. These do.
+ */
+Font.register({
+  family: 'PlexMono',
+  fonts: [{ src: path.join(FONT_DIR, 'IBMPlexMono-500.ttf'), fontWeight: 500 }],
+});
+
 // Stops long client names and service labels breaking mid-word.
 Font.registerHyphenationCallback((word: string) => [word]);
 
@@ -98,18 +116,49 @@ const s = StyleSheet.create({
   },
   grandLabel: { fontSize: 11, fontWeight: 700 },
   grandValue: { fontSize: 13, fontWeight: 700 },
-  footer: {
+  /**
+   * The legal block, on every page.
+   *
+   * Four separately-positioned fixed Texts rather than one fixed View holding
+   * four lines — which is the obvious way to write it and renders nothing at
+   * all here. A fixed View with Text children produces no output in this
+   * document (it works in isolation, so it is something about this tree), and
+   * it fails silently: no warning, just a quote with no legal block on it.
+   */
+  footerRule: {
     position: 'absolute',
-    bottom: 28,
+    bottom: 64,
     left: 44,
     right: 44,
     borderTopWidth: 0.5,
     borderTopColor: VOID,
-    paddingTop: 8,
+  },
+  footerLine: {
+    position: 'absolute',
+    left: 44,
+    right: 44,
     fontSize: 7,
     opacity: 0.6,
     textAlign: 'center',
   },
+
+  /** Every number on the page, so columns align on the decimal. */
+  figure: { fontFamily: 'PlexMono', fontSize: 8.5 },
+
+  /** Where a client pays. Invoices only. */
+  payBlock: {
+    marginTop: 18,
+    borderWidth: 0.75,
+    borderColor: VOID,
+    paddingVertical: 9,
+    paddingHorizontal: 11,
+  },
+  payTitle: { fontSize: 7.5, fontWeight: 700, letterSpacing: 0.8, marginBottom: 5 },
+  payRow: { flexDirection: 'row', marginTop: 1.5 },
+  payLabel: { width: 58, fontSize: 8, opacity: 0.7 },
+  payValue: { fontFamily: 'PlexMono', fontSize: 8.5 },
+  /** An unset field says so. It does not quietly render as blank. */
+  payUnset: { fontSize: 8, opacity: 0.85, fontWeight: 600 },
   note: { marginTop: 18, fontSize: 8, opacity: 0.75 },
 
   // The total in words. Boxed, because it is the line a reader checks the
@@ -182,6 +231,8 @@ function frDate(iso: string | null): string {
 export async function renderDocumentPdf(input: PdfInput): Promise<Buffer> {
   const title = DOCUMENT_TITLE_FR[input.docType] ?? 'DOCUMENT';
   const subtotal = input.totalExclVat + input.discountCentimes;
+  /** Held back from the loop below so it travels with the totals. */
+  const last = input.lines[input.lines.length - 1];
 
   const doc = (
     <Document
@@ -261,17 +312,40 @@ export async function renderDocumentPdf(input: PdfInput): Promise<Buffer> {
           <Text style={[s.th, s.cTotal]}>TOTAL HT</Text>
         </View>
 
-        {input.lines.map((line, i) => (
+        {/* Every row but the last; the last is bound to the totals below. */}
+        {input.lines.slice(0, -1).map((line, i) => (
           <View key={i} style={s.row} wrap={false}>
             <Text style={s.cDesc}>{line.label}</Text>
             <Text style={s.cUnit}>{UNIT_FR[line.unit] ?? line.unit}</Text>
-            <Text style={s.cQty}>{fromMillis(line.quantityMillis)}</Text>
-            <Text style={s.cPrice}>{formatMAD(line.unitPriceCentimes)}</Text>
-            <Text style={[s.cTotal, s.strong]}>
+            <Text style={[s.cQty, s.figure]}>{fromMillis(line.quantityMillis)}</Text>
+            <Text style={[s.cPrice, s.figure]}>{formatMAD(line.unitPriceCentimes)}</Text>
+            <Text style={[s.cTotal, s.figure, s.strong]}>
               {formatMAD(lineTotal(line.unitPriceCentimes, line.quantityMillis))}
             </Text>
           </View>
         ))}
+
+        {/*
+          The last line and the totals, as one indivisible block.
+
+          A totals block alone at the top of a page, with the table that
+          produced it on the sheet before, is a figure with no provenance — and
+          on a document somebody signs, that is the part that matters. Binding
+          the final row to it means the break always lands inside the table,
+          never between the table and its result.
+        */}
+        <View wrap={false}>
+          {last && (
+            <View style={s.row}>
+              <Text style={s.cDesc}>{last.label}</Text>
+              <Text style={s.cUnit}>{UNIT_FR[last.unit] ?? last.unit}</Text>
+              <Text style={[s.cQty, s.figure]}>{fromMillis(last.quantityMillis)}</Text>
+              <Text style={[s.cPrice, s.figure]}>{formatMAD(last.unitPriceCentimes)}</Text>
+              <Text style={[s.cTotal, s.figure, s.strong]}>
+                {formatMAD(lineTotal(last.unitPriceCentimes, last.quantityMillis))}
+              </Text>
+            </View>
+          )}
 
         {/* --- Totals ------------------------------------------------------ */}
         <View style={s.totals}>
@@ -315,6 +389,7 @@ export async function renderDocumentPdf(input: PdfInput): Promise<Buffer> {
               </View>
             </>
           )}
+        </View>
         </View>
 
         {/*
@@ -361,6 +436,36 @@ export async function renderDocumentPdf(input: PdfInput): Promise<Buffer> {
         )}
         {input.notes && <Text style={s.note}>{input.notes}</Text>}
 
+        {/*
+          Where to pay. Invoices only: a quote is an offer, not a demand for
+          payment, and bank details on one invite a client to pay against
+          something nobody has agreed to yet.
+
+          Fields with no value are printed as missing rather than left out. An
+          invoice with no payment block looks finished; one that says the
+          details are not on file does not, and gets fixed before it is sent.
+        */}
+        {input.docType === 'facture' && (
+          <View style={s.payBlock} wrap={false}>
+            <Text style={s.payTitle}>COORDONNÉES BANCAIRES</Text>
+            {([
+              ['Banque', VIXART.bank.name],
+              ['RIB', VIXART.bank.rib],
+              ['IBAN', VIXART.bank.iban],
+              ['SWIFT', VIXART.bank.swift],
+            ] as const).map(([label, value]) => (
+              <View key={label} style={s.payRow}>
+                <Text style={s.payLabel}>{label}</Text>
+                {value ? (
+                  <Text style={s.payValue}>{value}</Text>
+                ) : (
+                  <Text style={s.payUnset}>— non renseigné —</Text>
+                )}
+              </View>
+            ))}
+          </View>
+        )}
+
         {input.docType === 'devis' && (
           <>
             <Text style={s.note}>
@@ -381,9 +486,32 @@ export async function renderDocumentPdf(input: PdfInput): Promise<Buffer> {
           </>
         )}
 
-        <Text style={s.footer} fixed>
-          {VIXART.legalName} · {VIXART.activity} · {VIXART.address} ·{' '}
+        {/*
+          NOT BUILT — the client block and document number repeated on every
+          page after the first, and "1 / 3" in the footer.
+
+          Both need @react-pdf's `render` prop, which returns nothing in this
+          document. Not a mistake in how it is called: a render prop returning a
+          bare constant produces no output either, at any position in the tree,
+          while a literal Text at the identical position renders fine — and the
+          same call works in a minimal document on the same version, with the
+          same fonts, styles and hyphenation callback. Characterised, not yet
+          explained.
+
+          Left unbuilt deliberately. An element that silently renders nothing is
+          worse than a missing one: it reads in the source as though the
+          requirement is already met.
+        */}
+        <View style={s.footerRule} fixed />
+        <Text style={[s.footerLine, { bottom: 51 }]} fixed>
+          {VIXART.legalName} — {VIXART.activity}
+        </Text>
+        <Text style={[s.footerLine, { bottom: 42 }]} fixed>
+          {VIXART.address}
+        </Text>
+        <Text style={[s.footerLine, { bottom: 33 }]} fixed>
           {VIXART.rc} · ICE {VIXART.ice} · IF {VIXART.taxId}
+          {VIXART.taxeProfessionnelle ? ` · Patente ${VIXART.taxeProfessionnelle}` : ''}
         </Text>
       </Page>
     </Document>

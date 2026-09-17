@@ -8,10 +8,10 @@
 export const VIXART = {
   legalName: 'SOCIETE VIXART SARL',
   activity: 'Agence de publicité',
-  rc: 'RC 69627 — Tribunal de Commerce d’Agadir',
+  rc: 'RC 69627 (Tribunal de Commerce d’Agadir)',
   ice: '003979570000062',
   taxId: '73161069',
-  address: 'Bureau AB 403, Imm A9, Technopole II Bensergaou, Agadir',
+  address: 'Bureau AB 403, Imm A9, Technopole II, Bensergaou, Agadir',
   country: 'Maroc',
 
   // ---------------------------------------------------------------------
@@ -28,7 +28,34 @@ export const VIXART = {
   // then the PDF simply omits the line. Same rule as the withholding rate and
   // the service prices: visibly unset beats plausibly wrong.
   // ---------------------------------------------------------------------
-  taxeProfessionnelle: '',
+  // Supplied 18 September 2026 and printed in the footer of every page.
+  taxeProfessionnelle: '55007192',
+
   cnss: '',
   capitalSocial: '',
+
+  /**
+   * Where a client pays.
+   *
+   * Empty on purpose, and — unlike the identifiers above — NOT omitted when
+   * empty. An invoice with no payment block looks finished; an invoice whose
+   * payment block says the details are missing does not, and gets fixed before
+   * it is sent. Nothing here is guessed: a plausible-looking RIB on an issued
+   * invoice sends a client's money to a number nobody checked.
+   *
+   * Invoices only. A quote is not a demand for payment and carries no bank
+   * details at all.
+   */
+  bank: {
+    name: '',
+    rib: '',
+    iban: '',
+    swift: '',
+  },
 } as const;
+
+/** True once every field a client needs in order to pay has a value. */
+export function bankDetailsComplete(): boolean {
+  const { name, rib, iban, swift } = VIXART.bank;
+  return [name, rib, iban, swift].every((v) => v.trim().length > 0);
+}
