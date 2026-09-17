@@ -12,14 +12,34 @@
  * name. The hue is a hash of the name, so the same person is the same colour on
  * everybody's screen without anything being stored anywhere.
  */
-/** Same name, same hue, on everybody's screen — without storing anything. */
-export function hueFor(name: string): number {
+/**
+ * One person, one colour — everywhere, for everyone, without storing anything.
+ *
+ * Keyed on the account id rather than the name. Hashing the name would have
+ * been simpler and is what this did first, but it makes the colour a property
+ * of the spelling: renaming Aymen to Yassin, which this system has already
+ * done once, would have moved him to a different colour and quietly broken the
+ * only thing the colour is for. An id does not change.
+ *
+ * Derived rather than stored, so there is no table to keep in step and no way
+ * for two people to see different colours for the same colleague.
+ */
+export function hueFor(key: string): number {
   let hash = 0;
-  for (let i = 0; i < name.length; i += 1) hash = (hash * 31 + name.charCodeAt(i)) % 360;
+  for (let i = 0; i < key.length; i += 1) hash = (hash * 31 + key.charCodeAt(i)) % 360;
   return hash;
 }
 
-export function Avatar({ name, size = 36 }: { name: string; size?: number }) {
+export function Avatar({
+  name,
+  id,
+  size = 36,
+}: {
+  name: string;
+  /** The account. Falls back to the name only where no id is to hand. */
+  id?: string;
+  size?: number;
+}) {
   /**
    * Two letters, always.
    *
@@ -35,7 +55,7 @@ export function Avatar({ name, size = 36 }: { name: string; size?: number }) {
       : (words[0] ?? '').slice(0, 2)
   ).toUpperCase();
 
-  const hash = hueFor(name);
+  const hash = hueFor(id ?? name);
 
   return (
     <span

@@ -267,7 +267,7 @@ export function Composer({
                     i === highlight ? 'bg-accent text-pure' : 'hover:bg-void/[0.06]'
                   }`}
                 >
-                  <Avatar name={p.fullName} size={22} />
+                  <Avatar name={p.fullName} id={p.id} size={22} />
                   {p.fullName}
                 </button>
               </li>

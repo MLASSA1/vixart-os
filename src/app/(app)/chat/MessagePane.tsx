@@ -18,6 +18,21 @@ import { Composer, EditMessageForm } from './ChatForms';
 /** Long enough that a burst reads as one thought, short enough to stay honest. */
 const GROUP_WINDOW_MS = 5 * 60 * 1000;
 
+/**
+ * Where your own messages sit.
+ *
+ * `false` is Discord: one column, every message the same shape, who is
+ * speaking carried by the avatar and the coloured name. `true` is WhatsApp:
+ * your own swing to the right and drop their name, because with two people
+ * the side IS the name.
+ *
+ * One column wins here. A channel with four people in it gives the right-hand
+ * side no meaning — it says "me" and nothing about the other three — while
+ * costing every one of their messages a ragged edge to read down. Your own
+ * messages keep the violet tint either way, so you can still find yourself.
+ */
+const OWN_ON_RIGHT = false;
+
 function sameGroup(a: MessageRow | undefined, b: MessageRow): boolean {
   if (!a || a.author_id !== b.author_id) return false;
   if (new Date(a.created_at).toDateString() !== new Date(b.created_at).toDateString()) return false;
@@ -145,6 +160,8 @@ export function MessagePane({
           const newDay = day !== lastDay;
           lastDay = day;
           const mine = m.author_id === meId;
+          // Whose it is, versus where it goes. In one column they part company.
+          const sided = OWN_ON_RIGHT && mine;
           // A new day always starts a fresh run, so the name comes back.
           const grouped = !newDay && sameGroup(messages[i - 1], m);
           const image = (m.file_mime ?? '').startsWith('image/');
@@ -159,27 +176,30 @@ export function MessagePane({
 
               <div
                 className={`msg-row flex items-start gap-2 ${grouped ? 'mt-0.5' : 'mt-2.5'} ${
-                  mine ? 'flex-row-reverse' : ''
+                  sided ? 'flex-row-reverse' : ''
                 }`}
               >
                 {/* Held open even when empty, so a run of messages stays in
                     one column instead of stepping left under the avatar. */}
                 <div className="w-8 shrink-0">
-                  {!grouped && !mine && <Avatar name={m.author_name} size={32} />}
+                  {!grouped && !sided && (
+                    <Avatar name={m.author_name} id={m.author_id} size={32} />
+                  )}
                 </div>
 
-                <div className={`flex min-w-0 flex-col ${mine ? 'items-end' : 'items-start'}`}>
+                <div className={`flex min-w-0 flex-col ${sided ? 'items-end' : 'items-start'}`}>
                   <div
                     className={`bubble ${mine ? 'bubble-out' : 'bubble-in'} ${
-                      !grouped ? (mine ? 'bubble-out-first' : 'bubble-in-first') : ''
+                      !grouped ? (sided ? 'bubble-out-first' : 'bubble-in-first') : ''
                     }`}
                   >
-                    {/* The coloured name, as a group chat does it — only on the
-                        first of a run, and never on your own. */}
-                    {!grouped && !mine && (
+                    {/* The coloured name, on the first of a run. Dropped only
+                        when the message has swung to the right, where the side
+                        already says whose it is. */}
+                    {!grouped && !sided && (
                       <p
                         className="mb-0.5 text-[13px] font-bold"
-                        style={{ color: `hsl(${hueFor(m.author_name)} 46% 38%)` }}
+                        style={{ color: `hsl(${hueFor(m.author_id)} 46% 38%)` }}
                       >
                         {m.author_name}
                       </p>
@@ -240,7 +260,7 @@ export function MessagePane({
                   </div>
 
                   {m.editable && mine && (
-                    <div className="msg-actions mt-0.5 pr-1">
+                    <div className="msg-actions mt-0.5 pl-1">
                       <EditMessageForm action={editAction} messageId={m.id} body={m.body} />
                     </div>
                   )}
