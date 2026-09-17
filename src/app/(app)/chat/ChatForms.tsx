@@ -15,6 +15,10 @@ import {
   MAX_UPLOAD_BYTES,
 } from '@/lib/upload-types';
 import { useRecorder, type Recording } from './useRecorder';
+import { VoiceNote } from './VoiceNote';
+
+/** The label and the input are siblings now, so the label needs a target. */
+const FILE_INPUT_ID = 'composer-file';
 
 function Submit({ label, busy }: { label: string; busy: string }) {
   const { pending } = useFormStatus();
@@ -163,27 +167,66 @@ export function Composer({
   const [tooBig, setTooBig] = useState(false);
   const [query, setQuery] = useState<string | null>(null);
   const [highlight, setHighlight] = useState(0);
-  /** Set only for a recording, and sent alongside it. */
-  const [voiceMs, setVoiceMs] = useState<number | null>(null);
-
   /**
-   * A finished recording is put into the same file input as anything else, so
-   * from here on a voice note IS an attachment: same ceiling, same whitelist,
-   * same authenticated route, same row. Nothing downstream has a second path
-   * to keep in step.
+   * A finished recording, waiting to be listened to and sent.
+   *
+   * Held in state rather than pushed straight into the file input, which is
+   * how the first version lost every recording ever made: the input was
+   * rendered inside the not-recording half of a ternary, so while the
+   * microphone was open it did not exist, and `stop` handed the file over in
+   * the same tick that set recording to false — before React had put the input
+   * back. The ref was null, the file was dropped, and nothing said so.
+   *
+   * State cannot be unmounted out from under a callback. The input is now
+   * always rendered, and an effect puts the file in it.
    */
+  const [pending, setPending] = useState<
+    { file: File; durationMs: number; url: string } | null
+  >(null);
+
   const acceptRecording = useCallback(({ file, durationMs }: Recording) => {
-    const input = fileRef.current;
-    if (!input) return;
-    const bag = new DataTransfer();
-    bag.items.add(file);
-    input.files = bag.files;
-    setFileName(file.name);
-    setTooBig(file.size > MAX_UPLOAD_BYTES);
-    setVoiceMs(durationMs);
+    // A local URL, so it can be played back before anything is uploaded.
+    setPending({ file, durationMs, url: URL.createObjectURL(file) });
   }, []);
 
   const recorder = useRecorder(acceptRecording);
+
+  /**
+   * The recording becomes an ordinary attachment.
+   *
+   * From here a voice note IS an attachment: same 25 MB ceiling, same
+   * whitelist, same authenticated route, same row, same policies. Nothing
+   * downstream has a second path to keep in step.
+   */
+  useEffect(() => {
+    const input = fileRef.current;
+    if (!input || !pending) return;
+    const bag = new DataTransfer();
+    bag.items.add(pending.file);
+    input.files = bag.files;
+    setFileName(pending.file.name);
+    setTooBig(pending.file.size > MAX_UPLOAD_BYTES);
+  }, [pending]);
+
+  /** Throws the clip away. Nothing was uploaded, so nothing has to be undone. */
+  const discardRecording = useCallback(() => {
+    setPending((current) => {
+      if (current) URL.revokeObjectURL(current.url);
+      return null;
+    });
+    if (fileRef.current) fileRef.current.value = '';
+    setFileName(null);
+    setTooBig(false);
+    recorder.setProblem(null);
+  }, [recorder]);
+
+  // A composer that goes away still owes the browser its object URLs.
+  useEffect(() => () => {
+    setPending((current) => {
+      if (current) URL.revokeObjectURL(current.url);
+      return null;
+    });
+  }, []);
 
   const [state, formAction] = useActionState(async (previous: FormState, formData: FormData) => {
     const result = await action(previous, formData);
@@ -191,7 +234,10 @@ export function Composer({
       formRef.current?.reset();
       setFileName(null);
       setTooBig(false);
-      setVoiceMs(null);
+      setPending((current) => {
+        if (current) URL.revokeObjectURL(current.url);
+        return null;
+      });
       setQuery(null);
       onSent();
     }
@@ -207,7 +253,6 @@ export function Composer({
     fileRef.current.files = bag.files;
     setFileName(dropped.name);
     setTooBig(dropped.size > MAX_UPLOAD_BYTES);
-    setVoiceMs(null);
     onDropConsumed();
   }, [dropped, onDropConsumed]);
 
@@ -258,10 +303,11 @@ export function Composer({
       <ErrorBanner message={state.error} />
       <NoticeBanner message={state.notice} />
 
-      {fileName && (
+      {/* A file chosen from disk. A recording gets the player below instead. */}
+      {fileName && !pending && (
         <div className="mb-1.5 flex items-center gap-2">
           <span className={`chip ${tooBig ? 'tone-danger' : 'tone-accent'}`}>
-            {voiceMs !== null ? `Voice note · ${formatDuration(voiceMs)}` : fileName}
+            {fileName}
             {tooBig ? ` — over ${formatBytes(MAX_UPLOAD_BYTES)}` : ''}
           </span>
           <button
@@ -271,7 +317,6 @@ export function Composer({
               if (fileRef.current) fileRef.current.value = '';
               setFileName(null);
               setTooBig(false);
-              setVoiceMs(null);
             }}
           >
             Remove
@@ -279,14 +324,41 @@ export function Composer({
         </div>
       )}
 
-      {/* Travels with the file it describes, in the same submission. */}
-      {voiceMs !== null && <input type="hidden" name="durationMs" value={voiceMs} />}
+      {/* The duration, measured by the recorder, travels with the file. */}
+      {pending && <input type="hidden" name="durationMs" value={pending.durationMs} />}
 
       {recorder.problem && (
         <p className="tone-danger mb-1.5 inline-block rounded-[8px] px-2.5 py-1 text-[13px]">
           {recorder.problem}
         </p>
       )}
+
+      {/*
+        The file input is rendered unconditionally, outside every branch below.
+        It used to live inside the not-recording half of the ternary, which
+        meant it did not exist at the moment a recording finished — and the
+        recording was silently thrown away. Keeping it mounted is the fix.
+      */}
+      <input
+        ref={fileRef}
+        id={FILE_INPUT_ID}
+        type="file"
+        name="file"
+        accept={allowedTypesForInput()}
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          // Choosing a file by hand replaces any clip that was waiting.
+          setPending((current) => {
+            if (current) URL.revokeObjectURL(current.url);
+            return null;
+          });
+          setFileName(f ? f.name : null);
+          // The browser check is a courtesy; the server refuses it too, and
+          // that is the one that counts.
+          setTooBig(Boolean(f && f.size > MAX_UPLOAD_BYTES));
+        }}
+      />
 
       <div className="relative">
         {picking && (
@@ -312,7 +384,34 @@ export function Composer({
           </ul>
         )}
 
-        {recorder.recording ? (
+        {pending ? (
+          /*
+             Stopped, and not yet sent. The clip is here to be listened to
+             before it goes: nothing has been uploaded, and Discard drops it
+             without ever having done so.
+          */
+          <div className="composer" role="group" aria-label="Voice note ready to send">
+            <button
+              type="button"
+              onClick={discardRecording}
+              className="composer-icon"
+              aria-label="Discard voice note"
+              title="Discard"
+            >
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                <path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 11v5M14 11v5" />
+              </svg>
+            </button>
+
+            <div className="min-w-0 flex-1 px-1 py-0.5">
+              {/* The same player the message shows, on a local URL. */}
+              <VoiceNote src={pending.url} durationMs={pending.durationMs} mine />
+            </div>
+
+            <Send />
+          </div>
+        ) : recorder.recording ? (
           /* While the microphone is open the bar is only about the microphone.
              Leaving the textarea there would invite typing into a message that
              is already being spoken. */
@@ -355,6 +454,7 @@ export function Composer({
         ) : (
         <div className="composer">
           <label
+            htmlFor={FILE_INPUT_ID}
             className="composer-icon"
             title={`Attach a file — ${ALLOWED_SUMMARY}`}
             aria-label="Attach a file"
@@ -364,20 +464,6 @@ export function Composer({
                  strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
             </svg>
-            <input
-              ref={fileRef}
-              type="file"
-              name="file"
-              accept={allowedTypesForInput()}
-              className="hidden"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                setFileName(f ? f.name : null);
-                // The browser check is a courtesy; the server refuses it too,
-                // and that is the one that counts.
-                setTooBig(Boolean(f && f.size > MAX_UPLOAD_BYTES));
-              }}
-            />
           </label>
 
           <textarea
