@@ -60,6 +60,11 @@ describe.skipIf(!HAS_DB)('team chat (integration)', () => {
       `DELETE FROM attachment WHERE entity_type='message' AND entity_id IN
          (SELECT m.id FROM message m JOIN thread t ON t.id = m.thread_id
            WHERE t.title LIKE $1)`, [`${MARK}%`]);
+    // And the ones whose message has already been cascaded away: nothing
+    // deletes those, so without this every run leaves a little more behind.
+    await owner.query(
+      `DELETE FROM attachment WHERE entity_type='message'
+         AND NOT EXISTS (SELECT 1 FROM message m WHERE m.id = attachment.entity_id)`);
     await owner.query(`DELETE FROM thread_read WHERE thread_id IN (SELECT id FROM thread WHERE title LIKE $1)`, [`${MARK}%`]);
     await owner.query(`DELETE FROM message WHERE thread_id IN (SELECT id FROM thread WHERE title LIKE $1)`, [`${MARK}%`]);
     await owner.query(`DELETE FROM thread WHERE title LIKE $1`, [`${MARK}%`]);
@@ -304,6 +309,98 @@ describe.skipIf(!HAS_DB)('team chat (integration)', () => {
     expect((await app.query(
       `SELECT 1 FROM attachment WHERE entity_type='message' AND entity_id=$1`, [msg])).rows).toHaveLength(0);
   });
+
+  // --- voice notes ---------------------------------------------------------
+
+  it('keeps a recorded length beside the file', async () => {
+    await actAs(alice, 'member');
+    const messageId = (await app.query<{ id: string }>(
+      `INSERT INTO message (thread_id, author_id, author_name, body)
+       VALUES ($1,$2,'Alice','(file)') RETURNING id`, [generalId, alice])).rows[0]!.id;
+
+    await app.query(
+      `INSERT INTO attachment (entity_type, entity_id, original_name, stored_path,
+                               mime_type, size_bytes, duration_ms, uploaded_by_id)
+       VALUES ('message',$1,'voice-message.webm','2026/09/' || gen_random_uuid() || '.webm',
+               'audio/webm', 9123, 7400, $2)`, [messageId, alice]);
+
+    const { rows } = await app.query<{ duration_ms: number; mime_type: string }>(
+      `SELECT duration_ms, mime_type FROM attachment WHERE entity_id = $1`, [messageId]);
+    expect(rows[0]!.duration_ms).toBe(7400);
+    expect(rows[0]!.mime_type).toBe('audio/webm');
+  });
+
+  it('refuses a length that is not one', async () => {
+    // The duration arrives from the browser. It is a caption, but a caption
+    // the database will not let be nonsense.
+    await actAs(alice, 'member');
+    const messageId = (await app.query<{ id: string }>(
+      `INSERT INTO message (thread_id, author_id, author_name, body)
+       VALUES ($1,$2,'Alice','(file)') RETURNING id`, [generalId, alice])).rows[0]!.id;
+
+    for (const bad of [0, -1, 3_600_001]) {
+      await expect(
+        app.query(
+          `INSERT INTO attachment (entity_type, entity_id, original_name, stored_path,
+                                   mime_type, size_bytes, duration_ms, uploaded_by_id)
+           VALUES ('message',$1,'v.webm','2026/09/' || gen_random_uuid() || '.webm',
+                   'audio/webm', 100, $2, $3)`, [messageId, bad, alice]),
+        `duration ${bad} should be refused`,
+      ).rejects.toThrow(/attachment_duration_sane/);
+    }
+  });
+
+  it('lets an attachment that is not audio have no length', async () => {
+    await actAs(alice, 'member');
+    const messageId = (await app.query<{ id: string }>(
+      `INSERT INTO message (thread_id, author_id, author_name, body)
+       VALUES ($1,$2,'Alice','(file)') RETURNING id`, [generalId, alice])).rows[0]!.id;
+    await app.query(
+      `INSERT INTO attachment (entity_type, entity_id, original_name, stored_path,
+                               mime_type, size_bytes, uploaded_by_id)
+       VALUES ('message',$1,'brief.pdf','2026/09/' || gen_random_uuid() || '.pdf',
+               'application/pdf', 4096, $2)`, [messageId, alice]);
+    const { rows } = await app.query<{ duration_ms: number | null }>(
+      `SELECT duration_ms FROM attachment WHERE entity_id = $1`, [messageId]);
+    expect(rows[0]!.duration_ms).toBeNull();
+  });
+
+  it('gives a voice note exactly the reach of its channel', async () => {
+    // A voice note is an attachment on a message, so who may hear it is who
+    // may read the message. There is no second rule for audio, and this proves
+    // that rather than assuming it.
+    //
+    // It does NOT prove the row goes with the channel, because it does not:
+    // `attachment.entity_id` is polymorphic and therefore has no foreign key,
+    // so deleting a thread cascades the messages and leaves their attachment
+    // rows behind, pointing at bytes on the volume that no channel can reach.
+    // That is a real gap and it predates voice notes; asserted below as what
+    // actually happens, not as what should.
+    const privateThread = await openChannel(`${MARK} voice reach`);
+    const messageId = (await app.query<{ id: string }>(
+      `INSERT INTO message (thread_id, author_id, author_name, body)
+       VALUES ($1,$2,'Boss','(file)') RETURNING id`, [privateThread, boss])).rows[0]!.id;
+    await app.query(
+      `INSERT INTO attachment (entity_type, entity_id, original_name, stored_path,
+                               mime_type, size_bytes, duration_ms, uploaded_by_id)
+       VALUES ('message',$1,'voice-message.webm','2026/09/' || gen_random_uuid() || '.webm',
+               'audio/webm', 5000, 3200, $2)`, [messageId, boss]);
+
+    await actAs(alice, 'member');
+    expect((await app.query(
+      `SELECT 1 FROM attachment WHERE entity_id = $1`, [messageId])).rows).toHaveLength(1);
+
+    await owner.query("SET app.bootstrap = 'on'");
+    await owner.query(`DELETE FROM thread WHERE id = $1`, [privateThread]);
+    expect((await owner.query(
+      `SELECT 1 FROM message WHERE id = $1`, [messageId])).rows).toHaveLength(0);
+
+    // The gap, stated. When it is closed this flips to toHaveLength(0) and
+    // this comment goes with it.
+    expect((await owner.query(
+      `SELECT 1 FROM attachment WHERE entity_id = $1`, [messageId])).rows).toHaveLength(1);
+  });
+
 });
 
 /**

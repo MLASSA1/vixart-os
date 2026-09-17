@@ -445,3 +445,45 @@ h3,
 @media (hover: none) {
   .msg-row .msg-actions { opacity: 1; }
 }
+
+/* --- Voice notes ------------------------------------------------------------
+   A plain track, not a waveform: a drawn waveform that does not correspond to
+   the audio is decoration wearing the clothes of information.
+   -------------------------------------------------------------------------- */
+
+.voice-track {
+  height: 5px;
+  width: 100%;
+  border-radius: 999px;
+  background-color: color-mix(in srgb, var(--color-void) 13%, transparent);
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.voice-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background-color: var(--color-accent);
+  transition: width 90ms linear;
+}
+
+/* The recording indicator: the one thing in the system allowed to blink,
+   because a live microphone should never be quiet about it. */
+.rec-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background-color: var(--color-danger);
+  animation: rec-pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes rec-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rec-dot { animation: none; }
+}

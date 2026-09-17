@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useEffect, useRef, useState } from 'react';
+import { useActionState, useCallback, useEffect, useRef, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { ErrorBanner, NoticeBanner } from '@/components/ui';
 import { EMPTY_STATE, type FormState } from '@/lib/form-state';
@@ -9,8 +9,12 @@ import {
   ALLOWED_SUMMARY,
   allowedTypesForInput,
   formatBytes,
+  formatDuration,
+  isAudio,
+  MAX_RECORDING_MS,
   MAX_UPLOAD_BYTES,
 } from '@/lib/upload-types';
+import { useRecorder, type Recording } from './useRecorder';
 
 function Submit({ label, busy }: { label: string; busy: string }) {
   const { pending } = useFormStatus();
@@ -159,6 +163,27 @@ export function Composer({
   const [tooBig, setTooBig] = useState(false);
   const [query, setQuery] = useState<string | null>(null);
   const [highlight, setHighlight] = useState(0);
+  /** Set only for a recording, and sent alongside it. */
+  const [voiceMs, setVoiceMs] = useState<number | null>(null);
+
+  /**
+   * A finished recording is put into the same file input as anything else, so
+   * from here on a voice note IS an attachment: same ceiling, same whitelist,
+   * same authenticated route, same row. Nothing downstream has a second path
+   * to keep in step.
+   */
+  const acceptRecording = useCallback(({ file, durationMs }: Recording) => {
+    const input = fileRef.current;
+    if (!input) return;
+    const bag = new DataTransfer();
+    bag.items.add(file);
+    input.files = bag.files;
+    setFileName(file.name);
+    setTooBig(file.size > MAX_UPLOAD_BYTES);
+    setVoiceMs(durationMs);
+  }, []);
+
+  const recorder = useRecorder(acceptRecording);
 
   const [state, formAction] = useActionState(async (previous: FormState, formData: FormData) => {
     const result = await action(previous, formData);
@@ -166,6 +191,7 @@ export function Composer({
       formRef.current?.reset();
       setFileName(null);
       setTooBig(false);
+      setVoiceMs(null);
       setQuery(null);
       onSent();
     }
@@ -181,6 +207,7 @@ export function Composer({
     fileRef.current.files = bag.files;
     setFileName(dropped.name);
     setTooBig(dropped.size > MAX_UPLOAD_BYTES);
+    setVoiceMs(null);
     onDropConsumed();
   }, [dropped, onDropConsumed]);
 
@@ -234,7 +261,7 @@ export function Composer({
       {fileName && (
         <div className="mb-1.5 flex items-center gap-2">
           <span className={`chip ${tooBig ? 'tone-danger' : 'tone-accent'}`}>
-            {fileName}
+            {voiceMs !== null ? `Voice note · ${formatDuration(voiceMs)}` : fileName}
             {tooBig ? ` — over ${formatBytes(MAX_UPLOAD_BYTES)}` : ''}
           </span>
           <button
@@ -244,11 +271,21 @@ export function Composer({
               if (fileRef.current) fileRef.current.value = '';
               setFileName(null);
               setTooBig(false);
+              setVoiceMs(null);
             }}
           >
             Remove
           </button>
         </div>
+      )}
+
+      {/* Travels with the file it describes, in the same submission. */}
+      {voiceMs !== null && <input type="hidden" name="durationMs" value={voiceMs} />}
+
+      {recorder.problem && (
+        <p className="tone-danger mb-1.5 inline-block rounded-[8px] px-2.5 py-1 text-[13px]">
+          {recorder.problem}
+        </p>
       )}
 
       <div className="relative">
@@ -275,6 +312,47 @@ export function Composer({
           </ul>
         )}
 
+        {recorder.recording ? (
+          /* While the microphone is open the bar is only about the microphone.
+             Leaving the textarea there would invite typing into a message that
+             is already being spoken. */
+          <div className="composer" role="group" aria-label="Recording">
+            <button
+              type="button"
+              onClick={recorder.cancel}
+              className="composer-icon"
+              aria-label="Discard recording"
+              title="Discard"
+            >
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                <path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 11v5M14 11v5" />
+              </svg>
+            </button>
+
+            <div className="flex flex-1 items-center gap-2.5 px-1">
+              <span className="rec-dot" aria-hidden="true" />
+              <span className="code text-[14px] tabular-nums">
+                {formatDuration(recorder.elapsedMs)}
+              </span>
+              <span className="hint hidden text-[12.5px] sm:inline">
+                Recording — stops itself at {formatDuration(MAX_RECORDING_MS)}
+              </span>
+            </div>
+
+            <button
+              type="button"
+              onClick={recorder.stop}
+              className="composer-send"
+              aria-label="Finish recording"
+              title="Finish"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <rect x="5" y="5" width="14" height="14" rx="2.5" />
+              </svg>
+            </button>
+          </div>
+        ) : (
         <div className="composer">
           <label
             className="composer-icon"
@@ -345,10 +423,36 @@ export function Composer({
             }}
           />
 
+          {/* The microphone sits beside send, and only when there is nothing
+              typed: with text in the box the obvious action is to send it. */}
+          <Mic recorder={recorder} />
           <Send />
         </div>
+        )}
       </div>
     </form>
+  );
+}
+
+/** The microphone. Absent rather than broken where recording cannot work. */
+function Mic({ recorder }: { recorder: ReturnType<typeof useRecorder> }) {
+  const { pending } = useFormStatus();
+  if (!recorder.supported) return null;
+  return (
+    <button
+      type="button"
+      onClick={() => void recorder.start()}
+      disabled={pending}
+      className="composer-icon"
+      aria-label="Record a voice note"
+      title="Record a voice note"
+    >
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <rect x="9" y="2" width="6" height="11" rx="3" />
+        <path d="M5 10a7 7 0 0 0 14 0M12 17v4M9 21h6" />
+      </svg>
+    </button>
   );
 }
 

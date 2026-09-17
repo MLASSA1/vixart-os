@@ -31,6 +31,11 @@ interface ChannelRow {
 
 export default async function ChannelPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  // A channel id that is not a uuid never reaches the database. Passing it
+  // through produced a 500 from PostgreSQL's uuid parser — a crash on a URL
+  // anybody can type, and one that says more about the stack than a 404 does.
+  if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
+
   const session = await auth();
   const me = session!.user;
 

@@ -20,7 +20,12 @@ import 'server-only';
 import { randomUUID } from 'node:crypto';
 import { mkdir, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { ALLOWED_SUMMARY, MAX_UPLOAD_BYTES, extensionFor } from './upload-types';
+import {
+  ALLOWED_SUMMARY,
+  MAX_UPLOAD_BYTES,
+  extensionFor,
+  normaliseMime,
+} from './upload-types';
 
 export function uploadsRoot(): string {
   return process.env.UPLOADS_DIR ?? path.join(process.cwd(), 'uploads');
@@ -44,7 +49,10 @@ export async function storeUpload(file: File): Promise<StoredFile> {
     );
   }
 
-  const mime = file.type || 'application/octet-stream';
+  // Normalised here, not just checked: a recorded blob arrives as
+  // `audio/webm;codecs=opus` and the codec should not be carried around the
+  // rest of the system, nor written into the database as a distinct type.
+  const mime = normaliseMime(file.type) || 'application/octet-stream';
   const extension = extensionFor(mime);
   if (!extension) {
     throw new Error(`Files of type "${mime}" are not accepted. ${ALLOWED_SUMMARY}`);

@@ -738,6 +738,13 @@ export const attachment = pgTable(
     mimeType: text('mime_type').notNull(),
     sizeBytes: bigint('size_bytes', { mode: 'bigint' }).notNull(),
     caption: text('caption'),
+    /**
+     * Playing time, for audio. Measured by the recorder rather than read from
+     * the file: WebM/Opus out of MediaRecorder carries no duration in its
+     * header, so a player cannot state the length until it has fetched the
+     * whole thing. See 0048.
+     */
+    durationMs: integer('duration_ms'),
     uploadedById: uuid('uploaded_by_id').references(() => appUser.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },

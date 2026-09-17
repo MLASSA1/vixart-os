@@ -38,6 +38,7 @@ export interface MessageRow {
   file_name: string | null;
   file_size: string | null;
   file_mime: string | null;
+  file_duration_ms: number | null;
 }
 
 /** Every channel this person can open, with what they have not read. */
@@ -82,7 +83,8 @@ export async function listMessages(
            a.id::text         AS file_id,
            a.original_name    AS file_name,
            a.size_bytes::text AS file_size,
-           a.mime_type        AS file_mime
+           a.mime_type        AS file_mime,
+           a.duration_ms      AS file_duration_ms
       FROM message m
       LEFT JOIN attachment a
         ON a.entity_type = 'message' AND a.entity_id = m.id

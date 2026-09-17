@@ -3,9 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { MessageRow } from '@/lib/chat-queries';
 import type { FormState } from '@/lib/form-state';
-import { formatBytes } from '@/lib/upload-types';
+import { formatBytes, isAudio } from '@/lib/upload-types';
 import { Avatar, clockTime, dayLabel, hueFor, MentionText } from './ChatBits';
 import { Composer, EditMessageForm } from './ChatForms';
+import { VoiceNote } from './VoiceNote';
 
 /**
  * One channel: oldest at the top, newest at the bottom, composer pinned below.
@@ -165,6 +166,7 @@ export function MessagePane({
           // A new day always starts a fresh run, so the name comes back.
           const grouped = !newDay && sameGroup(messages[i - 1], m);
           const image = (m.file_mime ?? '').startsWith('image/');
+          const voice = isAudio(m.file_mime);
 
           return (
             <div key={m.id}>
@@ -209,7 +211,15 @@ export function MessagePane({
                       <div className={m.body === '(file)' ? 'mb-0.5' : 'mb-1.5'}>
                         {/* Never a static path: the only way to the bytes is
                             the authenticated route, which re-checks who asks. */}
-                        {image ? (
+                        {voice ? (
+                          <VoiceNote
+                            src={`/api/files/${m.file_id}`}
+                            durationMs={
+                              m.file_duration_ms === null ? null : Number(m.file_duration_ms)
+                            }
+                            mine={mine}
+                          />
+                        ) : image ? (
                           <a href={`/api/files/${m.file_id}`} target="_blank" rel="noreferrer">
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img

@@ -96,6 +96,16 @@ export async function postMessageAction(
   const file = formData.get('file');
   const hasFile = file instanceof File && file.size > 0;
 
+  // How long the recording ran, by the recorder's own clock. Only a voice note
+  // sends this, and it is treated as a hint, not a fact: out of range or
+  // unparseable and the attachment simply has no duration, which the player
+  // handles. It decides nothing but a caption.
+  const claimed = Number(formData.get('durationMs'));
+  const durationMs =
+    Number.isFinite(claimed) && claimed > 0 && claimed <= 3_600_000
+      ? Math.round(claimed)
+      : null;
+
   if (!body && !hasFile) return { error: 'Write something, or attach a file.' };
 
   let messageId: string;
@@ -142,6 +152,8 @@ export async function postMessageAction(
           storedPath: stored.storedPath,
           mimeType: stored.mimeType,
           sizeBytes: BigInt(stored.sizeBytes),
+          // Kept only for what it describes. A duration on a PDF is nonsense.
+          durationMs: stored.mimeType.startsWith('audio/') ? durationMs : null,
           uploadedById: user.id,
         });
       });

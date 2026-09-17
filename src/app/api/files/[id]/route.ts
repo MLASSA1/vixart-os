@@ -6,6 +6,7 @@ import { auth } from '@/auth';
 import { attachment } from '@/db/schema';
 import { withUser } from '@/db/session';
 import { resolveInsideRoot } from '@/lib/uploads';
+import { parseRange } from '@/lib/http-range';
 
 /**
  * Serves an attachment. Authenticated, and filtered by the same RLS policies as
@@ -18,7 +19,7 @@ import { resolveInsideRoot } from '@/lib/uploads';
 export const dynamic = 'force-dynamic';
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
@@ -61,18 +62,48 @@ export async function GET(
     );
   }
 
-  const stream = Readable.toWeb(createReadStream(absolute)) as ReadableStream;
+  // Common to every answer below.
+  const headers: Record<string, string> = {
+    'Content-Type': record.mimeType,
+    // `attachment` for everything: an inline PDF or image from our own origin
+    // is a needless risk, and the allowlist is not a substitute for it. It does
+    // not stop an <audio> or <video> element playing the bytes, which is how a
+    // voice note is heard.
+    'Content-Disposition': `attachment; filename="${encodeURIComponent(record.originalName)}"`,
+    'Content-Security-Policy': "default-src 'none'; sandbox",
+    'X-Content-Type-Options': 'nosniff',
+    'Cache-Control': 'private, no-store',
+    // Advertised so a player knows it may skip. Without this the scrubber on a
+    // voice note is decorative: play works and dragging does nothing, silently.
+    'Accept-Ranges': 'bytes',
+  };
 
+  const wanted = parseRange(request.headers.get('range'), size);
+
+  if (wanted.kind === 'unsatisfiable') {
+    return new NextResponse(null, {
+      status: 416,
+      headers: { ...headers, 'Content-Range': `bytes */${size}` },
+    });
+  }
+
+  if (wanted.kind === 'range') {
+    const { start, end } = wanted.range;
+    const slice = Readable.toWeb(
+      createReadStream(absolute, { start, end }),
+    ) as ReadableStream;
+    return new NextResponse(slice, {
+      status: 206,
+      headers: {
+        ...headers,
+        'Content-Length': String(end - start + 1),
+        'Content-Range': `bytes ${start}-${end}/${size}`,
+      },
+    });
+  }
+
+  const stream = Readable.toWeb(createReadStream(absolute)) as ReadableStream;
   return new NextResponse(stream, {
-    headers: {
-      'Content-Type': record.mimeType,
-      'Content-Length': String(size),
-      // `attachment` for everything: an inline PDF or image from our own origin
-      // is a needless risk, and the allowlist is not a substitute for it.
-      'Content-Disposition': `attachment; filename="${encodeURIComponent(record.originalName)}"`,
-      'Content-Security-Policy': "default-src 'none'; sandbox",
-      'X-Content-Type-Options': 'nosniff',
-      'Cache-Control': 'private, no-store',
-    },
+    headers: { ...headers, 'Content-Length': String(size) },
   });
 }
