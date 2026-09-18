@@ -84,8 +84,27 @@ describe.skipIf(!HAS_DB)('invoicing (integration)', () => {
 
   beforeAll(async () => {
     admin = await connect();
-    const { rows } = await admin.query<{ id: string }>('SELECT id FROM company LIMIT 1');
-    companyId = rows[0]!.id;
+
+    // Its own client, not `SELECT id FROM company LIMIT 1`.
+    //
+    // That picked whichever real client sorted first and hung every probe
+    // document off it — Bader Training Center, as it happened. It also meant
+    // this file could only run if that client happened to satisfy whatever
+    // issuing requires, which since 0049 includes a real ICE. Inventing one on
+    // a real company to make a test pass would be putting a fabricated legal
+    // identifier on a record that gets printed on invoices.
+    const setup = await maintenance();
+    try {
+      const { rows } = await setup.query<{ id: string }>(
+        `INSERT INTO company (name, status, relationship, ice, identifiant_fiscal)
+         VALUES ($1, 'client', 'client', '000000000000003', '00000000')
+         RETURNING id`,
+        [`${MARK} client`],
+      );
+      companyId = rows[0]!.id;
+    } finally {
+      await setup.end();
+    }
   });
 
   afterAll(async () => {
@@ -104,6 +123,7 @@ describe.skipIf(!HAS_DB)('invoicing (integration)', () => {
         [MARK],
       );
       await keeper.query(`DELETE FROM document WHERE subject = $1`, [MARK]);
+      await keeper.query(`DELETE FROM company WHERE name = $1`, [`${MARK} client`]);
       // Roll the counters back to the highest number that still exists, so the
       // real numbering does not inherit gaps from the test run.
       await keeper.query(`
@@ -139,7 +159,7 @@ describe.skipIf(!HAS_DB)('invoicing (integration)', () => {
       connections.map(async (c, i) => {
         await c.query('BEGIN');
         const { rows } = await c.query<{ issue_document: string }>(
-          'SELECT app.issue_document($1) AS issue_document',
+          "SELECT app.issue_document($1, 'virement') AS issue_document",
           [ids[i]],
         );
         await c.query('COMMIT');
@@ -168,7 +188,7 @@ describe.skipIf(!HAS_DB)('invoicing (integration)', () => {
 
   it('(b) an issued invoice cannot be modified', async () => {
     const id = await makeDraft(admin, 'facture');
-    await admin.query('SELECT app.issue_document($1)', [id]);
+    await admin.query("SELECT app.issue_document($1, 'virement')", [id]);
 
     await expect(
       admin.query('UPDATE document SET total_incl_vat = 1 WHERE id = $1', [id]),
@@ -185,7 +205,7 @@ describe.skipIf(!HAS_DB)('invoicing (integration)', () => {
 
   it('(b2) the lines of an issued invoice are frozen too', async () => {
     const id = await makeDraft(admin, 'facture');
-    await admin.query('SELECT app.issue_document($1)', [id]);
+    await admin.query("SELECT app.issue_document($1, 'virement')", [id]);
 
     await expect(
       admin.query('UPDATE document_line SET unit_price_centimes = 1 WHERE document_id = $1', [id]),
@@ -206,7 +226,7 @@ describe.skipIf(!HAS_DB)('invoicing (integration)', () => {
 
   it('marking an invoice paid is allowed; re-issuing is not', async () => {
     const id = await makeDraft(admin, 'facture');
-    await admin.query('SELECT app.issue_document($1)', [id]);
+    await admin.query("SELECT app.issue_document($1, 'virement')", [id]);
 
     await admin.query(`UPDATE document SET status='paye', paid_at=now() WHERE id=$1`, [id]);
     const { rows } = await admin.query<{ status: string }>(
@@ -216,7 +236,7 @@ describe.skipIf(!HAS_DB)('invoicing (integration)', () => {
     expect(rows[0]!.status).toBe('paye');
 
     await expect(
-      admin.query('SELECT app.issue_document($1)', [id]),
+      admin.query("SELECT app.issue_document($1, 'virement')", [id]),
     ).rejects.toThrow(/already issued/i);
   });
 
@@ -226,13 +246,13 @@ describe.skipIf(!HAS_DB)('invoicing (integration)', () => {
       [companyId, MARK],
     );
     await expect(
-      admin.query('SELECT app.issue_document($1)', [rows[0]!.id]),
+      admin.query("SELECT app.issue_document($1, 'virement')", [rows[0]!.id]),
     ).rejects.toThrow(/no lines/i);
   });
 
   it('freezes the totals and the client identity at issue', async () => {
     const id = await makeDraft(admin, 'facture');
-    await admin.query('SELECT app.issue_document($1)', [id]);
+    await admin.query("SELECT app.issue_document($1, 'virement')", [id]);
 
     const { rows } = await admin.query<{
       total_excl_vat: string; total_vat: string; total_incl_vat: string; client_name: string;
@@ -258,4 +278,103 @@ describe.skipIf(!HAS_DB)('invoicing (integration)', () => {
       ),
     ).rejects.toThrow(/document_zero_vat_needs_reason/i);
   });
+
+  // --- article 145 of the CGI ----------------------------------------------
+  //
+  // Both conditions live in app.issue_document rather than in a form, because
+  // a form is one caller and the function is the only door to a number. A
+  // document that cannot be issued cannot be sent.
+
+  it('refuses an invoice to a client with no ICE', async () => {
+    const setup = await maintenance();
+    let noIce: string;
+    try {
+      const { rows } = await setup.query<{ id: string }>(
+        `INSERT INTO company (name, status, relationship)
+         VALUES ($1, 'client', 'client') RETURNING id`, [`${MARK} no ice`]);
+      noIce = rows[0]!.id;
+    } finally { await setup.end(); }
+
+    const { rows: d } = await admin.query<{ id: string }>(
+      `INSERT INTO document (doc_type, company_id, subject, vat_rate_bp)
+       VALUES ('facture', $1, $2, 2000) RETURNING id`, [noIce, MARK]);
+    await admin.query(
+      `INSERT INTO document_line (document_id, label, unit_price_centimes, quantity_millis)
+       VALUES ($1, 'Test line', 100000, 1000)`, [d[0]!.id]);
+
+    await expect(
+      admin.query("SELECT app.issue_document($1, 'virement')", [d[0]!.id]),
+    ).rejects.toThrow(/no ICE/i);
+
+    // And it is still a draft, with no number taken.
+    const { rows: after } = await admin.query<{ status: string; number: string | null }>(
+      `SELECT status, number FROM document WHERE id = $1`, [d[0]!.id]);
+    expect(after[0]!.status).toBe('brouillon');
+    expect(after[0]!.number).toBeNull();
+
+    const cleanup = await maintenance();
+    try {
+      await cleanup.query(`DELETE FROM document WHERE id = $1`, [d[0]!.id]);
+      await cleanup.query(`DELETE FROM company WHERE id = $1`, [noIce]);
+    } finally { await cleanup.end(); }
+  });
+
+  it('refuses an invoice with no mode de règlement', async () => {
+    const id = await makeDraft(admin, 'facture');
+    await expect(
+      admin.query('SELECT app.issue_document($1)', [id]),
+    ).rejects.toThrow(/mode de règlement/i);
+  });
+
+  it('issues a quote without either — a quote has no fiscal existence', async () => {
+    // The common real case: you send a quote before the client has given you
+    // their ICE, and before anyone has agreed how it will be paid.
+    const setup = await maintenance();
+    let bare: string;
+    try {
+      const { rows } = await setup.query<{ id: string }>(
+        `INSERT INTO company (name, status, relationship)
+         VALUES ($1, 'prospect', 'client') RETURNING id`, [`${MARK} bare`]);
+      bare = rows[0]!.id;
+    } finally { await setup.end(); }
+
+    const { rows: d } = await admin.query<{ id: string }>(
+      `INSERT INTO document (doc_type, company_id, subject, vat_rate_bp)
+       VALUES ('devis', $1, $2, 2000) RETURNING id`, [bare, MARK]);
+    await admin.query(
+      `INSERT INTO document_line (document_id, label, unit_price_centimes, quantity_millis)
+       VALUES ($1, 'Test line', 100000, 1000)`, [d[0]!.id]);
+
+    const { rows: n } = await admin.query<{ issue_document: string }>(
+      'SELECT app.issue_document($1) AS issue_document', [d[0]!.id]);
+    expect(n[0]!.issue_document).toMatch(/^DEV-/);
+
+    const cleanup = await maintenance();
+    try {
+      await cleanup.query(`DELETE FROM document WHERE id = $1`, [d[0]!.id]);
+      await cleanup.query(`DELETE FROM company WHERE id = $1`, [bare]);
+      await cleanup.query(`
+        UPDATE document_counter c SET last_seq = coalesce(
+          (SELECT max(d.number_seq) FROM document d
+            WHERE d.doc_type = c.doc_type AND d.number_year = c.year), 0)`);
+    } finally { await cleanup.end(); }
+  });
+
+  it('freezes the mode de règlement onto the invoice', async () => {
+    const id = await makeDraft(admin, 'facture');
+    await admin.query("SELECT app.issue_document($1, 'cheque')", [id]);
+    const { rows } = await admin.query<{ payment_method: string; client_ice: string }>(
+      `SELECT payment_method, client_ice FROM document WHERE id = $1`, [id]);
+    expect(rows[0]!.payment_method).toBe('cheque');
+    // And the client's ICE is frozen beside it, as article 145 wants.
+    expect(rows[0]!.client_ice).toBe('000000000000003');
+  });
+
+  it('accepts only the three modes de règlement', async () => {
+    const id = await makeDraft(admin, 'facture');
+    await expect(
+      admin.query("SELECT app.issue_document($1, 'bitcoin')", [id]),
+    ).rejects.toThrow(/document_payment_method_valid/);
+  });
+
 });

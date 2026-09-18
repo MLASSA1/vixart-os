@@ -70,13 +70,14 @@ describe.skipIf(!HAS_DB)('purging a populated probe company', () => {
 
     // A client that only LOOKS like a probe. It must survive.
     keepId = (await db.query<{ id: string }>(
-      `INSERT INTO company (name, status, relationship) VALUES ($1,'client','client') RETURNING id`,
+      `INSERT INTO company (name, status, relationship, ice)
+         VALUES ($1,'client','client','000000000000001') RETURNING id`,
       [KEEP])).rows[0]!.id;
 
     // The probe, with everything hanging off it.
     companyId = (await db.query<{ id: string }>(
-      `INSERT INTO company (name, status, relationship, retenue_source)
-       VALUES ($1,'client','client',false) RETURNING id`, [PROBE])).rows[0]!.id;
+      `INSERT INTO company (name, status, relationship, retenue_source, ice)
+       VALUES ($1,'client','client',false,'000000000000002') RETURNING id`, [PROBE])).rows[0]!.id;
 
     await db.query(`INSERT INTO contact (company_id, full_name) VALUES ($1,'Probe Contact')`, [companyId]);
     await db.query(
@@ -107,7 +108,7 @@ describe.skipIf(!HAS_DB)('purging a populated probe company', () => {
     await db.query(
       `INSERT INTO document_line (document_id,label,unit,unit_price_centimes,quantity_millis,position)
        VALUES ($1,'Work','forfait',500000,1000,0)`, [invoiceId]);
-    await db.query(`SELECT app.issue_document($1)`, [invoiceId]);
+    await db.query(`SELECT app.issue_document($1, 'virement')`, [invoiceId]);
 
     const net = (await db.query<{ n: string }>(
       `SELECT net_to_collect::text AS n FROM document WHERE id=$1`, [invoiceId])).rows[0]!.n;

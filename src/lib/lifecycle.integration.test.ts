@@ -90,7 +90,8 @@ describe.skipIf(!HAS_DB)('a whole engagement, end to end', () => {
     memberId = await pick('member');
 
     const c = await db.query<{ id: string }>(
-      `INSERT INTO company (name, status, relationship, retenue_source) VALUES ($1,'lead','client',false) RETURNING id`,
+      `INSERT INTO company (name, status, relationship, retenue_source, ice)
+         VALUES ($1,'lead','client',false,'000000000000001') RETURNING id`,
       [MARK]);
     companyId = c.rows[0]!.id;
   });
@@ -124,7 +125,7 @@ describe.skipIf(!HAS_DB)('a whole engagement, end to end', () => {
       `INSERT INTO document_line (document_id, service_id, label, unit, unit_price_centimes, quantity_millis, position)
        SELECT $1, service_id, label, unit, unit_price_centimes, quantity_millis, position
          FROM deal_line WHERE deal_id=$2 ORDER BY position`, [q.rows[0]!.id, dealId]);
-    await db.query(`SELECT app.issue_document($1)`, [q.rows[0]!.id]);
+    await db.query(`SELECT app.issue_document($1, 'virement')`, [q.rows[0]!.id]);
 
     const quote = await db.query<{ ht: string; number: string }>(
       `SELECT total_excl_vat::text AS ht, number FROM document WHERE id=$1`, [q.rows[0]!.id]);
@@ -142,7 +143,7 @@ describe.skipIf(!HAS_DB)('a whole engagement, end to end', () => {
       await db.query(
         `INSERT INTO document_line (document_id,label,unit,unit_price_centimes,quantity_millis,position)
          VALUES ($1,'Retainer','forfait',100000,1000,0)`, [d.rows[0]!.id]);
-      await db.query(`SELECT app.issue_document($1)`, [d.rows[0]!.id]);
+      await db.query(`SELECT app.issue_document($1, 'virement')`, [d.rows[0]!.id]);
       const n = await db.query<{ seq: number }>(`SELECT number_seq AS seq FROM document WHERE id=$1`, [d.rows[0]!.id]);
       numbers.push(n.rows[0]!.seq);
     }
@@ -160,7 +161,7 @@ describe.skipIf(!HAS_DB)('a whole engagement, end to end', () => {
     const empty = await db.query<{ id: string }>(
       `INSERT INTO document (doc_type, company_id, vat_rate_bp, withholding, withholding_rate_bp, client_name, created_by_id)
        VALUES ('facture',$1,2000,false,0,$2,$3) RETURNING id`, [companyId, MARK, adminId]);
-    await expect(db.query(`SELECT app.issue_document($1)`, [empty.rows[0]!.id])).rejects.toThrow(/no lines/i);
+    await expect(db.query(`SELECT app.issue_document($1, 'virement')`, [empty.rows[0]!.id])).rejects.toThrow(/no lines/i);
 
     const after = await db.query<{ seq: string }>(
       `SELECT coalesce(max(number_seq),0)::text AS seq FROM document
@@ -177,7 +178,7 @@ describe.skipIf(!HAS_DB)('a whole engagement, end to end', () => {
     await db.query(
       `INSERT INTO document_line (document_id,label,unit,unit_price_centimes,quantity_millis,position)
        VALUES ($1,'Production','forfait',5000000,1000,0)`, [inv]);
-    await db.query(`SELECT app.issue_document($1)`, [inv]);
+    await db.query(`SELECT app.issue_document($1, 'virement')`, [inv]);
 
     const net = BigInt((await db.query<{ n: string }>(
       `SELECT net_to_collect::text AS n FROM document WHERE id=$1`, [inv])).rows[0]!.n);

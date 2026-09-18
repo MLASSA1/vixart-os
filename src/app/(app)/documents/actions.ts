@@ -237,20 +237,34 @@ export async function updateDraftAction(
  * under a row lock, the totals are computed and the client's identity is
  * frozen, all in one transaction. From here the document is read-only.
  */
-export async function issueDocumentAction(formData: FormData): Promise<void> {
+export async function issueDocumentAction(
+  _previous: FormState,
+  formData: FormData,
+): Promise<FormState> {
   const id = String(formData.get('documentId') ?? '');
   const confirmation = String(formData.get('confirmation') ?? '').trim();
+  const method = String(formData.get('paymentMethod') ?? '').trim() || null;
   // Issuing is irreversible — a wrong one can only be corrected by a credit
   // note — so it takes a typed confirmation rather than a single click.
-  if (!id || confirmation !== 'ISSUE') return;
+  if (!id) return { error: 'Which document?' };
+  if (confirmation !== 'ISSUE') return { error: 'Type ISSUE to confirm.' };
 
-  await withUser(async (tx) => {
-    await tx.execute(sql`SELECT app.issue_document(${id})`);
-  });
+  try {
+    await withUser(async (tx) => {
+      // Both article 145 conditions are checked inside the function, not here:
+      // a rule that decides whether a document is legally valid belongs on the
+      // one door every document goes through, not in a form handler that any
+      // other caller can go around.
+      await tx.execute(sql`SELECT app.issue_document(${id}, ${method})`);
+    });
+  } catch (error) {
+    return { error: describeDbError(error, {}) };
+  }
 
   revalidatePath('/documents');
   revalidatePath(`/documents/${id}`);
   revalidatePath('/dashboard');
+  return EMPTY_STATE;
 }
 
 export async function setDocumentStatusAction(formData: FormData): Promise<void> {

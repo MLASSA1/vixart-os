@@ -538,6 +538,11 @@ export const document = pgTable('document', {
   subject: text('subject'),
   notes: text('notes'),
   paymentTerms: text('payment_terms'),
+  /**
+   * Mode de règlement — CGI art. 145. Chosen when the document is issued and
+   * refused by app.issue_document if absent on an invoice. Null on a quote.
+   */
+  paymentMethod: text('payment_method'),
   correctsId: uuid('corrects_id'),
 
   paidAt: timestamp('paid_at', { withTimezone: true }),

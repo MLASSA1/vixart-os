@@ -55,7 +55,8 @@ describe.skipIf(!HAS_DB)('the advance, deal to invoice', () => {
     userId = (await db.query<{ id: string }>(
       `SELECT id FROM app_user WHERE role='admin' LIMIT 1`)).rows[0]!.id;
     companyId = (await db.query<{ id: string }>(
-      `INSERT INTO company (name, status, retenue_source) VALUES ($1,'client',false) RETURNING id`,
+      `INSERT INTO company (name, status, retenue_source, ice)
+         VALUES ($1,'client',false,'000000000000001') RETURNING id`,
       [MARK])).rows[0]!.id;
   });
 
@@ -110,7 +111,7 @@ describe.skipIf(!HAS_DB)('the advance, deal to invoice', () => {
   it('moves no money by itself — an advance agreed is not an advance received', async () => {
     const dealId = await dealWithAdvance('720000');
     const invId = await invoiceFromDeal(dealId);
-    await db.query(`SELECT app.issue_document($1)`, [invId]);
+    await db.query(`SELECT app.issue_document($1, 'virement')`, [invId]);
 
     const paid = await db.query(`SELECT 1 FROM document_payment WHERE document_id=$1`, [invId]);
     const ledger = await db.query(`SELECT 1 FROM finance_entry WHERE document_id=$1`, [invId]);
@@ -124,7 +125,7 @@ describe.skipIf(!HAS_DB)('the advance, deal to invoice', () => {
   it('the advance in, then the balance on delivery, settles it', async () => {
     const dealId = await dealWithAdvance('720000');
     const invId = await invoiceFromDeal(dealId);
-    await db.query(`SELECT app.issue_document($1)`, [invId]);
+    await db.query(`SELECT app.issue_document($1, 'virement')`, [invId]);
 
     const net = BigInt((await db.query<{ n: string }>(
       `SELECT net_to_collect::text AS n FROM document WHERE id=$1`, [invId])).rows[0]!.n);
@@ -146,7 +147,7 @@ describe.skipIf(!HAS_DB)('the advance, deal to invoice', () => {
   it('freezes the agreed advance once the invoice is issued', async () => {
     const dealId = await dealWithAdvance('500000');
     const invId = await invoiceFromDeal(dealId);
-    await db.query(`SELECT app.issue_document($1)`, [invId]);
+    await db.query(`SELECT app.issue_document($1, 'virement')`, [invId]);
 
     await expect(
       db.query(`UPDATE document SET advance_expected_centimes = 1 WHERE id=$1`, [invId]),

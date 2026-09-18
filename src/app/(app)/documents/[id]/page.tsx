@@ -23,6 +23,7 @@ import {
   setDocumentStatusAction,
   updateDraftAction,
 } from '../actions';
+import { IssueForm } from './IssueForm';
 
 export const dynamic = 'force-dynamic';
 
@@ -346,21 +347,13 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
               every figure, and makes the document permanently read-only. There is no
               undo — a mistake is corrected by issuing a credit note.
             </p>
-            <form action={issueDocumentAction} className="mt-4 flex flex-wrap items-end gap-3">
-              <input type="hidden" name="documentId" value={record.id} />
-              <label className="block" htmlFor="confirmation">
-                <span className="label block">Type ISSUE to confirm</span>
-                <input
-                  id="confirmation"
-                  name="confirmation"
-                  autoComplete="off"
-                  className="input w-48"
-                />
-              </label>
-              <button type="submit" className="btn" disabled={lines.length === 0}>
-                Issue {DOCUMENT_TYPE_LABELS[record.doc_type]}
-              </button>
-            </form>
+            <IssueForm
+              action={issueDocumentAction}
+              documentId={record.id}
+              docType={record.doc_type}
+              typeLabel={DOCUMENT_TYPE_LABELS[record.doc_type] ?? record.doc_type}
+              hasLines={lines.length > 0}
+            />
             {lines.length === 0 && (
               <p className="hint mt-2">Add at least one line before issuing.</p>
             )}

@@ -64,6 +64,7 @@ export async function GET(
     subject: (data.doc.subject as string) ?? null,
     notes: (data.doc.notes as string) ?? null,
     paymentTerms: (data.doc.payment_terms as string) ?? null,
+    paymentMethod: (data.doc.payment_method as string) ?? null,
     vatRateBp: Number(data.doc.vat_rate_bp),
     vatExemptionReason: (data.doc.vat_exemption_reason as string) ?? null,
     withholding: Boolean(data.doc.withholding),

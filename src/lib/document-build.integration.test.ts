@@ -93,7 +93,7 @@ describe.skipIf(!HAS_DB)('building a document in one transaction', () => {
       ['Film', '1200000', '2000'],
       ['Montage', '350050', '1000'],
     ]);
-    await db.query(`SELECT app.issue_document($1)`, [id]);
+    await db.query(`SELECT app.issue_document($1, 'virement')`, [id]);
 
     const { rows } = await db.query(
       `SELECT total_excl_vat::text AS ht, total_vat::text AS tva,
@@ -111,7 +111,7 @@ describe.skipIf(!HAS_DB)('building a document in one transaction', () => {
 
   it('caps a discount at the subtotal rather than going negative', async () => {
     const id = await build('facture', [['Shoot', '100000', '1000']], '500000');
-    await db.query(`SELECT app.issue_document($1)`, [id]);
+    await db.query(`SELECT app.issue_document($1, 'virement')`, [id]);
     const { rows } = await db.query(
       `SELECT total_excl_vat::text AS ht, total_incl_vat::text AS ttc FROM document WHERE id=$1`,
       [id],
@@ -127,7 +127,7 @@ describe.skipIf(!HAS_DB)('building a document in one transaction', () => {
     const id = await build('devis', [
       ['A', '1000', '333'], ['B', '1000', '333'], ['C', '1000', '333'],
     ]);
-    await db.query(`SELECT app.issue_document($1)`, [id]);
+    await db.query(`SELECT app.issue_document($1, 'virement')`, [id]);
     const { rows } = await db.query(
       `SELECT total_excl_vat::text AS ht FROM document WHERE id=$1`, [id],
     );
@@ -136,7 +136,7 @@ describe.skipIf(!HAS_DB)('building a document in one transaction', () => {
 
   it('keeps the client identity frozen when the company later changes', async () => {
     const id = await build('facture', [['Retainer', '500000', '1000']]);
-    await db.query(`SELECT app.issue_document($1)`, [id]);
+    await db.query(`SELECT app.issue_document($1, 'virement')`, [id]);
     // A valid ICE is 15 digits — the column has a CHECK that says so, which is
     // itself worth knowing: a malformed ICE cannot reach a document at all.
     await db.query(
@@ -159,7 +159,7 @@ describe.skipIf(!HAS_DB)('building a document in one transaction', () => {
       [companyId, MARK, userId],
     );
     await expect(
-      db.query(`SELECT app.issue_document($1)`, [d.rows[0]!.id]),
+      db.query(`SELECT app.issue_document($1, 'virement')`, [d.rows[0]!.id]),
     ).rejects.toThrow(/no lines/i);
   });
 });

@@ -247,3 +247,24 @@ export const PREP_KINDS = [
 ] as const;
 
 export const PREP_KIND_LABELS = toMap(PREP_KINDS);
+
+/**
+ * Mode de règlement on an invoice — CGI art. 145.
+ *
+ * Deliberately NOT the PAYMENT_METHODS list above. That one records how money
+ * actually moved on a finance entry and carries 'carte' and 'autre'; this one
+ * is a legal statement on an issued document, its wording is French because
+ * the document is, and its values are closed by a CHECK constraint so nothing
+ * outside the three can reach the database.
+ */
+export const INVOICE_PAYMENT_METHODS = [
+  { value: 'virement', label: 'Virement bancaire' },
+  { value: 'cheque', label: 'Chèque' },
+  { value: 'especes', label: 'Espèces' },
+] as const;
+
+export const INVOICE_PAYMENT_METHOD_FR: Record<string, string> = {
+  virement: 'Virement bancaire',
+  cheque: 'Chèque',
+  especes: 'Espèces',
+};

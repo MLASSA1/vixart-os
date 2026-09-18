@@ -14,7 +14,7 @@ import {
 import { VIXART } from '@/lib/vixart';
 import { amountInWords } from '@/lib/amount-in-words';
 import { formatMAD, formatRate, fromMillis, lineTotal } from '@/lib/money';
-import { DOCUMENT_TITLE_FR } from '@/lib/labels';
+import { DOCUMENT_TITLE_FR, INVOICE_PAYMENT_METHOD_FR } from '@/lib/labels';
 
 /**
  * A4 quote / invoice / credit note.
@@ -239,6 +239,8 @@ export interface PdfInput {
   subject: string | null;
   notes: string | null;
   paymentTerms: string | null;
+  /** Mode de règlement — CGI art. 145. Invoices only. */
+  paymentMethod: string | null;
   vatRateBp: number;
   vatExemptionReason: string | null;
   withholding: boolean;
@@ -286,22 +288,14 @@ export async function renderDocumentPdf(input: PdfInput): Promise<Buffer> {
             </Text>
             <Text style={s.small}>{VIXART.activity}</Text>
             <Text style={s.small}>{VIXART.address}</Text>
-            <Text style={[s.meta, { marginTop: 4 }]}>{VIXART.rc}</Text>
-            <Text style={s.meta}>
-              ICE {VIXART.ice} · IF {VIXART.taxId}
-            </Text>
-            {/* Printed only once the real values are on file. See lib/vixart.ts. */}
-            {(VIXART.taxeProfessionnelle || VIXART.cnss) && (
-              <Text style={s.meta}>
-                {[
-                  VIXART.taxeProfessionnelle && `TP ${VIXART.taxeProfessionnelle}`,
-                  VIXART.cnss && `CNSS ${VIXART.cnss}`,
-                ].filter(Boolean).join(' · ')}
-              </Text>
-            )}
-            {VIXART.capitalSocial && (
-              <Text style={s.meta}>Capital social : {VIXART.capitalSocial}</Text>
-            )}
+            {/*
+              Our own identifiers — RC, ICE, IF, Patente — are NOT here.
+              They print once, in the footer, which is the block that repeats
+              and therefore the one that makes page two onwards compliant.
+              Printing them twice on page one and once on every other page
+              said the same thing in two places and disagreed about what to
+              call the patente.
+            */}
           </View>
           <View style={{ width: '40%' }}>
             <Text style={s.docTitle}>{title}</Text>
@@ -328,7 +322,17 @@ export async function renderDocumentPdf(input: PdfInput): Promise<Buffer> {
               <Text style={s.small}>{input.clientName}</Text>
             )}
             {input.clientAddress && <Text style={s.small}>{input.clientAddress}</Text>}
-            {input.clientIce && <Text style={s.meta}>ICE {input.clientIce}</Text>}
+            {/*
+              Article 145 wants the ICE of BOTH parties on an invoice, so a
+              missing one is stated rather than omitted. An invoice cannot be
+              issued without it — app.issue_document refuses — but a quote can,
+              and this is where somebody notices it needs asking for.
+            */}
+            {input.clientIce ? (
+              <Text style={s.meta}>ICE {input.clientIce}</Text>
+            ) : (
+              <Text style={[s.meta, { fontWeight: 600 }]}>ICE — non renseigné —</Text>
+            )}
             {input.clientIf && <Text style={s.meta}>IF {input.clientIf}</Text>}
           </View>
           {input.subject && (
@@ -471,6 +475,18 @@ export async function renderDocumentPdf(input: PdfInput): Promise<Buffer> {
           <Text style={s.note}>Conditions de règlement : {input.paymentTerms}</Text>
         )}
         {input.notes && <Text style={s.note}>{input.notes}</Text>}
+
+        {/*
+          Mode de règlement, required on an invoice by article 145. Stated
+          plainly rather than folded into the payment terms, which are a
+          deadline and a different obligation.
+        */}
+        {input.docType !== 'devis' && input.paymentMethod && (
+          <Text style={s.note}>
+            Mode de règlement :{' '}
+            {INVOICE_PAYMENT_METHOD_FR[input.paymentMethod] ?? input.paymentMethod}
+          </Text>
+        )}
 
         {/*
           Where to pay. Invoices only: a quote is an offer, not a demand for

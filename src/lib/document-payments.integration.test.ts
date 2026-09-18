@@ -70,7 +70,8 @@ describe.skipIf(!HAS_DB)('advance payments (integration)', () => {
     userId = u.rows[0]!.id;
     await purge(); // a crashed earlier run must not fail this one
     const c = await db.query<{ id: string }>(
-      `INSERT INTO company (name, status, retenue_source) VALUES ($1, 'client', false) RETURNING id`,
+      `INSERT INTO company (name, status, retenue_source, ice)
+         VALUES ($1,'client',false,'000000000000001') RETURNING id`,
       [MARK],
     );
     companyId = c.rows[0]!.id;
@@ -97,7 +98,7 @@ describe.skipIf(!HAS_DB)('advance payments (integration)', () => {
        VALUES ($1, 'Production', 'forfait', 1000000, 1000, 0)`,
       [id],
     );
-    await db.query(`SELECT app.issue_document($1)`, [id]);
+    await db.query(`SELECT app.issue_document($1, 'virement')`, [id]);
     const n = await db.query<{ net: string }>(`SELECT net_to_collect::text AS net FROM document WHERE id=$1`, [id]);
     return { id, net: BigInt(n.rows[0]!.net) };
   }
