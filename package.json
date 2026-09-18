@@ -1,7 +1,7 @@
 {
   "name": "vixart-os",
   "version": "0.1.0",
-  "description": "VIXART OS \u2014 syst\u00e8me d'exploitation interne de SOCIETE VIXART SARL",
+  "description": "VIXART OS — système d'exploitation interne de SOCIETE VIXART SARL",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -17,14 +17,16 @@
   },
   "dependencies": {
     "@react-pdf/renderer": "^4.6.1",
+    "@types/web-push": "^3.6.4",
     "bcryptjs": "^3.0.3",
     "drizzle-orm": "^0.45.2",
-    "next": "^15.5.23",
+    "next": "^15.5.25",
     "next-auth": "^5.0.0-beta.32",
     "pg": "^8.23.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "server-only": "^0.0.1",
+    "web-push": "^3.6.7",
     "zod": "^4.4.3"
   },
   "devDependencies": {
