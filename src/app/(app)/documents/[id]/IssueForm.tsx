@@ -24,15 +24,24 @@ export function IssueForm({
   docType,
   typeLabel,
   hasLines,
+  needsIceWaiver,
+  clientName,
 }: {
   action: (state: FormState, formData: FormData) => Promise<FormState>;
   documentId: string;
   docType: string;
   typeLabel: string;
   hasLines: boolean;
+  /**
+   * The client cannot supply an ICE and is not a private individual — so this
+   * invoice can only be issued by waiving article 145 in writing.
+   */
+  needsIceWaiver: boolean;
+  clientName: string;
 }) {
   const [state, formAction] = useActionState(action, EMPTY_STATE);
   const isInvoice = docType !== 'devis';
+  const offerWaiver = isInvoice && needsIceWaiver;
 
   return (
     <>
@@ -64,14 +73,45 @@ export function IssueForm({
           <input id="confirmation" name="confirmation" autoComplete="off" className="input w-48" />
         </label>
 
+        {offerWaiver && (
+          <label className="block w-full" htmlFor="iceWaiverReason">
+            <span className="label block">
+              Issue without {clientName}&apos;s ICE — write why
+            </span>
+            <input
+              id="iceWaiverReason"
+              name="iceWaiverReason"
+              autoComplete="off"
+              className="input"
+              placeholder="e.g. Client is registering; ICE promised before the end of the month"
+            />
+          </label>
+        )}
+
         <Submit label={`Issue ${typeLabel}`} disabled={!hasLines} />
       </form>
 
-      {isInvoice && (
+      {isInvoice && !offerWaiver && (
         <p className="hint mt-2">
           Article 145 of the CGI requires the client&apos;s ICE and the mode de règlement
           on an invoice. Both are checked when it is issued.
         </p>
+      )}
+
+      {offerWaiver && (
+        <div className="tone-warn mt-3 rounded-[10px] px-4 py-3">
+          <p className="text-[12.5px] font-bold tracking-wide uppercase">
+            This invoice will not conform to article 145
+          </p>
+          <p className="prose-vixart mt-1">
+            {clientName} has no ICE on file. Adding it is the right fix. Issuing
+            anyway is possible — only for an administrator, only with a written
+            reason — and the invoice will print{' '}
+            <span className="font-semibold">ICE — non renseigné —</span> where the
+            client&apos;s number belongs. Your name and your reason are recorded on
+            the document and in the activity log, which cannot be edited.
+          </p>
+        </div>
       )}
     </>
   );

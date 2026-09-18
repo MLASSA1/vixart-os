@@ -244,6 +244,10 @@ export async function issueDocumentAction(
   const id = String(formData.get('documentId') ?? '');
   const confirmation = String(formData.get('confirmation') ?? '').trim();
   const method = String(formData.get('paymentMethod') ?? '').trim() || null;
+  // Only ever reaches the database when the admin actually typed one. Whether
+  // it is permitted — and whether the caller is an administrator rather than a
+  // moderator — is decided inside app.issue_document, not here.
+  const waiver = String(formData.get('iceWaiverReason') ?? '').trim() || null;
   // Issuing is irreversible — a wrong one can only be corrected by a credit
   // note — so it takes a typed confirmation rather than a single click.
   if (!id) return { error: 'Which document?' };
@@ -255,7 +259,9 @@ export async function issueDocumentAction(
       // a rule that decides whether a document is legally valid belongs on the
       // one door every document goes through, not in a form handler that any
       // other caller can go around.
-      await tx.execute(sql`SELECT app.issue_document(${id}, ${method})`);
+      await tx.execute(
+        sql`SELECT app.issue_document(${id}, ${method}, ${waiver})`,
+      );
     });
   } catch (error) {
     return { error: describeDbError(error, {}) };

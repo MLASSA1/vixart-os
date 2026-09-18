@@ -550,6 +550,11 @@ export const document = pgTable('document', {
   paymentMethod: text('payment_method'),
   /** What the client was at issue. Frozen, like clientName and clientIce. */
   clientIsIndividual: boolean('client_is_individual').notNull().default(false),
+  /**
+   * Why this invoice was issued without the client's ICE. Admin only, set at
+   * issue and never afterwards; also appended to the activity log. See 0051.
+   */
+  iceWaiverReason: text('ice_waiver_reason'),
   correctsId: uuid('corrects_id'),
 
   paidAt: timestamp('paid_at', { withTimezone: true }),

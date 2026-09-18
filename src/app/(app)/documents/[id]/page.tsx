@@ -32,6 +32,7 @@ interface DocRow {
   id: string; doc_type: string; status: string; number: string | null;
   subject: string | null; notes: string | null; payment_terms: string | null;
   company_id: string; company_name: string; company_ice: string | null;
+  client_is_individual_now: boolean; ice_waiver_reason: string | null;
   company_if: string | null; company_address: string | null;
   client_name: string | null; client_ice: string | null; client_if: string | null;
   client_address: string | null;
@@ -58,6 +59,7 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
   const data = await withUser(async (tx) => {
     const d = await tx.execute<DocRow>(sql`
       SELECT d.*, c.name AS company_name, c.ice AS company_ice,
+             c.is_individual AS client_is_individual_now,
              c.identifiant_fiscal AS company_if,
              concat_ws(', ', c.address_line, c.city) AS company_address,
              d.issue_date::text AS issue_date, d.due_date::text AS due_date,
@@ -158,6 +160,24 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
           permanently read-only — a mistake after that can only be corrected by a
           credit note.
         </p>
+      )}
+
+      {/*
+        An issued invoice that waived article 145 says so here, not only in the
+        activity log. Somebody opening this document months later should see it
+        without knowing to go looking.
+      */}
+      {record.ice_waiver_reason && (
+        <div className="tone-warn mb-6 rounded-[10px] px-4 py-3">
+          <p className="text-[12.5px] font-bold tracking-wide uppercase">
+            Issued without the client ICE
+          </p>
+          <p className="prose-vixart mt-1">{record.ice_waiver_reason}</p>
+          <p className="hint mt-1">
+            This invoice does not conform to article 145 of the CGI. The reason above
+            and who issued it are in the activity log.
+          </p>
+        </div>
       )}
 
       <div className="grid grid-cols-1 gap-x-10 md:grid-cols-2">
@@ -353,6 +373,12 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
               docType={record.doc_type}
               typeLabel={DOCUMENT_TYPE_LABELS[record.doc_type] ?? record.doc_type}
               hasLines={lines.length > 0}
+              /* Asked of the live client record, not the frozen copy: the
+                 document has no client details until it is issued. */
+              needsIceWaiver={
+                !record.client_is_individual_now && !String(record.company_ice ?? '').trim()
+              }
+              clientName={String(record.company_name ?? record.client_name ?? 'This client')}
             />
             {lines.length === 0 && (
               <p className="hint mt-2">Add at least one line before issuing.</p>
