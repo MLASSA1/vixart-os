@@ -35,20 +35,40 @@ nice -n 15 $COMPOSE build app
 echo "[deploy] restarting"
 $COMPOSE up -d
 
-# Five minutes, not two. This VPS has one core shared with eight other sites,
-# and a cold start runs migrations, the seed check and the Next.js boot before
-# it answers. At 120s the script declared a deploy failed that had in fact
-# succeeded — a health check that cries wolf teaches you to ignore it.
-echo "[deploy] waiting for health (up to 5 min — one core, cold start)"
+# The port the application is actually published on.
+#
+# `--env-file .env` above is passed to docker compose, which reads it for the
+# containers. It puts NOTHING in this shell. So `${APP_PORT:-4000}` fell back
+# to 4000 while production publishes 4100, and the health check below polled a
+# port nothing was listening on — for five minutes, on every single deploy,
+# before declaring a deploy failed that had already succeeded.
+#
+# That was previously misdiagnosed as slowness and "fixed" by raising the
+# timeout from two minutes to five, which bought nothing except a longer wait
+# for the same wrong answer.
+#
+# Read rather than sourced: `.env` holds the database password and the auth
+# secret, and sourcing it would put both in this shell where any later `set -x`
+# or error trace could print them.
+APP_PORT="$(sed -n 's/^APP_PORT=//p' .env | tail -1 | tr -d '\"'\''[:space:]')"
+APP_PORT="${APP_PORT:-4000}"
+HEALTH="http://127.0.0.1:${APP_PORT}/api/health"
+
+echo "[deploy] waiting for health at ${HEALTH} (up to 5 min — one core, cold start)"
 for i in $(seq 1 150); do
-  if curl -sf --max-time 3 "http://127.0.0.1:${APP_PORT:-4000}/api/health" >/dev/null 2>&1; then
-    echo "[deploy] healthy: $(curl -s http://127.0.0.1:${APP_PORT:-4000}/api/health)"
+  if curl -sf --max-time 3 "$HEALTH" >/dev/null 2>&1; then
+    echo "[deploy] healthy after $((i * 2))s: $(curl -s "$HEALTH")"
     echo "[deploy] done"
     exit 0
   fi
   sleep 2
 done
 
-echo "[deploy] FAILED: not healthy after 5 minutes. Recent log:" >&2
+# Name the URL that was tried. The last failure said only "not healthy", which
+# is what made a wrong port look like a slow boot for weeks.
+echo "[deploy] FAILED: ${HEALTH} did not answer within 5 minutes." >&2
+echo "[deploy] published ports:" >&2
+$COMPOSE ps --format '  {{.Name}}  {{.Ports}}' >&2
+echo "[deploy] recent log:" >&2
 $COMPOSE logs --tail 30 app >&2
 exit 1
