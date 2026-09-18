@@ -558,6 +558,33 @@ describe.skipIf(!HAS_DB)('invoicing (integration)', () => {
     } finally { await boot.end(); }
   });
 
+  it('refuses an empty reason — an admin cannot waive by leaving it blank', async () => {
+    // An empty field trims to null, so this lands on the ordinary article 145
+    // refusal rather than a separate one. Pinned because the shape of the
+    // failure matters: blank must be the same as not asking, never a waiver
+    // with nothing written in it.
+    const c = await clientWithoutIce(`${MARK} waiver blank`);
+    const id = await draftFor(c);
+
+    for (const blank of ['', '   ']) {
+      await expect(
+        admin.query("SELECT app.issue_document($1, 'virement', $2)", [id, blank]),
+        `"${blank}" should not waive anything`,
+      ).rejects.toThrow(/This client has no ICE/i);
+    }
+
+    // Nothing was issued and no number was taken.
+    const { rows } = await admin.query<{ status: string; number: string | null }>(
+      `SELECT status, number FROM document WHERE id = $1`, [id]);
+    expect(rows[0]!.status).toBe('brouillon');
+    expect(rows[0]!.number).toBeNull();
+
+    // And nothing reached the log.
+    const { rows: log } = await admin.query(
+      `SELECT 1 FROM activity WHERE entity_type = 'document' AND entity_id = $1`, [id]);
+    expect(log).toHaveLength(0);
+  });
+
   it('refuses a reason that is not one', async () => {
     const c = await clientWithoutIce(`${MARK} waiver short`);
     const id = await draftFor(c);
