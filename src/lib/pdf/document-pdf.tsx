@@ -71,7 +71,19 @@ const s = StyleSheet.create({
     paddingTop: 40,
     paddingBottom: 64,
     paddingHorizontal: 44,
-    lineHeight: 1.45,
+    /*
+     * No `lineHeight` here, deliberately.
+     *
+     * It used to say 1.45 and was doing nothing: @react-pdf ignores it on the
+     * Page, which is why the document has always set solid and why removing it
+     * changes not one glyph. What it DID do was silently disable the `render`
+     * prop — no warning, no error, just page numbers and the continuation
+     * header rendering as nothing at all.
+     *
+     * Putting it on a wrapper View makes it real, and makes the document a
+     * page longer. That is a typographic decision, not a mechanical one, so it
+     * waits for the Talborjt reference rather than being set by accident here.
+     */
   },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between' },
   brand: { fontSize: 18, fontWeight: 700, letterSpacing: -0.4 },
@@ -140,6 +152,30 @@ const s = StyleSheet.create({
     fontSize: 7,
     opacity: 0.6,
     textAlign: 'center',
+  },
+
+  footerPage: {
+    position: 'absolute',
+    bottom: 22,
+    left: 44,
+    right: 44,
+    fontFamily: 'PlexMono',
+    fontSize: 7,
+    opacity: 0.6,
+    textAlign: 'center',
+  },
+
+  /** Repeated at the top of every page after the first. */
+  continued: {
+    position: 'absolute',
+    top: 18,
+    left: 44,
+    right: 44,
+    fontSize: 7.5,
+    opacity: 0.7,
+    borderBottomWidth: 0.5,
+    borderBottomColor: VOID,
+    paddingBottom: 5,
   },
 
   /** Every number on the page, so columns align on the decimal. */
@@ -487,21 +523,22 @@ export async function renderDocumentPdf(input: PdfInput): Promise<Buffer> {
         )}
 
         {/*
-          NOT BUILT — the client block and document number repeated on every
-          page after the first, and "1 / 3" in the footer.
+          Page two onwards carries who this is for and which document it is.
 
-          Both need @react-pdf's `render` prop, which returns nothing in this
-          document. Not a mistake in how it is called: a render prop returning a
-          bare constant produces no output either, at any position in the tree,
-          while a literal Text at the identical position renders fine — and the
-          same call works in a minimal document on the same version, with the
-          same fonts, styles and hyphenation callback. Characterised, not yet
-          explained.
-
-          Left unbuilt deliberately. An element that silently renders nothing is
-          worse than a missing one: it reads in the source as though the
-          requirement is already met.
+          A sheet separated from the first page is otherwise an anonymous
+          column of figures. `render` returns nothing on page one, where the
+          full header already says it.
         */}
+        <Text
+          style={s.continued}
+          fixed
+          render={({ pageNumber }) =>
+            pageNumber > 1
+              ? `${title} ${input.number} · ${input.clientLegalName ?? input.clientName} · suite`
+              : ''
+          }
+        />
+
         <View style={s.footerRule} fixed />
         <Text style={[s.footerLine, { bottom: 51 }]} fixed>
           {VIXART.legalName} — {VIXART.activity}
@@ -513,6 +550,11 @@ export async function renderDocumentPdf(input: PdfInput): Promise<Buffer> {
           {VIXART.rc} · ICE {VIXART.ice} · IF {VIXART.taxId}
           {VIXART.taxeProfessionnelle ? ` · Patente ${VIXART.taxeProfessionnelle}` : ''}
         </Text>
+        <Text
+          style={s.footerPage}
+          fixed
+          render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`}
+        />
       </Page>
     </Document>
   );
