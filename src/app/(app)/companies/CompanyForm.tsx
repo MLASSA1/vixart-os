@@ -93,6 +93,12 @@ export function CompanyForm({
           until you have the real value.
         </p>
         <FormGrid>
+          <Checkbox
+            name="isIndividual"
+            label="A private individual, not a business"
+            checked={record?.isIndividual ?? false}
+            hint="A particulier has no ICE. Article 145 asks for one from businesses only, so ticking this lifts the requirement when you invoice them — it does not let you skip a business's ICE."
+          />
           <TextInput
             name="ice"
             label="ICE"

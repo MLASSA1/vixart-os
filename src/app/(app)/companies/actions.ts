@@ -45,6 +45,7 @@ const clientSchema = z.object({
   city: optionalText,
   website: optionalText,
   retenueSource: z.boolean(),
+  isIndividual: z.boolean(),
   engagementSummary: optionalText,
   notes: optionalText,
 });
@@ -61,6 +62,7 @@ function readCompanyForm(formData: FormData) {
     city: formData.get('city') ?? '',
     website: formData.get('website') ?? '',
     retenueSource: formData.get('retenueSource') === 'on',
+    isIndividual: formData.get('isIndividual') === 'on',
     engagementSummary: formData.get('engagementSummary') ?? '',
     notes: formData.get('notes') ?? '',
   });

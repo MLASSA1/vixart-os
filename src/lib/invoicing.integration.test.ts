@@ -377,4 +377,75 @@ describe.skipIf(!HAS_DB)('invoicing (integration)', () => {
     ).rejects.toThrow(/document_payment_method_valid/);
   });
 
+
+  it('invoices a private individual, who has no ICE to give', async () => {
+    // The alternative, before there was a flag for this, was to type a fake
+    // ICE to get past the check — an invented registration number printed on
+    // a fiscal document.
+    const setup = await maintenance();
+    let person: string;
+    try {
+      const { rows } = await setup.query<{ id: string }>(
+        `INSERT INTO company (name, status, relationship, is_individual)
+         VALUES ($1, 'client', 'client', true) RETURNING id`, [`${MARK} particulier`]);
+      person = rows[0]!.id;
+    } finally { await setup.end(); }
+
+    const { rows: d } = await admin.query<{ id: string }>(
+      `INSERT INTO document (doc_type, company_id, subject, vat_rate_bp)
+       VALUES ('facture', $1, $2, 2000) RETURNING id`, [person, MARK]);
+    await admin.query(
+      `INSERT INTO document_line (document_id, label, unit_price_centimes, quantity_millis)
+       VALUES ($1, 'Test line', 100000, 1000)`, [d[0]!.id]);
+
+    const { rows: n } = await admin.query<{ issue_document: string }>(
+      "SELECT app.issue_document($1, 'especes') AS issue_document", [d[0]!.id]);
+    expect(n[0]!.issue_document).toMatch(/^FAC-/);
+
+    // What they were is frozen onto the document, so the PDF still knows years
+    // later that this client was a person and was never asked for an ICE.
+    const { rows: frozen } = await admin.query<{ client_is_individual: boolean }>(
+      `SELECT client_is_individual FROM document WHERE id = $1`, [d[0]!.id]);
+    expect(frozen[0]!.client_is_individual).toBe(true);
+
+    const cleanup = await maintenance();
+    try {
+      await cleanup.query(`DELETE FROM finance_entry WHERE document_id = $1`, [d[0]!.id]);
+      await cleanup.query(`DELETE FROM document WHERE id = $1`, [d[0]!.id]);
+      await cleanup.query(`DELETE FROM company WHERE id = $1`, [person]);
+      await cleanup.query(`
+        UPDATE document_counter c SET last_seq = coalesce(
+          (SELECT max(d.number_seq) FROM document d
+            WHERE d.doc_type = c.doc_type AND d.number_year = c.year), 0)`);
+    } finally { await cleanup.end(); }
+  });
+
+  it('still refuses a business with no ICE — the flag is not a way round it', async () => {
+    const setup = await maintenance();
+    let business: string;
+    try {
+      const { rows } = await setup.query<{ id: string }>(
+        `INSERT INTO company (name, status, relationship, is_individual)
+         VALUES ($1, 'client', 'client', false) RETURNING id`, [`${MARK} business`]);
+      business = rows[0]!.id;
+    } finally { await setup.end(); }
+
+    const { rows: d } = await admin.query<{ id: string }>(
+      `INSERT INTO document (doc_type, company_id, subject, vat_rate_bp)
+       VALUES ('facture', $1, $2, 2000) RETURNING id`, [business, MARK]);
+    await admin.query(
+      `INSERT INTO document_line (document_id, label, unit_price_centimes, quantity_millis)
+       VALUES ($1, 'Test line', 100000, 1000)`, [d[0]!.id]);
+
+    await expect(
+      admin.query("SELECT app.issue_document($1, 'virement')", [d[0]!.id]),
+    ).rejects.toThrow(/no ICE/i);
+
+    const cleanup = await maintenance();
+    try {
+      await cleanup.query(`DELETE FROM document WHERE id = $1`, [d[0]!.id]);
+      await cleanup.query(`DELETE FROM company WHERE id = $1`, [business]);
+    } finally { await cleanup.end(); }
+  });
+
 });

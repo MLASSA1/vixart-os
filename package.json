@@ -1,7 +1,7 @@
 {
   "name": "vixart-os",
   "version": "0.1.0",
-  "description": "VIXART OS — système d'exploitation interne de SOCIETE VIXART SARL",
+  "description": "VIXART OS \u2014 syst\u00e8me d'exploitation interne de SOCIETE VIXART SARL",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -10,8 +10,10 @@
     "db:migrate": "tsx scripts/migrate.ts",
     "db:seed": "tsx seed/vixart.seed.ts",
     "db:studio": "drizzle-kit studio",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "test": "tsx scripts/test-db.ts && vitest run",
+    "test:watch": "vitest",
+    "test:db": "tsx scripts/test-db.ts",
+    "test:db:reset": "tsx scripts/test-db.ts --reset"
   },
   "dependencies": {
     "@react-pdf/renderer": "^4.6.1",

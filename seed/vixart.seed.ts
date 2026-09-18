@@ -82,6 +82,11 @@ const TEAM = [
 // file is gitignored: the repository is public, and a client list with open
 // prospects in it is a competitor's shopping list.
 async function loadPipeline(): Promise<SeedCompany[]> {
+  // The test database has no business holding the real client list.
+  if (process.env.SEED_GENERIC === '1') {
+    console.log('[seed] SEED_GENERIC — using the generic example pipeline');
+    return EXAMPLE_PIPELINE;
+  }
   try {
     // The specifier is assembled at runtime, on purpose.
     //

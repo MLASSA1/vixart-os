@@ -38,6 +38,40 @@ function loadEnvFiles() {
 
 loadEnvFiles();
 
+/**
+ * Point every test at its own database.
+ *
+ * The suite used to run against the working database — the one with real
+ * clients, real invoices and real team accounts — and damaged it four times in
+ * four different ways. Each was fixed where it was found, which fixes one
+ * occurrence rather than the class: any test written tomorrow has the same
+ * reach as the four that caused it.
+ *
+ * So the names are rewritten here, in one place, before a single test file is
+ * loaded. `scripts/test-db.ts` builds that database; `npm test` runs it first.
+ *
+ * This is not the whole guarantee. `db-isolation.integration.test.ts` refuses
+ * to let the suite run at all against a database that looks like the working
+ * one, so the isolation cannot be lost later by an env change or a stray
+ * export without the suite saying so loudly.
+ */
+function useTestDatabase() {
+  const TEST_DB = 'vixart_test';
+  for (const key of ['DATABASE_URL', 'APP_DATABASE_URL']) {
+    const value = process.env[key];
+    if (!value) continue;
+    try {
+      const u = new URL(value);
+      u.pathname = `/${TEST_DB}`;
+      process.env[key] = u.toString();
+    } catch {
+      // Unparseable: leave it, and let the isolation guard fail the run.
+    }
+  }
+}
+
+useTestDatabase();
+
 export default defineConfig({
   resolve: {
     alias: {

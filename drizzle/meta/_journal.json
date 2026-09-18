@@ -351,6 +351,13 @@
       "when": 1787769546995,
       "tag": "0049_invoice_legal_fields",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1787769546996,
+      "tag": "0050_particulier",
+      "breakpoints": true
     }
   ]
 }

@@ -132,6 +132,11 @@ export const company = pgTable(
     legalName: text('legal_name'),
     /** 'client' | 'supplier' | 'partner' | 'other'. */
     relationship: text('relationship').notNull().default('client'),
+  /**
+   * A private individual rather than a business. Has no ICE, so article 145
+   * does not ask for one when issuing them an invoice.
+   */
+  isIndividual: boolean('is_individual').notNull().default(false),
     status: companyStage('status').notNull().default('lead'),
 
     // --- Moroccan legal identifiers, carried onto every issued document ---
@@ -543,6 +548,8 @@ export const document = pgTable('document', {
    * refused by app.issue_document if absent on an invoice. Null on a quote.
    */
   paymentMethod: text('payment_method'),
+  /** What the client was at issue. Frozen, like clientName and clientIce. */
+  clientIsIndividual: boolean('client_is_individual').notNull().default(false),
   correctsId: uuid('corrects_id'),
 
   paidAt: timestamp('paid_at', { withTimezone: true }),

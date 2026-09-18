@@ -236,6 +236,8 @@ export interface PdfInput {
   clientIce: string | null;
   clientIf: string | null;
   clientAddress: string | null;
+  /** A particulier has no ICE, and is not asked for one. */
+  clientIsIndividual: boolean;
   subject: string | null;
   notes: string | null;
   paymentTerms: string | null;
@@ -287,7 +289,7 @@ export async function renderDocumentPdf(input: PdfInput): Promise<Buffer> {
               {VIXART.legalName}
             </Text>
             <Text style={s.small}>{VIXART.activity}</Text>
-            <Text style={s.small}>{VIXART.address}</Text>
+            {/* The address is in the footer, on every page. Not twice on this one. */}
             {/*
               Our own identifiers — RC, ICE, IF, Patente — are NOT here.
               They print once, in the footer, which is the block that repeats
@@ -330,6 +332,10 @@ export async function renderDocumentPdf(input: PdfInput): Promise<Buffer> {
             */}
             {input.clientIce ? (
               <Text style={s.meta}>ICE {input.clientIce}</Text>
+            ) : input.clientIsIndividual ? (
+              // A private individual has no ICE. Saying it is missing would be
+              // asking for something that does not exist.
+              <Text style={s.meta}>Particulier</Text>
             ) : (
               <Text style={[s.meta, { fontWeight: 600 }]}>ICE — non renseigné —</Text>
             )}
