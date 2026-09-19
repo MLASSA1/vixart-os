@@ -95,6 +95,7 @@ const taskSchema = z.object({
   title: z.string().trim().min(1, 'A title is required.'),
   description: optionalText,
   assigneeId: optionalText,
+  parentId: optionalText,
   priority: z.enum(['low', 'normal', 'high', 'urgent']),
   dueDate: optionalText,
 });
@@ -111,6 +112,7 @@ export async function createTaskAction(
     assigneeId: formData.get('assigneeId') ?? '',
     priority: formData.get('priority') ?? 'normal',
     dueDate: formData.get('dueDate') ?? '',
+    parentId: formData.get('parentId') ?? '',
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? 'Invalid form.' };
@@ -139,7 +141,7 @@ export async function createTaskAction(
 export async function setTaskStatusAction(formData: FormData): Promise<void> {
   const id = String(formData.get('taskId') ?? '');
   const status = String(formData.get('status') ?? '');
-  const allowed = ['todo', 'in_progress', 'submitted', 'completed'] as const;
+  const allowed = ['todo', 'accepted', 'in_progress', 'submitted', 'completed'] as const;
   if (!id || !allowed.includes(status as (typeof allowed)[number])) return;
 
   await withUser(async (tx) => {
@@ -152,6 +154,44 @@ export async function setTaskStatusAction(formData: FormData): Promise<void> {
   revalidatePath('/my-work');
   revalidatePath('/projects');
   revalidatePath('/');
+}
+
+/**
+ * Say a task is stuck, and on what.
+ *
+ * Separate from setTaskStatusAction because this one can fail in a way worth
+ * showing: the database refuses `blocked` without a reason, and a silent
+ * no-op would leave somebody believing they had raised a flag.
+ *
+ * Who may do it is not decided here. `app.enforce_task_signoff` allows only
+ * the assignee to move their own task, and that is the check that counts.
+ */
+export async function blockTaskAction(
+  _previous: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const id = String(formData.get('taskId') ?? '');
+  const reason = String(formData.get('blockedReason') ?? '').trim();
+  if (!id) return { error: 'Which task?' };
+  if (reason.length < 3) {
+    return { error: 'Say what it is waiting on — one line is enough.' };
+  }
+
+  try {
+    await withUser(async (tx) => {
+      await tx
+        .update(task)
+        .set({ status: 'blocked', blockedReason: reason })
+        .where(eq(task.id, id));
+    });
+  } catch (error) {
+    return { error: describeDbError(error, WORK_ERRORS) };
+  }
+
+  revalidatePath('/my-work');
+  revalidatePath('/projects');
+  revalidatePath('/');
+  return EMPTY_STATE;
 }
 
 export async function deleteTaskAction(formData: FormData): Promise<void> {

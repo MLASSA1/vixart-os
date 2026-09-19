@@ -161,7 +161,13 @@ export default async function ProjectPage({
             ))}
           </ul>
         )}
-        {canModerate && <TaskForm action={createTaskAction.bind(null, record.id)} team={team} />}
+        {/*
+          No role gate. Until 9A only a moderator could raise a task, which made
+          the case this phase exists for impossible — an editor who needs a
+          photo could not ask the designer for it. `task_insert` now admits any
+          real person, and sign-off is untouched.
+        */}
+        <TaskForm action={createTaskAction.bind(null, record.id)} team={team} meId={me.id} />
       </Section>
 
       <Section title={`Discussion — ${comments.length}`}>

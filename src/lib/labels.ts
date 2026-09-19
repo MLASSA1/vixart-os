@@ -68,7 +68,13 @@ export const PROJECT_STATUSES = [
 
 export const TASK_STATUSES = [
   { value: 'todo', label: 'To do' },
+  // 9A. What the assignee can say about work that is theirs.
+  { value: 'accepted', label: 'Accepted' },
   { value: 'in_progress', label: 'In progress' },
+  { value: 'blocked', label: 'Blocked' },
+  // The assignee's "done". It is submitted, not completed: nobody signs off
+  // their own work, so a separate "done" state would be a second name for
+  // this one and the first step towards blurring that.
   { value: 'submitted', label: 'Awaiting sign-off' },
   { value: 'completed', label: 'Completed' },
 ] as const;

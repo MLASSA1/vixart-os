@@ -266,14 +266,19 @@ describe.skipIf(!HAS_DB)('a whole engagement, end to end', () => {
   });
 
   // -- 9. a member cannot create a task at all -----------------------------
-  it('refuses a member creating a task', async () => {
+  it('lets a member raise a task — 9A reversed the old rule', async () => {
+    // This used to assert the opposite. Until phase 9A only a moderator could
+    // create a task, which made the case the team actually has impossible: an
+    // editor who needs a photo cannot raise it on the designer.
     const p = await db.query<{ id: string }>(
       `SELECT id FROM project WHERE company_id=$1 LIMIT 1`, [companyId]);
     await as(memberId, 'member', async () => {
-      await expect(
-        db.query(`INSERT INTO task (title, project_id, status, priority) VALUES ($1,$2,'todo','normal')`,
-          [MARK, p.rows[0]!.id]),
-      ).rejects.toThrow(/moderator/i);
+      const { rows } = await db.query<{ id: string; created_by_id: string }>(
+        `INSERT INTO task (title, project_id, status, priority)
+         VALUES ($1,$2,'todo','normal') RETURNING id, created_by_id`,
+        [`${MARK} raised by a member`, p.rows[0]!.id]);
+      // Who raised it is taken from the session, never from the insert.
+      expect(rows[0]!.created_by_id).toBe(memberId);
     });
   });
 

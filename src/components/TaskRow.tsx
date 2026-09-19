@@ -1,7 +1,12 @@
 import Link from 'next/link';
+import { BlockTaskControl } from './BlockTaskControl';
 import { TASK_PRIORITY_LABELS, TASK_STATUS_LABELS } from '@/lib/labels';
 import { formatDate } from '@/lib/format';
-import { setTaskStatusAction, deleteTaskAction } from '@/app/(app)/projects/actions';
+import {
+  blockTaskAction,
+  deleteTaskAction,
+  setTaskStatusAction,
+} from '@/app/(app)/projects/actions';
 
 export interface TaskItem {
   id: string;
@@ -16,6 +21,11 @@ export interface TaskItem {
   project_name?: string;
   company_name?: string;
   completed_by_name?: string | null;
+  /** Added in 9A: who raised it, why it is stuck, and its parent if any. */
+  created_by_id?: string | null;
+  raised_by_name?: string | null;
+  blocked_reason?: string | null;
+  parent_id?: string | null;
 }
 
 /**
@@ -38,15 +48,24 @@ const STATUS_STYLE: Record<string, string> = {
 };
 
 /** Which moves this viewer may make. The database enforces the same rule. */
+/**
+ * Where a task can go from here.
+ *
+ * `blocked` is never in this list: it carries a written reason, so it has its
+ * own control rather than a one-click button. Everything else is a plain
+ * transition the database will accept or refuse on its own.
+ */
 function nextStatuses(status: string, isMine: boolean, canModerate: boolean): string[] {
   if (canModerate) {
     if (status === 'completed') return ['in_progress'];
     if (status === 'submitted') return ['completed', 'in_progress'];
-    return ['in_progress', 'submitted', 'completed'].filter((s) => s !== status);
+    return ['accepted', 'in_progress', 'submitted', 'completed'].filter((s) => s !== status);
   }
   if (!isMine || status === 'completed') return [];
-  if (status === 'todo') return ['in_progress'];
+  if (status === 'todo') return ['accepted', 'in_progress'];
+  if (status === 'accepted') return ['in_progress'];
   if (status === 'in_progress') return ['submitted'];
+  if (status === 'blocked') return ['in_progress'];
   if (status === 'submitted') return ['in_progress'];
   return [];
 }
@@ -58,13 +77,13 @@ export function TaskRow({
   showProject = false,
 }: {
   task: TaskItem;
-  isMine: boolean;
+  isMine?: boolean;
   canModerate: boolean;
   showProject?: boolean;
 }) {
   const overdue =
     task.due_date && task.status !== 'completed' && new Date(task.due_date) < new Date();
-  const moves = nextStatuses(task.status, isMine, canModerate);
+  const moves = nextStatuses(task.status, isMine ?? false, canModerate);
 
   return (
     <li className="border-b border-void/10 py-3.5">
@@ -127,6 +146,9 @@ export function TaskRow({
               </button>
             </form>
           ))}
+          {isMine && task.status !== 'blocked' && task.status !== 'completed' && (
+            <BlockTaskControl action={blockTaskAction} taskId={task.id} />
+          )}
           {canModerate && (
             <form action={deleteTaskAction}>
               <input type="hidden" name="taskId" value={task.id} />

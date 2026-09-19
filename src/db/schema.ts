@@ -364,6 +364,10 @@ export const task = pgTable(
 
     createdById: uuid('created_by_id').references(() => appUser.id, { onDelete: 'set null' }),
     /** When the assignee said it was done. */
+    /** One line on what it is waiting for. Required while blocked (0054). */
+    blockedReason: text('blocked_reason'),
+    /** A task may sit under one parent. One level only, enforced by trigger. */
+    parentId: uuid('parent_id'),
     submittedAt: timestamp('submitted_at', { withTimezone: true }),
     /** When a moderator confirmed it. */
     completedAt: timestamp('completed_at', { withTimezone: true }),

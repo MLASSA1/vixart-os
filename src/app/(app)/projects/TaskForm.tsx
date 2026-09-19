@@ -18,9 +18,19 @@ function Submit() {
 export function TaskForm({
   action,
   team,
+  meId,
+  parentId,
 }: {
   action: (state: FormState, formData: FormData) => Promise<FormState>;
   team: ReadonlyArray<{ id: string; full_name: string }>;
+  /**
+   * Whoever is looking. The assignee defaults to them, so raising work for
+   * yourself is the path of least resistance and handing it to somebody else
+   * is a deliberate choice rather than the other way round.
+   */
+  meId: string;
+  /** Set when this raises a sub-task under an existing one. */
+  parentId?: string;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const [state, formAction] = useActionState(
@@ -35,11 +45,13 @@ export function TaskForm({
   return (
     <form ref={formRef} action={formAction} className="mt-4 border border-void/25 p-5">
       <ErrorBanner message={state.error} />
+      {parentId && <input type="hidden" name="parentId" value={parentId} />}
       <FormGrid>
         <TextInput name="title" label="Task" required placeholder="Colour grade the interview" />
         <Select
           name="assigneeId"
           label="Assign to"
+          defaultValue={meId}
           options={[{ value: '', label: '— unassigned —' }].concat(
             team.map((t) => ({ value: t.id, label: t.full_name })),
           )}
