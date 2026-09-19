@@ -62,9 +62,8 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
       SELECT u.id, u.full_name
         FROM app.team_directory u
        WHERE u.is_active
+         AND u.is_person
          AND u.id <> ${user.id}
-         AND EXISTS (SELECT 1 FROM app_user a
-                      WHERE a.id = u.id AND a.is_assignable AND NOT a.is_service_account)
        ORDER BY u.full_name
     `);
 

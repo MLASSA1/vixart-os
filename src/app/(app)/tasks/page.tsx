@@ -53,7 +53,9 @@ export default async function TasksPage() {
 
     const people = await tx.execute<{ id: string; full_name: string }>(sql`
       SELECT id, full_name FROM app.team_directory
-       WHERE is_active ORDER BY full_name
+       -- Work goes to somebody who can sign in and see it. The database
+       -- refuses the rest (0062); this is so they are not offered.
+       WHERE is_active AND is_person ORDER BY full_name
     `);
 
     const open = await tx.execute<{ id: string; label: string }>(sql`

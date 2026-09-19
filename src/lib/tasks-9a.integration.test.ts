@@ -276,6 +276,59 @@ describe.skipIf(!HAS_DB)('tasks the team drives (9A)', () => {
     expect(n.map((r) => r.kind)).toContain('task_assigned');
   });
 
+  it('carries a task with no project all the way to signed off', async () => {
+    // THE GAP THAT HID THE BUG. Every other test made a project first, so the
+    // one path that a project-less task takes differently — submitting it for
+    // sign-off — was never walked.
+    //
+    // The sign-off notification built its link as '/projects/' || project_id.
+    // With no project that is NULL, `notification.link` is NOT NULL, and the
+    // raise inside the BEFORE trigger took the whole UPDATE with it. An
+    // internal task could be raised, assigned, accepted and worked on, and
+    // then refused at the step that finishes it. See 0063.
+    await actAs(editor, 'member');
+    const { rows } = await app.query<{ id: string }>(
+      `INSERT INTO task (title, project_id, assignee_id, status, priority)
+       VALUES ($1, NULL, $2, 'todo', 'normal') RETURNING id`,
+      [`${MARK} internal, all the way`, designer]);
+    const taskId = rows[0]!.id;
+
+    await actAs(designer, 'member');
+    await app.query(`UPDATE task SET status='in_progress' WHERE id=$1`, [taskId]);
+    await expect(
+      app.query(`UPDATE task SET status='submitted' WHERE id=$1`, [taskId]),
+    ).resolves.toBeTruthy();
+
+    // Whoever signs work off was told, and the link goes somewhere that exists.
+    const { rows: n } = await owner.query<{ kind: string; link: string }>(
+      `SELECT kind, link FROM notification WHERE entity_id=$1 AND kind='task_awaiting_signoff'`,
+      [taskId]);
+    expect(n.length).toBeGreaterThan(0);
+    expect(n[0]!.link).toBe('/tasks');
+
+    await actAs(boss, 'admin');
+    await app.query(`UPDATE task SET status='completed' WHERE id=$1`, [taskId]);
+    const { rows: done } = await owner.query<{ status: string; completed_at: string | null }>(
+      `SELECT status, completed_at FROM task WHERE id=$1`, [taskId]);
+    expect(done[0]!.status).toBe('completed');
+    expect(done[0]!.completed_at).not.toBeNull();
+  });
+
+  it('tells the assignee it is internal work, not "A project"', async () => {
+    await actAs(editor, 'member');
+    const { rows } = await app.query<{ id: string }>(
+      `INSERT INTO task (title, project_id, assignee_id, status, priority)
+       VALUES ($1, NULL, $2, 'todo', 'normal') RETURNING id`,
+      [`${MARK} internal wording`, designer]);
+
+    const { rows: n } = await owner.query<{ body: string }>(
+      `SELECT body FROM notification WHERE entity_id=$1 AND kind='task_assigned'`,
+      [rows[0]!.id]);
+    // Saying "A project" about work that deliberately has none undoes the
+    // distinction 0055 exists to draw.
+    expect(n[0]!.body).toBe('Internal work');
+  });
+
   it('does not notify somebody about work they raised for themselves', async () => {
     // app.notify refuses to tell a person about their own action, so a task
     // you give yourself is silent. Worth pinning: it looks like a missing

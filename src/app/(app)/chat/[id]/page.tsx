@@ -73,8 +73,7 @@ export default async function ChannelPage({ params }: { params: Promise<{ id: st
       SELECT u.id, u.full_name
         FROM app.team_directory u
        WHERE u.is_active
-         AND EXISTS (SELECT 1 FROM app_user a
-                      WHERE a.id = u.id AND a.is_assignable AND NOT a.is_service_account)
+         AND u.is_person
          AND EXISTS (SELECT 1 FROM thread t WHERE t.id = ${id})
        ORDER BY u.full_name
     `);

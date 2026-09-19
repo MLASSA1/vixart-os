@@ -88,7 +88,9 @@ export default async function SchedulePage({
       ? (
           await tx.execute<{ id: string; full_name: string }>(sql`
             SELECT id, full_name FROM app.team_directory
-             WHERE is_active ORDER BY full_name
+             -- A column for an account nobody signs in as is a column of
+             -- permanent blanks.
+             WHERE is_active AND is_person ORDER BY full_name
           `)
         ).rows
       : [];

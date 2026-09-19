@@ -236,9 +236,8 @@ export async function postMessageAction(
         SELECT u.id, u.full_name
           FROM app.team_directory u
          WHERE u.is_active
-           -- Assignable: a service account is not a person and has no inbox.
-           AND EXISTS (SELECT 1 FROM app_user a
-                        WHERE a.id = u.id AND a.is_assignable AND NOT a.is_service_account)
+           -- A service account is not a person and has no inbox.
+           AND u.is_person
            -- And can open this thread. Asked of the thread table, so the
            -- answer comes from its policy rather than a copy of it.
            AND EXISTS (SELECT 1 FROM thread t WHERE t.id = ${threadId})

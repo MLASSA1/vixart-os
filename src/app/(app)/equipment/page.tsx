@@ -50,10 +50,11 @@ export default async function EquipmentPage() {
                 e.category, lower(e.name)
     `);
     const members = await tx.execute<{ id: string; full_name: string }>(
-      sql`SELECT id, full_name FROM app_user
-           -- is_assignable excludes the retired agent service accounts:
-           -- they own historical rows and can never be given work.
-           WHERE is_active AND is_assignable ORDER BY full_name`,
+      sql`SELECT id, full_name FROM app.team_directory
+           -- is_person is the one definition of who can be given work: the
+           -- retired agent service accounts own historical rows and can never
+           -- be given any. See migration 0062.
+           WHERE is_active AND is_person ORDER BY full_name`,
     );
     return { items: rows.rows, team: members.rows };
   });
