@@ -214,4 +214,46 @@ describe.skipIf(!HAS_DB)('tasks the team drives (9A)', () => {
       app.query(`UPDATE task SET parent_id=$2 WHERE id=$1`, [b, a]),
     ).rejects.toThrow(/not its definition/i);
   });
+
+  // --- closing a parent with open children ---------------------------------
+
+  it('counts the open children of a parent', async () => {
+    // The number the warning shows. If this query is wrong the interface warns
+    // about the wrong thing, or — worse — silently never warns at all.
+    const parent = await raise(editor, `${MARK} p5`, designer);
+    await raise(editor, `${MARK} c5a`, designer, parent);
+    const second = await raise(editor, `${MARK} c5b`, designer, parent);
+
+    await actAs(boss, 'moderator');
+    const open = async () =>
+      (await app.query<{ n: number }>(
+        `SELECT (SELECT count(*)::int FROM task c
+                  WHERE c.parent_id = t.id AND c.status <> 'completed') AS n
+           FROM task t WHERE t.id = $1`, [parent])).rows[0]!.n;
+
+    expect(await open()).toBe(2);
+    await app.query(`UPDATE task SET status='completed' WHERE id=$1`, [second]);
+    expect(await open()).toBe(1);
+  });
+
+  it('allows closing a parent while children are open — warns, does not block', async () => {
+    // Deliberate. A hard block would have people deleting sub-tasks to get
+    // past it, which loses the record of what was dropped. The interface asks
+    // once and names the number; the database does not stand in the way.
+    const parent = await raise(editor, `${MARK} p6`, designer);
+    await raise(editor, `${MARK} c6`, designer, parent);
+
+    await actAs(boss, 'moderator');
+    await app.query(`UPDATE task SET status='completed' WHERE id=$1`, [parent]);
+
+    const { rows } = await app.query<{ status: string }>(
+      `SELECT status FROM task WHERE id=$1`, [parent]);
+    expect(rows[0]!.status).toBe('completed');
+
+    // And the child is untouched — closing a parent is not a cascade.
+    const { rows: child } = await app.query<{ status: string }>(
+      `SELECT status FROM task WHERE parent_id=$1`, [parent]);
+    expect(child[0]!.status).not.toBe('completed');
+  });
+
 });

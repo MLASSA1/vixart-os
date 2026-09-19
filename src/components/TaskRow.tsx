@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { BlockTaskControl } from './BlockTaskControl';
+import { CloseParentButton } from './CloseParentButton';
 import { TASK_PRIORITY_LABELS, TASK_STATUS_LABELS } from '@/lib/labels';
 import { formatDate } from '@/lib/format';
 import {
@@ -21,6 +22,8 @@ export interface TaskItem {
   project_name?: string;
   company_name?: string;
   completed_by_name?: string | null;
+  /** Sub-tasks not yet signed off. Drives the warning on closing a parent. */
+  open_children?: number;
   /** Added in 9A: who raised it, why it is stuck, and its parent if any. */
   created_by_id?: string | null;
   raised_by_name?: string | null;
@@ -133,19 +136,44 @@ export function TaskRow({
           >
             {TASK_STATUS_LABELS[task.status]}
           </span>
-          {moves.map((s) => (
-            <form key={s} action={setTaskStatusAction}>
-              <input type="hidden" name="taskId" value={task.id} />
-              <input type="hidden" name="status" value={s} />
-              <button type="submit" className="btn btn-inverse btn-small">
-                {s === 'submitted'
-                  ? 'Submit for sign-off'
-                  : s === 'completed'
-                    ? 'Sign off'
-                    : TASK_STATUS_LABELS[s]}
-              </button>
-            </form>
-          ))}
+          {moves.map((s) => {
+            const label =
+              s === 'submitted'
+                ? 'Submit for sign-off'
+                : s === 'completed'
+                  ? 'Sign off'
+                  : (TASK_STATUS_LABELS[s] ?? s);
+
+            // Closing a parent that still has open sub-tasks asks first. Any
+            // other transition is a plain button — a task moving to
+            // 'in progress' has nothing to warn about.
+            const closes = s === 'submitted' || s === 'completed';
+            const openChildren = task.open_children ?? 0;
+
+            if (closes && openChildren > 0) {
+              return (
+                <form key={s} action={setTaskStatusAction}>
+                  <CloseParentButton
+                    label={label}
+                    openChildren={openChildren}
+                    onConfirmName="status"
+                    onConfirmValue={s}
+                    taskId={task.id}
+                  />
+                </form>
+              );
+            }
+
+            return (
+              <form key={s} action={setTaskStatusAction}>
+                <input type="hidden" name="taskId" value={task.id} />
+                <input type="hidden" name="status" value={s} />
+                <button type="submit" className="btn btn-inverse btn-small">
+                  {label}
+                </button>
+              </form>
+            );
+          })}
           {isMine && task.status !== 'blocked' && task.status !== 'completed' && (
             <BlockTaskControl action={blockTaskAction} taskId={task.id} />
           )}

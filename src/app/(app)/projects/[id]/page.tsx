@@ -57,7 +57,9 @@ export default async function ProjectPage({
       SELECT t.id, t.title, t.description, t.status, t.priority,
              t.due_date::text AS due_date, t.project_id,
              a.full_name AS assignee_name, t.assignee_id,
-             s.full_name AS completed_by_name
+             s.full_name AS completed_by_name,
+             (SELECT count(*)::int FROM task c
+               WHERE c.parent_id = t.id AND c.status <> 'completed') AS open_children
         FROM task t
         LEFT JOIN app_user a ON a.id = t.assignee_id
         LEFT JOIN app_user s ON s.id = t.completed_by_id

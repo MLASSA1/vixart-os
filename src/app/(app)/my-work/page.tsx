@@ -24,6 +24,8 @@ export default async function MyWorkPage() {
              a.full_name AS assignee_name, t.assignee_id,
              t.created_by_id, r.full_name AS raised_by_name,
              t.blocked_reason, t.parent_id,
+             (SELECT count(*)::int FROM task c
+               WHERE c.parent_id = t.id AND c.status <> 'completed') AS open_children,
              p.name AS project_name, c.name AS company_name,
              s.full_name AS completed_by_name
         FROM task t
