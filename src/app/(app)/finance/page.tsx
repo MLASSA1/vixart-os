@@ -103,7 +103,7 @@ export default async function FinancePage({
     `);
 
     const comps = await tx.execute<{ id: string; name: string }>(
-      sql`SELECT id, name FROM company ORDER BY lower(name)`,
+      sql`SELECT id, name FROM company WHERE archived_at IS NULL ORDER BY lower(name)`,
     );
 
     // Recurring templates, with how many lines each has actually produced.

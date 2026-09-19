@@ -132,6 +132,8 @@ export const company = pgTable(
     legalName: text('legal_name'),
     /** 'client' | 'supplier' | 'partner' | 'other'. */
     relationship: text('relationship').notNull().default('client'),
+  /** Out of use. Everything kept; hidden from lists and pickers (0059). */
+  archivedAt: timestamp('archived_at', { withTimezone: true }),
   /**
    * A private individual rather than a business. Has no ICE, so article 145
    * does not ask for one when issuing them an invoice.

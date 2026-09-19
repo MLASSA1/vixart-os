@@ -55,7 +55,7 @@ export default async function ProjectsPage() {
                 p.due_date NULLS LAST, lower(p.name)
     `);
     const comps = await tx.execute<{ id: string; name: string }>(
-      sql`SELECT id, name FROM company ORDER BY lower(name)`,
+      sql`SELECT id, name FROM company WHERE archived_at IS NULL ORDER BY lower(name)`,
     );
     const members = await tx.execute<{ id: string; full_name: string }>(
       sql`SELECT id, full_name FROM app_user

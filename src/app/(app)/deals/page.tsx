@@ -54,7 +54,7 @@ export default async function DealsPage() {
                 d.expected_close_date NULLS LAST, d.created_at DESC
     `);
     const comps = await tx.execute<{ id: string; name: string }>(
-      sql`SELECT id, name FROM company ORDER BY lower(name)`,
+      sql`SELECT id, name FROM company WHERE archived_at IS NULL ORDER BY lower(name)`,
     );
     return { rows: deals.rows, companies: comps.rows };
   });

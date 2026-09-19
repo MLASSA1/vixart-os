@@ -59,7 +59,7 @@ export default async function TasksPage() {
     const open = await tx.execute<{ id: string; label: string }>(sql`
       SELECT p.id, p.name || ' — ' || c.name AS label
         FROM project p JOIN company c ON c.id = p.company_id
-       WHERE p.status <> 'delivered' ORDER BY lower(p.name)
+       WHERE p.status <> 'delivered' AND p.archived_at IS NULL ORDER BY lower(p.name)
     `);
 
     return { rows: result.rows as TaskItem[], team: people.rows, projects: open.rows };

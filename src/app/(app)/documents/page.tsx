@@ -58,7 +58,7 @@ export default async function DocumentsPage() {
                 d.number DESC NULLS FIRST, d.created_at DESC
     `);
     const comps = await tx.execute<{ id: string; name: string }>(
-      sql`SELECT id, name FROM company ORDER BY lower(name)`,
+      sql`SELECT id, name FROM company WHERE archived_at IS NULL ORDER BY lower(name)`,
     );
     const openDeals = await tx.execute<{ id: string; label: string }>(sql`
       SELECT d.id, d.title || ' — ' || c.name AS label

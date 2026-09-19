@@ -80,7 +80,7 @@ export default async function RetainersPage() {
     `);
 
     const comps = await tx.execute<{ id: string; name: string }>(sql`
-      SELECT id, name FROM company ORDER BY lower(name)
+      SELECT id, name FROM company WHERE archived_at IS NULL ORDER BY lower(name)
     `);
 
     return { rows: list.rows, clients: comps.rows };

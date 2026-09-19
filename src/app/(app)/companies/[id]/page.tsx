@@ -15,6 +15,7 @@ import {
   deleteCompanyAction,
   deleteContactAction,
   deleteInteractionAction,
+  setCompanyArchivedAction,
   setStatusAction,
   updateContactAction,
 } from '../actions';
@@ -323,11 +324,38 @@ export default async function ClientPage({
 
       {/* --- Deletion: management only, name must be typed ------------------- */}
       {isAdmin && (
-        <Section title="Delete record">
-          <p className="prose-vixart" style={{ opacity: 0.68 }}>
-            Deleting this record also deletes its {contacts.length} contact(s) and its{' '}
-            {timeline.length} timeline entries. This cannot be undone. Restore from a
-            backup is the only way back.
+        <Section title={record.archivedAt ? 'Archived' : 'Archive or delete'}>
+          {record.archivedAt ? (
+            <>
+              <p className="prose-vixart" style={{ opacity: 0.68 }}>
+                This client is out of use. Everything is kept — documents, messages
+                and figures — and it no longer appears in lists or pickers.
+              </p>
+              <form action={setCompanyArchivedAction} className="mt-4">
+                <input type="hidden" name="companyId" value={record.id} />
+                <input type="hidden" name="archived" value="0" />
+                <button type="submit" className="btn btn-inverse">Bring it back</button>
+              </form>
+            </>
+          ) : (
+            <>
+              <p className="prose-vixart" style={{ opacity: 0.68 }}>
+                Archiving keeps everything and takes the client out of every list and
+                picker. That is almost always what you want: a client with an invoice
+                or a conversation cannot be deleted at all, because both are records.
+              </p>
+              <form action={setCompanyArchivedAction} className="mt-4">
+                <input type="hidden" name="companyId" value={record.id} />
+                <input type="hidden" name="archived" value="1" />
+                <button type="submit" className="btn">Archive this client</button>
+              </form>
+            </>
+          )}
+
+          <p className="prose-vixart mt-8" style={{ opacity: 0.68 }}>
+            Deleting also removes its {contacts.length} contact(s) and its{' '}
+            {timeline.length} timeline entries, and cannot be undone. It is refused
+            outright if this client has any quote, invoice, or message.
           </p>
           <form action={deleteCompanyAction} className="mt-4 flex flex-wrap items-end gap-3">
             <input type="hidden" name="companyId" value={record.id} />

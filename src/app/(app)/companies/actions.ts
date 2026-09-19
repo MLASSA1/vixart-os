@@ -1,6 +1,6 @@
 'use server';
 
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
@@ -72,6 +72,34 @@ function readCompanyForm(formData: FormData) {
 // ---------------------------------------------------------------------------
 // Clients
 // ---------------------------------------------------------------------------
+
+/**
+ * Put a client out of use, or bring it back.
+ *
+ * Not a delete. Everything stays — documents, messages, figures — and the
+ * client stops appearing in the lists and pickers where a dead account is only
+ * a way to file work against the wrong name.
+ *
+ * Deletion still exists for a client with nothing behind it. A trigger refuses
+ * it for anything carrying a fiscal document or a conversation, and says to
+ * archive instead.
+ */
+export async function setCompanyArchivedAction(formData: FormData): Promise<void> {
+  const id = String(formData.get('companyId') ?? '');
+  const archived = String(formData.get('archived') ?? '') === '1';
+  if (!id) return;
+
+  await withUser(async (tx) => {
+    await tx.execute(sql`
+      UPDATE company SET archived_at = ${archived ? sql`now()` : sql`NULL`}
+       WHERE id = ${id}
+    `);
+  });
+
+  revalidatePath('/companies');
+  revalidatePath('/clients');
+  revalidatePath(`/companies/${id}`);
+}
 
 export async function createCompanyAction(
   _previous: FormState,
