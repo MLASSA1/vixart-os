@@ -4,7 +4,7 @@ import { sql } from 'drizzle-orm';
 import { auth } from '@/auth';
 import { withUser } from '@/db/session';
 import { markThreadRead } from '@/lib/chat-read';
-import { listMessages } from '@/lib/chat-queries';
+import { hasMessagesBefore, listMessages } from '@/lib/chat-queries';
 import {
   editMessageAction,
   postMessageAction,
@@ -66,6 +66,8 @@ export default async function ChannelPage({ params }: { params: Promise<{ id: st
     if (!record) return null;
 
     const messages = await listMessages(tx, id, user.id);
+    // Whether the channel goes further up than the page we are sending.
+    const earlier = await hasMessagesBefore(tx, id, messages[0]?.created_at ?? null);
 
     // Who may be named here: a real person who can open this channel. Asked of
     // the thread table, so the answer comes from its policy and not a copy.
@@ -83,11 +85,11 @@ export default async function ChannelPage({ params }: { params: Promise<{ id: st
     // a revalidate during a render is what returned 500 on every channel.
     await markThreadRead(tx, user.id, id);
 
-    return { record, messages, people: people.rows };
+    return { record, messages, earlier, people: people.rows };
   });
 
   if (!data) notFound();
-  const { record, messages, people } = data;
+  const { record, messages, earlier, people } = data;
 
   const isDm = record.kind === 'dm';
 
@@ -131,6 +133,7 @@ export default async function ChannelPage({ params }: { params: Promise<{ id: st
         meId={me.id}
         mentionable={people.map((p) => ({ id: String(p.id), fullName: String(p.full_name) }))}
         dmWith={isDm ? (record.other_name ?? null) : null}
+        hasEarlier={earlier}
         postAction={postMessageAction.bind(null, id)}
         editAction={editMessageAction.bind(null, id)}
         withdrawAction={withdrawMessageAction.bind(null, id)}

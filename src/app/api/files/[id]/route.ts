@@ -62,6 +62,17 @@ export async function GET(
     );
   }
 
+  // Immutable per id, so the id and the size identify the bytes completely.
+  const tag = `"${record.id}-${size}"`;
+
+  // Already held, and still allowed to hold it: no bytes need to move.
+  if (request.headers.get('if-none-match') === tag) {
+    return new NextResponse(null, {
+      status: 304,
+      headers: { ETag: tag, 'Cache-Control': 'private, max-age=86400, immutable' },
+    });
+  }
+
   // Common to every answer below.
   const headers: Record<string, string> = {
     'Content-Type': record.mimeType,
@@ -72,7 +83,26 @@ export async function GET(
     'Content-Disposition': `attachment; filename="${encodeURIComponent(record.originalName)}"`,
     'Content-Security-Policy': "default-src 'none'; sandbox",
     'X-Content-Type-Options': 'nosniff',
-    'Cache-Control': 'private, no-store',
+    // WHY THIS IS CACHEABLE, AND WHY IT IS SAFE.
+    //
+    // It was `no-store`, which meant every photograph in a channel was
+    // downloaded again on every page load, every scroll back, and every
+    // reconnect — over mobile data in Agadir, repeatedly, for bytes the
+    // browser already had. Nothing about an attachment changes: a new upload
+    // is a new row with a new id, so the bytes behind one id are the same
+    // bytes for ever. `immutable` says exactly that, and the browser stops
+    // asking.
+    //
+    // `private` keeps it out of any shared cache, and the window is a day, so
+    // a borrowed laptop is not carrying the agency's files around for a month.
+    //
+    // What this does NOT do is skip the permission check. The row is looked up
+    // under this person's own policies above, and a 304 is only ever sent
+    // after that has succeeded — a cache that answered before the check would
+    // be a way to read a file after losing access to it.
+    'Cache-Control': 'private, max-age=86400, immutable',
+    // For the revalidation after that day: a 304 costs a request and no bytes.
+    ETag: tag,
     // Advertised so a player knows it may skip. Without this the scrubber on a
     // voice note is decorative: play works and dragging does nothing, silently.
     'Accept-Ranges': 'bytes',

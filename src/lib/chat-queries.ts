@@ -108,43 +108,113 @@ export async function listDms(tx: Tx, meId: string): Promise<DmRow[]> {
   return result.rows;
 }
 
+/** How many messages a channel opens with, and how many "load earlier" adds. */
+export const MESSAGE_PAGE = 50;
+
+/**
+ * The most a single poll will return.
+ *
+ * A browser that has been shut for a week asks for everything since it last
+ * looked. Bounded, it gets the oldest slice first and its high-water mark
+ * moves, so the next poll continues from there and it converges — rather than
+ * one request trying to carry a week of a busy channel.
+ */
+const POLL_MAX = 200;
+
 /**
  * A channel's messages, oldest first.
  *
- * `after` fetches the tail for a poll. It matches on `edited_at` as well as
- * `created_at`, so a correction made by somebody else arrives at the open
- * window instead of waiting for a reload — the client merges by id.
+ * WHY THIS IS BOUNDED.
+ *
+ * It used to return the whole thread, every time. With six thousand messages
+ * in it that is 7.6 MB of HTML for one page load — the database answers in
+ * seven milliseconds and the server then spends a second and a half rendering
+ * bubbles nobody scrolled to, before sending them over a phone connection in
+ * Agadir. Nothing about that gets better as the team uses the thing more.
+ *
+ * So a channel opens on the last `MESSAGE_PAGE` and `before` walks backwards
+ * from there.
+ *
+ * THREE MODES, one query:
+ *   neither  — the newest page. Taken DESC so the index can stop early, then
+ *              turned round, because the screen wants them oldest first.
+ *   `after`  — the tail, for the poll and the stream. Matches `edited_at` too,
+ *              so a correction someone else made arrives at the open window
+ *              instead of waiting for a reload; the client merges by id.
+ *   `before` — the page above the one you are reading, for "load earlier".
  */
 export async function listMessages(
   tx: Tx,
   threadId: string,
   meId: string,
-  after?: string | null,
+  options?: { after?: string | null; before?: string | null; limit?: number },
 ): Promise<MessageRow[]> {
-  const cutoff = after ?? null;
+  const after = options?.after ?? null;
+  const before = options?.before ?? null;
+  const limit = Math.min(options?.limit ?? MESSAGE_PAGE, POLL_MAX);
+
   const result = await tx.execute<MessageRow>(sql`
-    SELECT m.id, m.author_id, m.author_name, m.body,
-           m.created_at::text, m.edited_at::text,
-           -- Computed by the database, so the button and the trigger that
-           -- enforces the window cannot disagree about whether it is open.
-           (m.author_id = ${meId} AND m.created_at > now() - interval '15 minutes'
-            AND m.withdrawn_at IS NULL) AS editable,
-           m.withdrawn_at::text,
+    WITH page AS (
+      SELECT m.id, m.author_id, m.author_name, m.body,
+             m.created_at, m.edited_at,
+             -- Computed by the database, so the button and the trigger that
+             -- enforces the window cannot disagree about whether it is open.
+             (m.author_id = ${meId} AND m.created_at > now() - interval '15 minutes'
+              AND m.withdrawn_at IS NULL) AS editable,
+             m.withdrawn_at, m.withdrawn_by_id
+        FROM message m
+       WHERE m.thread_id = ${threadId}
+         AND (${after}::timestamptz IS NULL
+              OR m.created_at > ${after}::timestamptz
+              OR m.edited_at   > ${after}::timestamptz)
+         AND (${before}::timestamptz IS NULL OR m.created_at < ${before}::timestamptz)
+       -- Which END of the thread the LIMIT takes from.
+       --
+       -- A poll wants the OLDEST unseen first: its high-water mark then
+       -- advances one slice at a time, so a browser shut for a week converges
+       -- instead of jumping to the newest and never seeing the middle.
+       -- Opening a channel, and stepping back up through it, both want the
+       -- newest — which is also the end the index can stop at.
+       --
+       -- Written as a CASE rather than two ORDER BY fragments chosen in
+       -- TypeScript, because a fragment cannot be planned: the guard that
+       -- EXPLAINs every query in this repository would have to skip this one,
+       -- and this is the query it would least like to skip.
+       ORDER BY CASE WHEN ${after}::timestamptz IS NULL THEN NULL
+                     ELSE m.created_at END ASC,
+                m.created_at DESC
+       LIMIT ${limit}
+    )
+    SELECT p.id, p.author_id, p.author_name, p.body,
+           p.created_at::text, p.edited_at::text, p.editable,
+           p.withdrawn_at::text,
            w.full_name AS withdrawn_by,
            a.id::text         AS file_id,
            a.original_name    AS file_name,
            a.size_bytes::text AS file_size,
            a.mime_type        AS file_mime,
            a.duration_ms      AS file_duration_ms
-      FROM message m
-      LEFT JOIN app_user w ON w.id = m.withdrawn_by_id
+      FROM page p
+      LEFT JOIN app_user w ON w.id = p.withdrawn_by_id
       LEFT JOIN attachment a
-        ON a.entity_type = 'message' AND a.entity_id = m.id
-     WHERE m.thread_id = ${threadId}
-       AND (${cutoff}::timestamptz IS NULL
-            OR m.created_at > ${cutoff}::timestamptz
-            OR m.edited_at   > ${cutoff}::timestamptz)
-     ORDER BY m.created_at
+        ON a.entity_type = 'message' AND a.entity_id = p.id
+     ORDER BY p.created_at
   `);
   return result.rows;
+}
+
+/** Whether anything sits above the page on screen — drives "load earlier". */
+export async function hasMessagesBefore(
+  tx: Tx,
+  threadId: string,
+  oldest: string | null,
+): Promise<boolean> {
+  if (!oldest) return false;
+  const result = await tx.execute<{ any: boolean }>(sql`
+    SELECT EXISTS (
+      SELECT 1 FROM message
+       WHERE thread_id = ${threadId} AND created_at < ${oldest}::timestamptz
+    ) AS any
+  `);
+  return Boolean(result.rows[0]?.any);
 }

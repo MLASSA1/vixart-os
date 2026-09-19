@@ -3,6 +3,7 @@ import { auth } from '@/auth';
 import { Empty, PageHeader, Section } from '@/components/ui';
 import { TaskRow, type TaskItem } from '@/components/TaskRow';
 import { withUser } from '@/db/session';
+import { capped, DONE_WINDOW, QUERY_CAP } from '@/lib/list-caps';
 import { createTaskAction } from '../projects/actions';
 import { TaskForm } from '../projects/TaskForm';
 
@@ -43,12 +44,18 @@ export default async function TasksPage() {
         LEFT JOIN app_user a ON a.id = t.assignee_id
         LEFT JOIN app_user r ON r.id = t.created_by_id
         LEFT JOIN app_user s ON s.id = t.completed_by_id
+       -- Open work in full, and only the tail of what is finished. The
+       -- completed pile grows for ever and none of it is actionable; without
+       -- this the page carried every task the agency has ever signed off.
+       WHERE t.status <> 'completed'
+          OR t.completed_at > now() - ${DONE_WINDOW}::interval
        ORDER BY CASE t.status WHEN 'blocked' THEN 0 WHEN 'in_progress' THEN 1
                               WHEN 'accepted' THEN 2 WHEN 'todo' THEN 3
                               WHEN 'submitted' THEN 4 ELSE 5 END,
                 CASE t.priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1
                                 WHEN 'normal' THEN 2 ELSE 3 END,
                 t.due_date NULLS LAST, t.created_at DESC
+       LIMIT ${QUERY_CAP}
     `);
 
     const people = await tx.execute<{ id: string; full_name: string }>(sql`
@@ -103,10 +110,13 @@ export default async function TasksPage() {
           <Empty message="Nothing assigned to you." />
         ) : (
           <ul className="border-t border-void/10">
-            {mine.map((t) => (
+            {capped(mine).shown.map((t) => (
               <TaskRow key={t.id} task={t} isMine canModerate={canModerate} showProject />
             ))}
           </ul>
+        )}
+        {capped(mine).hidden > 0 && (
+          <p className="hint mt-3">{capped(mine).hidden} more not shown.</p>
         )}
       </Section>
 
@@ -117,17 +127,20 @@ export default async function TasksPage() {
             says it is blocked.
           </p>
           <ul className="border-t border-void/10">
-            {raised.map((t) => (
+            {capped(raised).shown.map((t) => (
               <TaskRow key={t.id} task={t} canModerate={canModerate} showProject />
             ))}
           </ul>
+          {capped(raised).hidden > 0 && (
+            <p className="hint mt-3">{capped(raised).hidden} more not shown.</p>
+          )}
         </Section>
       )}
 
       {blocked.length > 0 && (
         <Section title={`Blocked — ${blocked.length}`}>
           <ul className="border-t border-void/10">
-            {blocked.map((t) => (
+            {capped(blocked).shown.map((t) => (
               <li key={t.id}>
                 <TaskRow
                   task={t}
@@ -143,6 +156,9 @@ export default async function TasksPage() {
               </li>
             ))}
           </ul>
+          {capped(blocked).hidden > 0 && (
+            <p className="hint mt-3">{capped(blocked).hidden} more not shown.</p>
+          )}
         </Section>
       )}
 
@@ -152,7 +168,7 @@ export default async function TasksPage() {
             Work that belongs to the agency rather than to a client project.
           </p>
           <ul className="border-t border-void/10">
-            {internal.map((t) => (
+            {capped(internal).shown.map((t) => (
               <TaskRow
                 key={t.id}
                 task={t}
@@ -161,6 +177,9 @@ export default async function TasksPage() {
               />
             ))}
           </ul>
+          {capped(internal).hidden > 0 && (
+            <p className="hint mt-3">{capped(internal).hidden} more not shown.</p>
+          )}
         </Section>
       )}
 
@@ -170,20 +189,24 @@ export default async function TasksPage() {
             Submitted as finished. Nobody signs off their own work, so these need you.
           </p>
           <ul className="border-t border-void/10">
-            {waiting.map((t) => (
+            {capped(waiting).shown.map((t) => (
               <TaskRow key={t.id} task={t} canModerate={canModerate} showProject />
             ))}
           </ul>
+          {capped(waiting).hidden > 0 && (
+            <p className="hint mt-3">{capped(waiting).hidden} more not shown.</p>
+          )}
         </Section>
       )}
 
       {history.length > 0 && (
         <Section title={`Completed — ${history.length}`}>
           <p className="hint mb-3">
-            Signed off. Kept as the record of what was actually delivered.
+            Signed off in the last thirty days. Kept as the record of what was
+            actually delivered.
           </p>
           <ul className="border-t border-void/10">
-            {history.slice(0, 50).map((t) => (
+            {capped(history).shown.map((t) => (
               <TaskRow key={t.id} task={t} canModerate={canModerate} showProject />
             ))}
           </ul>

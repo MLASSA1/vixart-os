@@ -6,11 +6,17 @@ import { listMessages } from '@/lib/chat-queries';
 import { markThreadRead } from '@/lib/chat-read';
 
 /**
- * New messages in the open channel, for the five-second poll.
+ * Messages in the open channel — the tail for the poll, or a page of history.
  *
- * `?after=` is the newest timestamp the browser already holds. Without it the
- * whole channel comes back, which is what the first load after a reconnect
- * wants.
+ * `?after=` is the newest timestamp the browser already holds: the poll and
+ * the stream both use it to fetch what has arrived since.
+ *
+ * `?before=` is the oldest it holds, and asks for the page above that — what
+ * "load earlier messages" is made of.
+ *
+ * With neither, the newest page comes back. That is bounded now: a channel
+ * with six thousand messages in it used to return all six thousand, to a phone
+ * on mobile data in Agadir.
  *
  * Polling is also reading: the window is open and in front of somebody, so the
  * read mark moves. It happens here rather than in the page because a page is a
@@ -28,7 +34,11 @@ export async function GET(
   if (!session?.user) return new NextResponse('Not found', { status: 404 });
   if (!/^[0-9a-f-]{36}$/i.test(id)) return new NextResponse('Not found', { status: 404 });
 
-  const after = new URL(request.url).searchParams.get('after');
+  const query = new URL(request.url).searchParams;
+  const after = query.get('after');
+  // Stepping back up through the channel. One page at a time, from whatever
+  // is currently the oldest thing on screen.
+  const before = query.get('before');
 
   const messages = await withUser(async (tx, user) => {
     // Visibility asked of the thread table, under this person's own policies,
@@ -40,7 +50,7 @@ export async function GET(
     const visible = await tx.execute(sql`SELECT 1 FROM thread WHERE id = ${id}`);
     if (visible.rows.length === 0) return null;
 
-    const rows = await listMessages(tx, id, user.id, after);
+    const rows = await listMessages(tx, id, user.id, { after, before });
     // Polling is reading: the window is open in front of somebody.
     await markThreadRead(tx, user.id, id);
     return rows;

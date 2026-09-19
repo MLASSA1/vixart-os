@@ -3,6 +3,7 @@ import { auth } from '@/auth';
 import { Empty, PageHeader, Section } from '@/components/ui';
 import { TaskRow, type TaskItem } from '@/components/TaskRow';
 import { withUser } from '@/db/session';
+import { capped, DONE_WINDOW, QUERY_CAP } from '@/lib/list-caps';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,19 +35,24 @@ export default async function MyWorkPage() {
         LEFT JOIN app_user a ON a.id = t.assignee_id
         LEFT JOIN app_user s ON s.id = t.completed_by_id
         LEFT JOIN app_user r ON r.id = t.created_by_id
-       WHERE t.assignee_id = ${me.id}
+       WHERE (t.assignee_id = ${me.id}
           -- Raised by me and carried by somebody else: I need to see it, and
           -- especially to see it stuck.
           OR t.created_by_id = ${me.id}
           -- Waiting on my sign-off. Only a moderator can act on these, and the
           -- section is hidden for everyone else.
           OR (t.status = 'submitted' AND ${canModerate})
+       )
+       -- Open work in full, and only the tail of what is finished. The
+       -- completed pile grows for ever and none of it is actionable.
+       AND (t.status <> 'completed' OR t.completed_at > now() - ${DONE_WINDOW}::interval)
        ORDER BY CASE t.status WHEN 'blocked' THEN 0 WHEN 'in_progress' THEN 1
                               WHEN 'accepted' THEN 2 WHEN 'todo' THEN 3
                               WHEN 'submitted' THEN 4 ELSE 5 END,
                 CASE t.priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1
                                 WHEN 'normal' THEN 2 ELSE 3 END,
                 t.due_date NULLS LAST
+       LIMIT ${QUERY_CAP}
     `);
     return result.rows as TaskItem[];
   });
@@ -101,10 +107,13 @@ export default async function MyWorkPage() {
           <Empty message="Nothing assigned. Anyone can raise a task — including you, for yourself." />
         ) : (
           <ul className="border-t border-void/10">
-            {mine.map((t) => (
+            {capped(mine).shown.map((t) => (
               <TaskRow key={t.id} task={t} isMine canModerate={canModerate} showProject />
             ))}
           </ul>
+        )}
+        {capped(mine).hidden > 0 && (
+          <p className="hint mt-3">{capped(mine).hidden} more not shown.</p>
         )}
       </Section>
 
@@ -115,10 +124,13 @@ export default async function MyWorkPage() {
             says it is blocked.
           </p>
           <ul className="border-t border-void/10">
-            {raised.map((t) => (
+            {capped(raised).shown.map((t) => (
               <TaskRow key={t.id} task={t} canModerate={canModerate} showProject />
             ))}
           </ul>
+          {capped(raised).hidden > 0 && (
+            <p className="hint mt-3">{capped(raised).hidden} more not shown.</p>
+          )}
         </Section>
       )}
 
@@ -129,7 +141,7 @@ export default async function MyWorkPage() {
             block with no reason is just a task nobody is moving.
           </p>
           <ul className="border-t border-void/10">
-            {blocked.map((t) => (
+            {capped(blocked).shown.map((t) => (
               <li key={t.id} className="border-b border-void/10 py-1">
                 <TaskRow
                   task={t}
@@ -145,6 +157,9 @@ export default async function MyWorkPage() {
               </li>
             ))}
           </ul>
+          {capped(blocked).hidden > 0 && (
+            <p className="hint mt-3">{capped(blocked).hidden} more not shown.</p>
+          )}
         </Section>
       )}
 
@@ -162,20 +177,26 @@ export default async function MyWorkPage() {
               : 'You marked these done. A moderator confirms them before they count as completed.'}
           </p>
           <ul className="border-t border-void/10">
-            {waiting.map((t) => (
+            {capped(waiting).shown.map((t) => (
               <TaskRow key={t.id} task={t} isMine canModerate={canModerate} showProject />
             ))}
           </ul>
+          {capped(waiting).hidden > 0 && (
+            <p className="hint mt-3">{capped(waiting).hidden} more not shown.</p>
+          )}
         </Section>
       )}
 
       {done.length > 0 && (
         <Section title={`Signed off — ${done.length}`}>
           <ul className="border-t border-void/10">
-            {done.slice(0, 20).map((t) => (
+            {capped(done).shown.map((t) => (
               <TaskRow key={t.id} task={t} isMine canModerate={canModerate} showProject />
             ))}
           </ul>
+          {capped(done).hidden > 0 && (
+            <p className="hint mt-3">{capped(done).hidden} more not shown.</p>
+          )}
         </Section>
       )}
     </>

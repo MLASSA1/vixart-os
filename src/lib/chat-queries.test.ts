@@ -41,11 +41,22 @@ function selectedNames(sqlText: string): Set<string> {
   return names;
 }
 
-/** The body of the sql`…` literal inside a named function. */
+/**
+ * The body of the query a named function actually runs.
+ *
+ * Anchored on `execute(sql\`` rather than on the first `sql\`` in the
+ * function: a query can be assembled from fragments — an ORDER BY that
+ * differs between a poll and a first load, say — and taking the first literal
+ * would check the fragment and declare the real query fine. This guard exists
+ * because a missing column is invisible; a guard that reads the wrong text is
+ * worse than none, because it reports green.
+ */
 function queryOf(fn: string): string {
   const at = SOURCE.indexOf(`export async function ${fn}`);
   if (at === -1) throw new Error(`no function ${fn}`);
-  const open = SOURCE.indexOf('sql`', at);
+  const call = SOURCE.indexOf('.execute', at);
+  if (call === -1) throw new Error(`${fn} runs no query`);
+  const open = SOURCE.indexOf('sql`', call);
   return SOURCE.slice(open + 4, SOURCE.indexOf('`', open + 4));
 }
 

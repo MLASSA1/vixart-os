@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { MessageRow } from '@/lib/chat-queries';
+import { MESSAGE_PAGE, type MessageRow } from '@/lib/chat-queries';
 import { subscribeToChat } from '@/lib/chat-stream-client';
 import type { FormState } from '@/lib/form-state';
 import { formatBytes, isAudio } from '@/lib/upload-types';
@@ -47,6 +47,7 @@ export function MessagePane({
   meId,
   mentionable,
   dmWith,
+  hasEarlier,
   postAction,
   editAction,
   withdrawAction,
@@ -57,6 +58,8 @@ export function MessagePane({
   mentionable: ReadonlyArray<{ id: string; fullName: string }>;
   /** The other person, when this is a conversation rather than a channel. */
   dmWith: string | null;
+  /** Whether the channel goes further up than the page we were given. */
+  hasEarlier: boolean;
   postAction: (state: FormState, formData: FormData) => Promise<FormState>;
   editAction: (state: FormState, formData: FormData) => Promise<FormState>;
   withdrawAction: (formData: FormData) => Promise<void>;
@@ -64,6 +67,9 @@ export function MessagePane({
   const [messages, setMessages] = useState(initial);
   /** Whether announcements are arriving. Decides the fallback interval only. */
   const [streaming, setStreaming] = useState(false);
+  /** More above what is on screen, and whether we are fetching it. */
+  const [earlier, setEarlier] = useState(hasEarlier);
+  const [loadingEarlier, setLoadingEarlier] = useState(false);
   const [dropped, setDropped] = useState<File | null>(null);
   const [dragging, setDragging] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -73,7 +79,55 @@ export function MessagePane({
   // server data replaces what is on screen.
   useEffect(() => {
     setMessages(initial);
-  }, [initial]);
+    setEarlier(hasEarlier);
+  }, [initial, hasEarlier]);
+
+  /**
+   * The page above the one on screen.
+   *
+   * Prepending moves everything down, so the reader would be looking at a
+   * different message than the one they were reading a moment ago. The scroll
+   * position is therefore restored by height difference: whatever they were
+   * reading stays under their eyes, and the new page appears above it — which
+   * is what going back up a conversation is supposed to feel like.
+   */
+  const loadEarlier = useCallback(async () => {
+    const el = scrollRef.current;
+    const oldest = messages[0]?.created_at;
+    if (!oldest || loadingEarlier) return;
+
+    setLoadingEarlier(true);
+    const before = el?.scrollHeight ?? 0;
+    try {
+      const response = await fetch(
+        `/api/chat/threads/${threadId}/messages?before=${encodeURIComponent(oldest)}`,
+        { cache: 'no-store' },
+      );
+      if (!response.ok) return;
+      const data = (await response.json()) as { messages: MessageRow[] };
+      if (data.messages.length === 0) {
+        setEarlier(false);
+        return;
+      }
+
+      setMessages((current) => {
+        const byId = new Map(data.messages.map((m) => [m.id, m]));
+        for (const m of current) byId.set(m.id, m);
+        return [...byId.values()].sort((a, b) => a.created_at.localeCompare(b.created_at));
+      });
+      // A short page means we have reached the top of the channel.
+      setEarlier(data.messages.length >= MESSAGE_PAGE);
+
+      requestAnimationFrame(() => {
+        const after = el?.scrollHeight ?? 0;
+        if (el) el.scrollTop += after - before;
+      });
+    } catch {
+      // Nothing changes. The button is still there to try again.
+    } finally {
+      setLoadingEarlier(false);
+    }
+  }, [messages, threadId, loadingEarlier]);
 
   const poll = useCallback(async () => {
     if (document.hidden) return;
@@ -178,6 +232,19 @@ export function MessagePane({
       )}
 
       <div ref={scrollRef} className="chat-scroll min-h-0 flex-1 overflow-y-auto px-4 py-3 sm:px-6">
+        {earlier && (
+          <div className="mb-3 flex justify-center">
+            <button
+              type="button"
+              onClick={() => void loadEarlier()}
+              disabled={loadingEarlier}
+              className="rounded-full border border-void/15 bg-surface px-4 py-1.5 text-[13px] font-medium hover:border-void/30 disabled:opacity-50"
+            >
+              {loadingEarlier ? 'Loading…' : 'Load earlier messages'}
+            </button>
+          </div>
+        )}
+
         {messages.length === 0 && (
           <div className="flex h-full flex-col items-center justify-center gap-2 py-16 text-center">
             <p className="text-[15px] font-semibold">No messages yet</p>

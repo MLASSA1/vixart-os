@@ -3,6 +3,7 @@ import { sql } from 'drizzle-orm';
 import { auth } from '@/auth';
 import { Empty, PageHeader, Section } from '@/components/ui';
 import { withUser } from '@/db/session';
+import { capped } from '@/lib/list-caps';
 import { since } from '@/lib/format';
 import { markAllReadAction, markNotificationReadAction } from './actions';
 
@@ -79,7 +80,7 @@ export default async function InboxPage() {
           <Empty message="You are up to date" />
         ) : (
           <ul className="grid gap-3">
-            {unread.map((n) => (
+            {capped(unread).shown.map((n) => (
               <li key={n.id} className="card px-5 py-4">
                 <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
                   <div className="min-w-0">
@@ -111,12 +112,15 @@ export default async function InboxPage() {
             ))}
           </ul>
         )}
+        {capped(unread).hidden > 0 && (
+          <p className="hint mt-3">{capped(unread).hidden} more unread not shown.</p>
+        )}
       </Section>
 
       {rows.length > unread.length && (
         <Section title="Earlier">
           <ul className="divide-y divide-void/10">
-            {rows.filter((r) => r.read_at).slice(0, 50).map((n) => (
+            {capped(rows.filter((r) => r.read_at)).shown.map((n) => (
               <li key={n.id} className="flex flex-wrap items-baseline justify-between gap-x-4 py-2.5">
                 <span className="min-w-0">
                   <span className="hint">{KIND_LABEL[n.kind] ?? n.kind} · </span>
