@@ -34,6 +34,8 @@ export interface MessageRow {
   created_at: string;
   edited_at: string | null;
   editable: boolean;
+  withdrawn_at: string | null;
+  withdrawn_by: string | null;
   file_id: string | null;
   file_name: string | null;
   file_size: string | null;
@@ -79,13 +81,17 @@ export async function listMessages(
            m.created_at::text, m.edited_at::text,
            -- Computed by the database, so the button and the trigger that
            -- enforces the window cannot disagree about whether it is open.
-           (m.author_id = ${meId} AND m.created_at > now() - interval '15 minutes') AS editable,
+           (m.author_id = ${meId} AND m.created_at > now() - interval '15 minutes'
+            AND m.withdrawn_at IS NULL) AS editable,
+           m.withdrawn_at::text,
+           w.full_name AS withdrawn_by,
            a.id::text         AS file_id,
            a.original_name    AS file_name,
            a.size_bytes::text AS file_size,
            a.mime_type        AS file_mime,
            a.duration_ms      AS file_duration_ms
       FROM message m
+      LEFT JOIN app_user w ON w.id = m.withdrawn_by_id
       LEFT JOIN attachment a
         ON a.entity_type = 'message' AND a.entity_id = m.id
      WHERE m.thread_id = ${threadId}

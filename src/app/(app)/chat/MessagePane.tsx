@@ -47,6 +47,7 @@ export function MessagePane({
   mentionable,
   postAction,
   editAction,
+  withdrawAction,
 }: {
   threadId: string;
   initial: MessageRow[];
@@ -54,6 +55,7 @@ export function MessagePane({
   mentionable: ReadonlyArray<{ id: string; fullName: string }>;
   postAction: (state: FormState, formData: FormData) => Promise<FormState>;
   editAction: (state: FormState, formData: FormData) => Promise<FormState>;
+  withdrawAction: (formData: FormData) => Promise<void>;
 }) {
   const [messages, setMessages] = useState(initial);
   const [dropped, setDropped] = useState<File | null>(null);
@@ -207,7 +209,7 @@ export function MessagePane({
                       </p>
                     )}
 
-                    {m.file_id && (
+                    {m.file_id && !m.withdrawn_at && (
                       <div className={m.body === '(file)' ? 'mb-0.5' : 'mb-1.5'}>
                         {/* Never a static path: the only way to the bytes is
                             the authenticated route, which re-checks who asks. */}
@@ -254,24 +256,52 @@ export function MessagePane({
                       </div>
                     )}
 
-                    {/* "(file)" is the placeholder the action writes when a
-                        file travels alone. Showing it would be showing the
-                        database's private business to the reader. */}
-                    {!(m.file_id && m.body === '(file)') && (
-                      <span className="whitespace-pre-wrap">
-                        <MentionText body={m.body} names={names} />
+                    {/*
+                      A withdrawn message keeps its place and says who took it
+                      back and when. It is not removed: a conversation that
+                      silently rearranges itself afterwards is not a record.
+                    */}
+                    {m.withdrawn_at ? (
+                      <span className="text-[13.5px] italic opacity-55">
+                        Message withdrawn by {m.withdrawn_by ?? 'someone'}
                       </span>
+                    ) : (
+                      /* "(file)" is the placeholder the action writes when a
+                         file travels alone. Showing it would be showing the
+                         database's private business to the reader. */
+                      !(m.file_id && m.body === '(file)') && (
+                        <span className="whitespace-pre-wrap">
+                          <MentionText body={m.body} names={names} />
+                        </span>
+                      )
                     )}
 
                     <span className="bubble-time">
-                      {m.edited_at && <span className="mr-1 italic">edited</span>}
+                      {m.edited_at && !m.withdrawn_at && (
+                        <span className="mr-1 italic">edited</span>
+                      )}
                       {clockTime(m.created_at)}
                     </span>
                   </div>
 
-                  {m.editable && mine && (
-                    <div className="msg-actions mt-0.5 pl-1">
-                      <EditMessageForm action={editAction} messageId={m.id} body={m.body} />
+                  {mine && !m.withdrawn_at && (
+                    <div className="msg-actions mt-0.5 flex items-center gap-3 pl-1">
+                      {m.editable && (
+                        <EditMessageForm action={editAction} messageId={m.id} body={m.body} />
+                      )}
+                      {/* No time limit. The edit window exists so a correction
+                          cannot quietly rewrite what was said an hour ago;
+                          taking a message back leaves a mark, so it does not
+                          need the same guard. */}
+                      <form action={withdrawAction}>
+                        <input type="hidden" name="messageId" value={m.id} />
+                        <button
+                          type="submit"
+                          className="cursor-pointer text-[11.5px] font-medium text-void/45 hover:text-void hover:underline"
+                        >
+                          Delete
+                        </button>
+                      </form>
                     </div>
                   )}
                 </div>

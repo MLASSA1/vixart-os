@@ -5,7 +5,11 @@ import { auth } from '@/auth';
 import { withUser } from '@/db/session';
 import { markThreadRead } from '@/lib/chat-read';
 import { listMessages } from '@/lib/chat-queries';
-import { editMessageAction, postMessageAction } from '../actions';
+import {
+  editMessageAction,
+  postMessageAction,
+  withdrawMessageAction,
+} from '../actions';
 import { MessagePane } from '../MessagePane';
 
 /**
@@ -112,6 +116,7 @@ export default async function ChannelPage({ params }: { params: Promise<{ id: st
         mentionable={people.map((p) => ({ id: String(p.id), fullName: String(p.full_name) }))}
         postAction={postMessageAction.bind(null, id)}
         editAction={editMessageAction.bind(null, id)}
+        withdrawAction={withdrawMessageAction.bind(null, id)}
       />
     </>
   );

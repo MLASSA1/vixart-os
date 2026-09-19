@@ -401,6 +401,91 @@ describe.skipIf(!HAS_DB)('team chat (integration)', () => {
       `SELECT 1 FROM attachment WHERE entity_id = $1`, [messageId])).rows).toHaveLength(1);
   });
 
+
+  // --- taking a message back -----------------------------------------------
+
+  it('lets the author withdraw their own message, and says who', async () => {
+    await actAs(alice, 'member');
+    const { rows: m } = await app.query<{ id: string }>(
+      `INSERT INTO message (thread_id, author_id, author_name, body)
+       VALUES ($1,$2,'Alice','sent to the wrong channel') RETURNING id`,
+      [generalId, alice]);
+
+    await app.query(
+      `UPDATE message SET withdrawn_at = now(), withdrawn_by_id = $2 WHERE id = $1`,
+      [m[0]!.id, alice]);
+
+    const { rows } = await app.query<{ body: string; withdrawn_by_id: string; withdrawn_at: string }>(
+      `SELECT body, withdrawn_by_id, withdrawn_at FROM message WHERE id=$1`, [m[0]!.id]);
+    // The row stays, attributed. The text does not: "deleted" that leaves the
+    // words in the database for anyone with SQL access is hiding, not deleting.
+    expect(rows[0]!.body).toBe('');
+    expect(rows[0]!.withdrawn_by_id).toBe(alice);
+    expect(rows[0]!.withdrawn_at).not.toBeNull();
+  });
+
+  it('refuses one member withdrawing another\'s message', async () => {
+    await actAs(alice, 'member');
+    const { rows: m } = await app.query<{ id: string }>(
+      `INSERT INTO message (thread_id, author_id, author_name, body)
+       VALUES ($1,$2,'Alice','mine') RETURNING id`, [generalId, alice]);
+
+    // Refused by RLS, not by a trigger, so it does not throw — message_update
+    // is USING (author_id = current_user_id()), the row is invisible to the
+    // update, and it affects nothing. That is the stronger guarantee: the
+    // refusal does not depend on any code remembering to check.
+    await actAs(bob, 'member');
+    const result = await app.query(
+      `UPDATE message SET withdrawn_at = now(), withdrawn_by_id = $2 WHERE id = $1`,
+      [m[0]!.id, bob]);
+    expect(result.rowCount).toBe(0);
+
+    const { rows } = await app.query<{ body: string; withdrawn_at: string | null }>(
+      `SELECT body, withdrawn_at FROM message WHERE id=$1`, [m[0]!.id]);
+    expect(rows[0]!.body).toBe('mine');
+    expect(rows[0]!.withdrawn_at).toBeNull();
+  });
+
+  it('gives nobody but the author a way to withdraw a message', async () => {
+    // Asserted on the policy rather than by acting as an admin: in the seeded
+    // database the first assignable person and the only admin are the same
+    // account, so an "admin withdraws someone else's message" test would
+    // silently be the author withdrawing their own and pass for the wrong
+    // reason.
+    //
+    // 0056 shipped a trigger branch letting an administrator do this. It can
+    // never run — the policy below refuses the update before any trigger is
+    // reached — so 0057 removed it. A door that does not open is worse than
+    // no door.
+    const { rows } = await owner.query<{ qual: string }>(
+      `SELECT qual FROM pg_policies WHERE tablename='message' AND cmd='UPDATE'`);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.qual).toContain('author_id');
+    expect(rows[0]!.qual).toContain('current_user_id');
+    expect(rows[0]!.qual).not.toMatch(/is_admin|is_moderator/);
+  });
+
+  it('will not let a withdrawn message be changed again', async () => {
+    await actAs(alice, 'member');
+    const { rows: m } = await app.query<{ id: string }>(
+      `INSERT INTO message (thread_id, author_id, author_name, body)
+       VALUES ($1,$2,'Alice','gone') RETURNING id`, [generalId, alice]);
+    await app.query(`UPDATE message SET withdrawn_at = now(), withdrawn_by_id = $2 WHERE id = $1`,
+      [m[0]!.id, alice]);
+    await expect(
+      app.query(`UPDATE message SET body='back again' WHERE id=$1`, [m[0]!.id]),
+    ).rejects.toThrow(/withdrawn and cannot be changed/i);
+  });
+
+  it('still has no way to delete a message outright', async () => {
+    // The point of 0056: a message can be withdrawn, never made never to have
+    // existed. There is still no DELETE policy on the table.
+    const { rows } = await owner.query<{ n: string }>(
+      `SELECT count(*)::text AS n FROM pg_policies
+        WHERE tablename='message' AND cmd='DELETE'`);
+    expect(rows[0]!.n).toBe('0');
+  });
+
 });
 
 /**

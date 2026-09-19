@@ -237,6 +237,36 @@ export async function postMessageAction(
  * Correct a typo. The fifteen-minute window and the "only the text" rule are
  * both enforced by a trigger, so this does not restate them.
  */
+/**
+ * Take a message back.
+ *
+ * Nothing is deleted. The row keeps its place in the conversation and records
+ * who withdrew it and when; the text goes. Who may do it — the author, or an
+ * administrator — is decided by the trigger in 0056, not here, so no other
+ * caller can go around it.
+ */
+export async function withdrawMessageAction(
+  threadId: string,
+  formData: FormData,
+): Promise<void> {
+  const id = String(formData.get('messageId') ?? '');
+  if (!id) return;
+
+  await withUser(async (tx) => {
+    // The trigger overwrites both values with the real actor and time. Sending
+    // them is only how it knows this update is a withdrawal.
+    await tx.execute(sql`
+      UPDATE message
+         SET withdrawn_at = now(),
+             withdrawn_by_id = ${'00000000-0000-0000-0000-000000000000'}::uuid
+       WHERE id = ${id}
+    `);
+  });
+
+  revalidatePath(`/chat/${threadId}`);
+  revalidatePath('/chat');
+}
+
 export async function editMessageAction(
   threadId: string,
   _previous: FormState,

@@ -312,7 +312,7 @@ describe.skipIf(!HAS_DB)('tasks the team drives (9A)', () => {
     const { rows: c } = await app.query<{ id: string }>(
       `INSERT INTO task (title, project_id, assignee_id, parent_id, status, priority)
        VALUES ($1, NULL, $2, $3, 'todo', 'normal') RETURNING id`,
-      [`${MARK} internal child`, editor, p.rows?.[0]?.id ?? p[0]!.id]);
+      [`${MARK} internal child`, editor, p[0]!.id]);
     expect(c[0]!.id).toBeTruthy();
   });
 

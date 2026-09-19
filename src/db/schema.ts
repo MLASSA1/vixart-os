@@ -958,6 +958,9 @@ export const message = pgTable(
     body: text('body').notNull(),
     /** Set by the trigger on any edit. A silent correction rewrites a record. */
     editedAt: timestamp('edited_at', { withTimezone: true }),
+    /** Taken back. The row stays and says who and when; the text does not. */
+    withdrawnAt: timestamp('withdrawn_at', { withTimezone: true }),
+    withdrawnById: uuid('withdrawn_by_id'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index('message_by_thread_idx').on(t.threadId, t.createdAt)],
