@@ -29,8 +29,8 @@ export default async function MyWorkPage() {
              p.name AS project_name, c.name AS company_name,
              s.full_name AS completed_by_name
         FROM task t
-        JOIN project p ON p.id = t.project_id
-        JOIN company c ON c.id = p.company_id
+        LEFT JOIN project p ON p.id = t.project_id
+        LEFT JOIN company c ON c.id = p.company_id
         LEFT JOIN app_user a ON a.id = t.assignee_id
         LEFT JOIN app_user s ON s.id = t.completed_by_id
         LEFT JOIN app_user r ON r.id = t.created_by_id

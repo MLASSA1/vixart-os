@@ -60,7 +60,7 @@ export default async function DashboardPage() {
       SELECT c.id, c.name, c.status::text AS status, c.engagement_summary,
              (SELECT max(i.occurred_at) FROM interaction i WHERE i.company_id=c.id) AS last_contact,
              (SELECT count(*)::text FROM task t
-                JOIN project p ON p.id=t.project_id
+                LEFT JOIN project p ON p.id=t.project_id
                WHERE p.company_id=c.id AND t.status IN ('todo','in_progress')) AS open_tasks
         FROM company c
        WHERE c.relationship='client' AND c.status='client'
@@ -74,7 +74,7 @@ export default async function DashboardPage() {
     }>(sql`
       SELECT t.id, t.title, t.status, t.due_date::text AS due_date,
              t.project_id, p.name AS project_name
-        FROM task t JOIN project p ON p.id=t.project_id
+        FROM task t LEFT JOIN project p ON p.id=t.project_id
        WHERE t.assignee_id = ${me.id} AND t.status IN ('todo','in_progress')
        ORDER BY t.due_date NULLS LAST LIMIT 6
     `);

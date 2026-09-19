@@ -91,7 +91,7 @@ export async function setProjectStatusAction(formData: FormData): Promise<void> 
 // ---------------------------------------------------------------------------
 
 const taskSchema = z.object({
-  projectId: z.string().uuid(),
+  projectId: z.string().uuid().nullable(),
   title: z.string().trim().min(1, 'A title is required.'),
   description: optionalText,
   assigneeId: optionalText,
@@ -100,13 +100,23 @@ const taskSchema = z.object({
   dueDate: optionalText,
 });
 
+/**
+ * Raise a task.
+ *
+ * `projectId` is bound when this is called from a project page. From /tasks it
+ * is bound null and read from the form instead, where it is optional: since
+ * 0055 a task does not have to belong to a client engagement. Fixing the
+ * studio lighting is work; it is not a project.
+ */
 export async function createTaskAction(
-  projectId: string,
+  projectId: string | null,
   _previous: FormState,
   formData: FormData,
 ): Promise<FormState> {
+  const fromForm = String(formData.get('projectId') ?? '').trim();
+  const project = projectId ?? (fromForm || null);
   const parsed = taskSchema.safeParse({
-    projectId,
+    projectId: project,
     title: formData.get('title') ?? '',
     description: formData.get('description') ?? '',
     assigneeId: formData.get('assigneeId') ?? '',
@@ -126,7 +136,8 @@ export async function createTaskAction(
     return { error: describeDbError(error, WORK_ERRORS) };
   }
 
-  revalidatePath(`/projects/${projectId}`);
+  if (project) revalidatePath(`/projects/${project}`);
+  revalidatePath('/tasks');
   revalidatePath('/my-work');
   revalidatePath('/');
   return EMPTY_STATE;

@@ -256,4 +256,64 @@ describe.skipIf(!HAS_DB)('tasks the team drives (9A)', () => {
     expect(child[0]!.status).not.toBe('completed');
   });
 
+
+  // --- work that is not a project ------------------------------------------
+
+  it('lets a member raise a task with no project at all', async () => {
+    // Fixing the studio lighting is work. Forcing it under a client
+    // engagement either invents a fake project or means it is never written
+    // down, which is what happened before 0055.
+    await actAs(editor, 'member');
+    const { rows } = await app.query<{ id: string; project_id: string | null }>(
+      `INSERT INTO task (title, project_id, assignee_id, status, priority)
+       VALUES ($1, NULL, $2, 'todo', 'normal') RETURNING id, project_id`,
+      [`${MARK} fix the studio light`, designer]);
+    expect(rows[0]!.project_id).toBeNull();
+
+    // And it still notifies, because that path never depended on a project.
+    const { rows: n } = await owner.query<{ kind: string }>(
+      `SELECT kind FROM notification WHERE entity_id=$1`, [rows[0]!.id]);
+    expect(n.map((r) => r.kind)).toContain('task_assigned');
+  });
+
+  it('does not notify somebody about work they raised for themselves', async () => {
+    // app.notify refuses to tell a person about their own action, so a task
+    // you give yourself is silent. Worth pinning: it looks like a missing
+    // notification until you know it is deliberate.
+    await actAs(editor, 'member');
+    const { rows } = await app.query<{ id: string }>(
+      `INSERT INTO task (title, project_id, assignee_id, status, priority)
+       VALUES ($1, NULL, $2, 'todo', 'normal') RETURNING id`,
+      [`${MARK} note to self`, editor]);
+    const { rows: n } = await owner.query(
+      `SELECT 1 FROM notification WHERE entity_id=$1`, [rows[0]!.id]);
+    expect(n).toHaveLength(0);
+  });
+
+  it('keeps a sub-task in the same place as its parent', async () => {
+    // One piece of work cannot be half internal and half on a client project:
+    // every list that groups by project would disagree with itself.
+    const parent = await raise(editor, `${MARK} p7`, designer);
+    await actAs(editor, 'member');
+    await expect(
+      app.query(
+        `INSERT INTO task (title, project_id, assignee_id, parent_id, status, priority)
+         VALUES ($1, NULL, $2, $3, 'todo', 'normal')`,
+        [`${MARK} orphaned child`, designer, parent]),
+    ).rejects.toThrow(/same project as its parent/i);
+  });
+
+  it('allows an internal parent with an internal child', async () => {
+    await actAs(editor, 'member');
+    const { rows: p } = await app.query<{ id: string }>(
+      `INSERT INTO task (title, project_id, assignee_id, status, priority)
+       VALUES ($1, NULL, $2, 'todo', 'normal') RETURNING id`,
+      [`${MARK} internal parent`, editor]);
+    const { rows: c } = await app.query<{ id: string }>(
+      `INSERT INTO task (title, project_id, assignee_id, parent_id, status, priority)
+       VALUES ($1, NULL, $2, $3, 'todo', 'normal') RETURNING id`,
+      [`${MARK} internal child`, editor, p.rows?.[0]?.id ?? p[0]!.id]);
+    expect(c[0]!.id).toBeTruthy();
+  });
+
 });

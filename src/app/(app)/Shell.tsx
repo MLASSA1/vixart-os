@@ -29,6 +29,8 @@ const NAV: NavItem[] = [
   // when it stops being a one-off.
   { href: '/retainers', label: 'Retainers', group: 'Work', minRole: 'moderator' },
   { href: '/projects', label: 'Projects', group: 'Work' },
+  // Everyone. Work that is not a client project lives here too.
+  { href: '/tasks', label: 'Tasks', group: 'Work' },
   // Everyone gets this one: it is where the work is thought about before it is
   // assigned, and it belongs to whoever is doing the thinking.
   { href: '/prep', label: 'Prep', group: 'Work' },

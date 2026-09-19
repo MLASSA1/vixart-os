@@ -20,6 +20,7 @@ export function TaskForm({
   team,
   meId,
   parentId,
+  projects,
 }: {
   action: (state: FormState, formData: FormData) => Promise<FormState>;
   team: ReadonlyArray<{ id: string; full_name: string }>;
@@ -31,6 +32,12 @@ export function TaskForm({
   meId: string;
   /** Set when this raises a sub-task under an existing one. */
   parentId?: string;
+  /**
+   * Offered only from /tasks, where the project is a choice. On a project page
+   * it is already decided and the picker would be a way to file work under the
+   * wrong client by accident.
+   */
+  projects?: ReadonlyArray<{ id: string; label: string }>;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const [state, formAction] = useActionState(
@@ -48,6 +55,16 @@ export function TaskForm({
       {parentId && <input type="hidden" name="parentId" value={parentId} />}
       <FormGrid>
         <TextInput name="title" label="Task" required placeholder="Colour grade the interview" />
+        {projects && (
+          <Select
+            name="projectId"
+            label="Project"
+            hint="Leave blank for internal work that is not a client project."
+            options={[{ value: '', label: '— no project —' }].concat(
+              projects.map((p) => ({ value: p.id, label: p.label })),
+            )}
+          />
+        )}
         <Select
           name="assigneeId"
           label="Assign to"

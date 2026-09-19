@@ -350,8 +350,8 @@ export const task = pgTable(
   'task',
   {
     id: uuid('id').primaryKey().defaultRandom(),
+    /** Null for internal work that is not a client project. See 0055. */
     projectId: uuid('project_id')
-      .notNull()
       .references(() => project.id, { onDelete: 'cascade' }),
     title: text('title').notNull(),
     description: text('description'),
