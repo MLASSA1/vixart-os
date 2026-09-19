@@ -57,7 +57,53 @@ export async function listChannels(tx: Tx, meId: string): Promise<ChannelRow[]> 
                  'epoch'::timestamptz))::int AS unread,
            (SELECT max(m.created_at)::text FROM message m WHERE m.thread_id = t.id) AS last_at
       FROM thread t
+     -- Direct messages are threads and deliberately are NOT channels. A DM
+     -- somebody is in IS visible to them, so this exclusion is what keeps it
+     -- out of the client channel list — which is where a private thing would
+     -- otherwise get posted into a project by mistake.
+     WHERE t.kind <> 'dm'
      ORDER BY lower(t.title)
+  `);
+  return result.rows;
+}
+
+export interface DmRow {
+  [k: string]: unknown;
+  id: string;
+  /** The other person. A DM has no name of its own. */
+  title: string;
+  other_id: string;
+  unread: number;
+  last_at: string | null;
+}
+
+/**
+ * The conversations this person is part of.
+ *
+ * No participant filter is written here. `thread_select` admits a DM only to
+ * its two participants, so the query cannot return one belonging to anybody
+ * else even if it tried — the rule has one home, and a filter here would be a
+ * second copy of it free to drift.
+ */
+export async function listDms(tx: Tx, meId: string): Promise<DmRow[]> {
+  const result = await tx.execute<DmRow>(sql`
+    SELECT t.id,
+           u.full_name AS title,
+           u.id        AS other_id,
+           (SELECT count(*) FROM message m
+             WHERE m.thread_id = t.id
+               AND m.author_id <> ${meId}
+               AND m.created_at > coalesce(
+                 (SELECT r.last_read_at FROM thread_read r
+                   WHERE r.thread_id = t.id AND r.user_id = ${meId}),
+                 'epoch'::timestamptz))::int AS unread,
+           (SELECT max(m.created_at)::text FROM message m WHERE m.thread_id = t.id) AS last_at
+      FROM thread t
+      JOIN app_user u
+        ON u.id = CASE WHEN t.participant_a = ${meId}
+                       THEN t.participant_b ELSE t.participant_a END
+     WHERE t.kind = 'dm'
+     ORDER BY lower(u.full_name)
   `);
   return result.rows;
 }

@@ -45,6 +45,7 @@ export function MessagePane({
   initial,
   meId,
   mentionable,
+  dmWith,
   postAction,
   editAction,
   withdrawAction,
@@ -53,6 +54,8 @@ export function MessagePane({
   initial: MessageRow[];
   meId: string;
   mentionable: ReadonlyArray<{ id: string; fullName: string }>;
+  /** The other person, when this is a conversation rather than a channel. */
+  dmWith: string | null;
   postAction: (state: FormState, formData: FormData) => Promise<FormState>;
   editAction: (state: FormState, formData: FormData) => Promise<FormState>;
   withdrawAction: (formData: FormData) => Promise<void>;
@@ -154,7 +157,11 @@ export function MessagePane({
         {messages.length === 0 && (
           <div className="flex h-full flex-col items-center justify-center gap-2 py-16 text-center">
             <p className="text-[15px] font-semibold">No messages yet</p>
-            <p className="hint max-w-xs">Say the first thing. Everyone who can see this channel will read it.</p>
+            <p className="hint max-w-xs">
+              {dmWith
+                ? `Say the first thing. Only ${dmWith} will read it.`
+                : 'Say the first thing. Everyone who can see this channel will read it.'}
+            </p>
           </div>
         )}
 
@@ -315,6 +322,7 @@ export function MessagePane({
         <Composer
           action={postAction}
           mentionable={mentionable}
+          dmWith={dmWith}
           dropped={dropped}
           onDropConsumed={() => setDropped(null)}
           onSent={poll}

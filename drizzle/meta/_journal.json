@@ -421,6 +421,13 @@
       "when": 1787769547005,
       "tag": "0059_archive_or_delete",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1787769547006,
+      "tag": "0060_direct_messages",
+      "breakpoints": true
     }
   ]
 }

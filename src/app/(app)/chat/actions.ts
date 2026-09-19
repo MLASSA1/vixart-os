@@ -87,6 +87,58 @@ export async function createChannelAction(
  * post that silently vanished because its attachment was rejected would be
  * worse than one that arrives without it.
  */
+/**
+ * Open a conversation with somebody, or go to the one that already exists.
+ *
+ * The single entry point, deliberately. The brief for this asked for no
+ * "message this person" buttons scattered through the app, and it is right:
+ * every extra doorway is a place where a private conversation gets started by
+ * accident from a context that made it look like a reply.
+ *
+ * Idempotent. A unique index keeps one conversation per pair whichever way
+ * round it was opened, so opening one that exists returns it rather than
+ * failing — and rather than creating a second thread where each person sees
+ * half the conversation.
+ */
+export async function openDirectMessageAction(formData: FormData): Promise<void> {
+  const withId = String(formData.get('withId') ?? '').trim();
+  if (!withId) return;
+
+  let id: string | null = null;
+  try {
+    id = await withUser(async (tx, user) => {
+      if (withId === user.id) return null;
+
+      const existing = await tx.execute<{ id: string }>(sql`
+        SELECT id FROM thread
+         WHERE kind = 'dm'
+           AND least(participant_a, participant_b) = least(${user.id}::uuid, ${withId}::uuid)
+           AND greatest(participant_a, participant_b) = greatest(${user.id}::uuid, ${withId}::uuid)
+      `);
+      if (existing.rows[0]) return existing.rows[0].id;
+
+      // The title is never shown — a DM is named by whoever you are talking
+      // to — but `thread_title_present` requires one, so it records who
+      // opened it with whom.
+      const created = await tx.execute<{ id: string }>(sql`
+        INSERT INTO thread (kind, title, participant_a, participant_b, created_by_id)
+        VALUES ('dm', 'Direct message', ${user.id}, ${withId}, ${user.id})
+        RETURNING id
+      `);
+      return created.rows[0]?.id ?? null;
+    });
+  } catch {
+    // Refused by a policy or the participant check: say nothing beyond
+    // returning to chat. Which people exist is not a question this should
+    // answer differently depending on the answer.
+    redirect('/chat');
+  }
+
+  if (!id) redirect('/chat');
+  revalidatePath('/chat');
+  redirect(`/chat/${id}`);
+}
+
 export async function postMessageAction(
   threadId: string,
   _previous: FormState,

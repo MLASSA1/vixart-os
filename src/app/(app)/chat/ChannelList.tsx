@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import type { ChannelRow } from '@/lib/chat-queries';
+import type { ChannelRow, DmRow } from '@/lib/chat-queries';
+import { Avatar } from './ChatBits';
 import { NewChannelForm } from './ChatForms';
 import type { FormState } from '@/lib/form-state';
 
@@ -30,14 +31,26 @@ export function ChannelList({
   canCreate,
   createAction,
   targets,
+  dms,
+  people,
+  openDmAction,
 }: {
   initial: ChannelRow[];
   canCreate: boolean;
   createAction: (state: FormState, formData: FormData) => Promise<FormState>;
   targets: ReadonlyArray<{ id: string; name: string; kind: 'company' | 'project' }>;
+  /**
+   * Private conversations, in their own section below the channels and never
+   * mixed into them. A DM posted into a client channel by mistake is the
+   * failure this separation exists to prevent.
+   */
+  dms: DmRow[];
+  people: ReadonlyArray<{ id: string; fullName: string }>;
+  openDmAction: (formData: FormData) => Promise<void>;
 }) {
   const [channels, setChannels] = useState(initial);
   const [opening, setOpening] = useState(false);
+  const [startingDm, setStartingDm] = useState(false);
   const params = useParams<{ id?: string }>();
   const openId = params?.id;
 
@@ -135,6 +148,81 @@ export function ChannelList({
             </div>
           );
         })}
+        {/*
+          Below the channels, never among them. The heading says "Direct" and
+          not "People", because this is a list of conversations that exist —
+          starting a new one is the button underneath.
+        */}
+        <div className="mt-2 border-t border-void/10 pt-3">
+          <div className="flex items-center justify-between gap-2 px-2.5 pb-1">
+            <p className="text-[11px] font-bold tracking-[0.1em] text-void/40 uppercase">
+              Direct
+            </p>
+            <button
+              type="button"
+              onClick={() => setStartingDm((o) => !o)}
+              aria-expanded={startingDm}
+              className="cursor-pointer rounded-md px-1.5 text-[18px] leading-none text-void/45 hover:bg-void/10 hover:text-void"
+              title="Start a conversation"
+            >
+              +
+            </button>
+          </div>
+
+          {startingDm && (
+            <form action={openDmAction} className="mb-2 px-2">
+              <select
+                name="withId"
+                required
+                defaultValue=""
+                className="input mt-0 py-1.5 text-[13.5px]"
+                aria-label="Who to message"
+              >
+                <option value="">Choose someone…</option>
+                {people.map((p) => (
+                  <option key={p.id} value={p.id}>{p.fullName}</option>
+                ))}
+              </select>
+              <button type="submit" className="btn btn-small mt-2 w-full">
+                Start
+              </button>
+              <p className="hint mt-1 text-[12px]">
+                Only the two of you can read it.
+              </p>
+            </form>
+          )}
+
+          {dms.length === 0 && !startingDm && (
+            <p className="hint px-2.5 pb-2 text-[12.5px]">No conversations yet.</p>
+          )}
+
+          {dms.map((d) => {
+            const active = d.id === openId;
+            const unread = Number(d.unread) > 0 && !active;
+            return (
+              <Link
+                key={d.id}
+                href={`/chat/${d.id}`}
+                aria-current={active ? 'page' : undefined}
+                className={`mb-0.5 flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[14px] ${
+                  active
+                    ? 'bg-accent font-semibold text-pure'
+                    : unread
+                      ? 'font-bold text-void hover:bg-void/[0.06]'
+                      : 'text-void/70 hover:bg-void/[0.06]'
+                }`}
+              >
+                <Avatar name={d.title} id={d.other_id} size={18} />
+                <span className="min-w-0 flex-1 truncate">{d.title}</span>
+                {unread && (
+                  <span className="bg-accent text-pure ml-1 inline-block min-w-[1.35rem] rounded-full px-1.5 py-px text-center text-[11.5px] font-bold">
+                    {d.unread}
+                  </span>
+                )}
+              </Link>
+            );
+          })}
+        </div>
       </nav>
     </aside>
   );

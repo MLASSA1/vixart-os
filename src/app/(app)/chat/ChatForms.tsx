@@ -148,12 +148,15 @@ export function NewChannelForm({
 export function Composer({
   action,
   mentionable,
+  dmWith,
   dropped,
   onDropConsumed,
   onSent,
 }: {
   action: (state: FormState, formData: FormData) => Promise<FormState>;
   mentionable: ReadonlyArray<{ id: string; fullName: string }>;
+  /** The other person, when this is a conversation rather than a channel. */
+  dmWith: string | null;
   /** A file dragged onto the message pane, handed over to be attached. */
   dropped: File | null;
   onDropConsumed: () => void;
@@ -470,7 +473,7 @@ export function Composer({
             ref={bodyRef}
             name="body"
             rows={1}
-            placeholder="Message the team…"
+            placeholder={dmWith ? `Message ${dmWith}…` : 'Message the team…'}
             onInput={(e) => {
               fit(e.currentTarget);
               setQuery(readQuery(e.currentTarget));
