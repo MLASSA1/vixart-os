@@ -119,9 +119,21 @@ export async function GET(request: Request) {
       );
 
       const keepalive = setInterval(() => {
-        // A comment. It keeps nginx and every proxy between here and Agadir
-        // from deciding a silent connection is a dead one.
-        send(': ping\n\n');
+        // A REAL event, not an SSE comment.
+        //
+        // A comment would do the job a keepalive is usually for — stopping
+        // nginx and every proxy between here and Agadir from deciding a silent
+        // connection is a dead one. But `EventSource` never surfaces comments
+        // to JavaScript, so a browser cannot tell a stream that is carrying
+        // from one that connected and has gone quiet.
+        //
+        // That distinction is the whole safety of this design. A browser that
+        // believes the stream is live slows its fallback poll right down; if
+        // something between here and there is buffering, it would then be
+        // waiting on events that are sitting in a buffer while asking for them
+        // only once a minute — slower than the five-second poll this replaced.
+        // Sent as an event, the browser can see for itself.
+        send(`event: ping\ndata: ${Date.now()}\n\n`);
         // Belt and braces behind `onLiveChange`: a browser that missed the
         // transition is told again within half a minute.
         if (!isLive()) ready(false);

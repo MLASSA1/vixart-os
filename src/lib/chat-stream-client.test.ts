@@ -157,6 +157,50 @@ describe('the chat stream, in the browser', () => {
     expect(modes).toEqual(['degraded']);
   });
 
+  it('stops trusting a stream that connected and then went quiet', async () => {
+    // THE CASE THIS EXISTS FOR. An nginx with proxy_buffering on, a captive
+    // portal, a corporate proxy: the connection is open, `ready` may even have
+    // arrived, and nothing is coming through. A browser that trusted the
+    // connection would have slowed its fallback poll to a minute while waiting
+    // on events sitting in somebody's buffer — slower than the five-second
+    // poll this replaced, and silently.
+    vi.useFakeTimers();
+    try {
+      const { subscribeToChat, ageTrafficForTest } = await load();
+      let dropped = 0;
+      subscribeToChat({ onDrop: () => (dropped += 1) });
+
+      opened[0]!.emit('ready', 'live');
+      vi.advanceTimersByTime(15_000);
+      expect(dropped).toBe(0); // 15s of quiet is a quiet afternoon
+
+      // Longer than the server can be silent: it pings every 25 seconds.
+      ageTrafficForTest(80_000);
+      vi.advanceTimersByTime(15_000);
+      expect(dropped).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('a ping is traffic, so a quiet channel is not a dropped stream', async () => {
+    vi.useFakeTimers();
+    try {
+      const { subscribeToChat } = await load();
+      let dropped = 0;
+      subscribeToChat({ onDrop: () => (dropped += 1) });
+
+      // Nobody says anything for five minutes. The server pings throughout.
+      for (let i = 0; i < 12; i += 1) {
+        vi.advanceTimersByTime(25_000);
+        opened[0]!.emit('ping', String(i));
+      }
+      expect(dropped).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('holds nothing open while the tab is hidden', async () => {
     const { subscribeToChat, isConnectedForTest } = await load();
     let dropped = 0;
