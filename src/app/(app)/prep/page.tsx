@@ -55,7 +55,7 @@ export default async function PrepPage() {
     const projectRows = await tx.execute<{ id: string; label: string }>(sql`
       SELECT p.id, p.name || ' — ' || c.name AS label
         FROM project p JOIN company c ON c.id = p.company_id
-       WHERE p.status <> 'delivered'
+       WHERE p.status <> 'delivered' AND p.archived_at IS NULL
        ORDER BY lower(p.name)
     `);
 

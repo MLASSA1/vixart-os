@@ -12,7 +12,7 @@ import { Comments, type CommentItem } from '@/components/Comments';
 import { addCommentAction, deleteCommentAction } from '../../comments-actions';
 import { formatDate } from '@/lib/format';
 import { TaskForm } from '../TaskForm';
-import { createTaskAction } from '../actions';
+import { createTaskAction, deleteProjectAction, setProjectArchivedAction } from '../actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,6 +28,9 @@ interface ProjectRow {
   lead_name: string | null;
   start_date: string | null;
   due_date: string | null;
+  archived_at: string | null;
+  /** Messages in this project's channel. Nonzero means delete is refused. */
+  message_count: number;
 }
 
 export default async function ProjectPage({
@@ -44,7 +47,12 @@ export default async function ProjectPage({
     const p = await tx.execute<ProjectRow>(sql`
       SELECT p.id, p.name, p.description, p.status, p.project_type, p.company_id,
              c.name AS company_name, u.full_name AS lead_name,
-             p.start_date::text AS start_date, p.due_date::text AS due_date
+             p.start_date::text AS start_date, p.due_date::text AS due_date,
+             p.archived_at::text AS archived_at,
+             -- Asked here so the page can say WHY delete will be refused,
+             -- rather than offering it and letting the database explain.
+             (SELECT count(*)::int FROM message m JOIN thread t2 ON t2.id = m.thread_id
+               WHERE t2.project_id = p.id) AS message_count
         FROM project p
         JOIN company c ON c.id = p.company_id
         LEFT JOIN app_user u ON u.id = p.lead_id
@@ -213,6 +221,74 @@ export default async function ProjectPage({
           revalidate={`/projects/${id}`}
         />
       </Section>
+
+      {/* --- Taking it out of use: moderators, name must be typed ------------- */}
+      {canModerate && (
+        <Section title={record.archived_at ? 'Archived' : 'Archive or delete'}>
+          {record.archived_at ? (
+            <>
+              <p className="prose-vixart" style={{ opacity: 0.68 }}>
+                This project is out of use. Its tasks, files and conversation are
+                kept, and it no longer appears in pickers or on the schedule.
+              </p>
+              <form action={setProjectArchivedAction} className="mt-4">
+                <input type="hidden" name="projectId" value={record.id} />
+                <input type="hidden" name="archived" value="0" />
+                <button type="submit" className="btn btn-inverse">Bring it back</button>
+              </form>
+            </>
+          ) : (
+            <>
+              <p className="prose-vixart" style={{ opacity: 0.68 }}>
+                Archiving keeps everything and takes the project out of every picker.
+                That is almost always what you want on a delivered job: what was said
+                and what was made stay where they are.
+              </p>
+              <form action={setProjectArchivedAction} className="mt-4">
+                <input type="hidden" name="projectId" value={record.id} />
+                <input type="hidden" name="archived" value="1" />
+                <button type="submit" className="btn">Archive this project</button>
+              </form>
+            </>
+          )}
+
+          <p className="prose-vixart mt-8" style={{ opacity: 0.68 }}>
+            {record.message_count > 0 ? (
+              <>
+                This project cannot be deleted: its channel holds{' '}
+                {record.message_count} message(s), and deleting it would remove the
+                conversation. Archive it instead.
+              </>
+            ) : (
+              <>
+                Deleting also removes its {tasks.length} task(s) and cannot be undone.
+                It is refused outright once anybody has said something in its channel.
+              </>
+            )}
+          </p>
+          {record.message_count === 0 && (
+            <form action={deleteProjectAction} className="mt-4 flex flex-wrap items-end gap-3">
+              <input type="hidden" name="projectId" value={record.id} />
+              <input type="hidden" name="expected" value={record.name} />
+              <label className="block" htmlFor="confirmation">
+                <span className="label block" style={{ opacity: 0.68 }}>
+                  Type “{record.name}” to confirm
+                </span>
+                <input
+                  id="confirmation"
+                  name="confirmation"
+                  required
+                  autoComplete="off"
+                  className="mt-1.5 w-72 border border-void bg-pure px-3 py-2.5 text-[15px] focus:border-[3px] focus:px-[10px] focus:py-[8px] focus:outline-none"
+                />
+              </label>
+              <button type="submit" className="btn">
+                Delete permanently
+              </button>
+            </form>
+          )}
+        </Section>
+      )}
 
     </>
   );

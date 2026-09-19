@@ -43,10 +43,13 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
             SELECT id, name, kind FROM (
               SELECT p.id::text AS id, p.name AS name, 'project' AS kind
                 FROM project p
+               -- Archived means out of use. Offering a new channel for one is
+               -- offering to start a conversation nobody will come back to.
+               WHERE p.archived_at IS NULL
                UNION ALL
               SELECT c.id::text, c.name, 'company'
                 FROM company c
-               WHERE c.status = 'client'
+               WHERE c.status = 'client' AND c.archived_at IS NULL
             ) t
              ORDER BY kind, lower(name)
           `)
