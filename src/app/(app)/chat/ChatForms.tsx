@@ -14,7 +14,7 @@ import {
   MAX_RECORDING_MS,
   MAX_UPLOAD_BYTES,
 } from '@/lib/upload-types';
-import { useRecorder, type Recording } from './useRecorder';
+import { explainBlock, useRecorder, type Recording } from './useRecorder';
 import { VoiceNote } from './VoiceNote';
 
 /** The label and the input are siblings now, so the label needs a target. */
@@ -520,10 +520,37 @@ export function Composer({
   );
 }
 
-/** The microphone. Absent rather than broken where recording cannot work. */
+/**
+ * The microphone.
+ *
+ * Present even when recording cannot work, which is the opposite of what it
+ * used to do. Returning null meant the button silently vanished on a plain-http
+ * address and on a browser where permission had been denied — and a control
+ * that is simply absent reads as a feature that does not exist, not as one
+ * that needs a padlock clicked. Now it says which.
+ */
 function Mic({ recorder }: { recorder: ReturnType<typeof useRecorder> }) {
   const { pending } = useFormStatus();
-  if (!recorder.supported) return null;
+
+  if (!recorder.supported) {
+    const why = explainBlock(recorder.block);
+    return (
+      <button
+        type="button"
+        onClick={() => recorder.setProblem(why)}
+        className="composer-icon opacity-45"
+        aria-label={why ?? 'Voice notes unavailable'}
+        title={why ?? 'Voice notes unavailable'}
+      >
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <rect x="9" y="2" width="6" height="11" rx="3" />
+          <path d="M5 10a7 7 0 0 0 14 0M12 17v4M9 21h6M4 4l16 16" />
+        </svg>
+      </button>
+    );
+  }
+
   return (
     <button
       type="button"

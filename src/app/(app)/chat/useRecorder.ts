@@ -39,8 +39,52 @@ export interface Recording {
   durationMs: number;
 }
 
+/**
+ * Why recording is unavailable, when it is.
+ *
+ * Measured, not guessed. On http://192.168.100.24:4000 the browser reports
+ * isSecureContext false and removes navigator.mediaDevices entirely — while
+ * leaving MediaRecorder in place, which is the trap: checking for MediaRecorder
+ * alone says recording works, and then nothing happens when you press the
+ * button. On http://localhost:4000 both are present. HTTPS on
+ * visionxart.cloud behaves like localhost.
+ */
+export type RecorderBlock =
+  | null
+  | 'insecure-context'
+  | 'no-codec'
+  | 'denied'
+  | 'no-microphone'
+  | 'in-use';
+
+/** What to tell somebody, in words that say what to do next. */
+export function explainBlock(block: RecorderBlock): string | null {
+  switch (block) {
+    case 'insecure-context':
+      return (
+        'Voice notes need a secure connection. This address is plain http, and ' +
+        'browsers withhold the microphone there. Use https://visionxart.cloud, ' +
+        'or http://localhost:4000 on this machine.'
+      );
+    case 'no-codec':
+      return 'This browser cannot record audio in any format the app can store.';
+    case 'denied':
+      return (
+        'The microphone is blocked for this site. Click the padlock in the ' +
+        'address bar, set Microphone to Allow, then reload the page.'
+      );
+    case 'no-microphone':
+      return 'No microphone found. Plug one in, or check it is not disabled in system settings.';
+    case 'in-use':
+      return 'Another application is using the microphone. Close it and try again.';
+    default:
+      return null;
+  }
+}
+
 export function useRecorder(onDone: (recording: Recording) => void) {
   const [supported, setSupported] = useState(false);
+  const [block, setBlock] = useState<RecorderBlock>(null);
   const [recording, setRecording] = useState(false);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [problem, setProblem] = useState<string | null>(null);
@@ -62,11 +106,23 @@ export function useRecorder(onDone: (recording: Recording) => void) {
    * when pressed.
    */
   useEffect(() => {
-    setSupported(
-      typeof navigator !== 'undefined' &&
-        Boolean(navigator.mediaDevices?.getUserMedia) &&
-        pickType() !== null,
-    );
+    if (typeof navigator === 'undefined') return;
+
+    // Order matters. An insecure origin removes mediaDevices, so testing that
+    // first would report "cannot record" when the real answer is "not from
+    // this address" — a fixable problem, and a different sentence.
+    if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
+      setBlock('insecure-context');
+      setSupported(false);
+      return;
+    }
+    if (pickType() === null) {
+      setBlock('no-codec');
+      setSupported(false);
+      return;
+    }
+    setBlock(null);
+    setSupported(true);
   }, []);
 
   const release = useCallback(() => {
@@ -85,18 +141,42 @@ export function useRecorder(onDone: (recording: Recording) => void) {
     setProblem(null);
     const type = pickType();
     if (!type) {
-      setProblem('This browser cannot record audio.');
+      setBlock('no-codec');
+      setProblem(explainBlock('no-codec'));
+      return;
+    }
+    if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
+      setBlock('insecure-context');
+      setProblem(explainBlock('insecure-context'));
       return;
     }
 
     let stream: MediaStream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    } catch {
-      // Denied, dismissed, or no microphone. All the same to the sender.
-      setProblem('No microphone. Check the browser has permission.');
+    } catch (error) {
+      /*
+       * These are three different problems with three different fixes, and
+       * they used to share one sentence — "No microphone. Check the browser
+       * has permission." — which is wrong for two of them and unactionable for
+       * the third.
+       */
+      const name = error instanceof Error ? error.name : '';
+      const reason: RecorderBlock =
+        name === 'NotAllowedError' || name === 'SecurityError'
+          ? 'denied'
+          : name === 'NotFoundError' || name === 'OverconstrainedError'
+            ? 'no-microphone'
+            : name === 'NotReadableError' || name === 'AbortError'
+              ? 'in-use'
+              : 'denied';
+      setBlock(reason);
+      setProblem(explainBlock(reason));
       return;
     }
+
+    // Got in: whatever was wrong before is not wrong now.
+    setBlock(null);
 
     const recorder = new MediaRecorder(stream, { mimeType: type });
     chunksRef.current = [];
@@ -153,5 +233,16 @@ export function useRecorder(onDone: (recording: Recording) => void) {
     else release();
   }, [release]);
 
-  return { supported, recording, elapsedMs, problem, start, stop, cancel, setProblem };
+  return {
+    supported,
+    /** Why it is unavailable, if it is. Null when recording is possible. */
+    block,
+    recording,
+    elapsedMs,
+    problem,
+    start,
+    stop,
+    cancel,
+    setProblem,
+  };
 }
