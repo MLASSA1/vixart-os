@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { subscribeToChat } from '@/lib/chat-stream-client';
 import type { ChannelRow, DmRow } from '@/lib/chat-queries';
 import { Avatar } from './ChatBits';
 import { NewChannelForm } from './ChatForms';
@@ -49,13 +50,21 @@ export function ChannelList({
   openDmAction: (formData: FormData) => Promise<void>;
 }) {
   const [channels, setChannels] = useState(initial);
+  const [conversations, setConversations] = useState(dms);
   const [opening, setOpening] = useState(false);
   const [startingDm, setStartingDm] = useState(false);
+  /** Whether announcements are arriving. Decides the fallback interval only. */
+  const [streaming, setStreaming] = useState(false);
   const params = useParams<{ id?: string }>();
   const openId = params?.id;
 
-  // Thirty seconds, and nothing at all while the tab is hidden. A browser with
-  // chat open in a background tab since Monday should cost the server nothing.
+  // A navigation re-renders this with fresh server data; take it.
+  useEffect(() => setConversations(dms), [dms]);
+
+  // Nudged by the stream, and on a timer behind it. Thirty seconds without a
+  // stream, two minutes with one, and nothing at all while the tab is hidden —
+  // a browser with chat open in a background tab since Monday should cost the
+  // server nothing.
   useEffect(() => {
     let alive = true;
 
@@ -64,24 +73,39 @@ export function ChannelList({
       try {
         const response = await fetch('/api/chat/channels', { cache: 'no-store' });
         if (!response.ok || !alive) return;
-        const data = (await response.json()) as { channels: ChannelRow[] };
-        if (alive) setChannels(data.channels);
+        const data = (await response.json()) as { channels: ChannelRow[]; dms: DmRow[] };
+        if (!alive) return;
+        setChannels(data.channels);
+        setConversations(data.dms);
       } catch {
         // A poll that fails is a poll. The list on screen stays as it was.
       }
     }
 
-    const timer = setInterval(refresh, 30_000);
+    // Any thread at all: an unread badge is about the channels you are NOT
+    // looking at, so this one does not filter by id.
+    const unsubscribe = subscribeToChat({
+      onChange: () => void refresh(),
+      onReady: (mode) => {
+        void refresh();
+        setStreaming(mode === 'live');
+      },
+      onDrop: () => setStreaming(false),
+    });
+
+    const timer = setInterval(refresh, streaming ? 120_000 : 30_000);
     document.addEventListener('visibilitychange', refresh);
     return () => {
       alive = false;
+      unsubscribe();
       clearInterval(timer);
       document.removeEventListener('visibilitychange', refresh);
     };
-  }, []);
+  }, [streaming]);
 
   // The channel you are looking at is not unread, whatever the last poll said.
   const shown = channels.map((c) => (c.id === openId ? { ...c, unread: 0 } : c));
+  const shownDms = conversations.map((d) => (d.id === openId ? { ...d, unread: 0 } : d));
 
   return (
     <aside className="flex w-60 shrink-0 flex-col border-r border-void/10 bg-void/[0.025]">
@@ -192,11 +216,11 @@ export function ChannelList({
             </form>
           )}
 
-          {dms.length === 0 && !startingDm && (
+          {shownDms.length === 0 && !startingDm && (
             <p className="hint px-2.5 pb-2 text-[12.5px]">No conversations yet.</p>
           )}
 
-          {dms.map((d) => {
+          {shownDms.map((d) => {
             const active = d.id === openId;
             const unread = Number(d.unread) > 0 && !active;
             return (

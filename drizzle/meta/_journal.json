@@ -428,6 +428,13 @@
       "when": 1787769547006,
       "tag": "0060_direct_messages",
       "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1789806660349,
+      "tag": "0061_chat_notify",
+      "breakpoints": true
     }
   ]
 }

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { MessageRow } from '@/lib/chat-queries';
+import { subscribeToChat } from '@/lib/chat-stream-client';
 import type { FormState } from '@/lib/form-state';
 import { formatBytes, isAudio } from '@/lib/upload-types';
 import { Avatar, clockTime, dayLabel, hueFor, MentionText } from './ChatBits';
@@ -61,6 +62,8 @@ export function MessagePane({
   withdrawAction: (formData: FormData) => Promise<void>;
 }) {
   const [messages, setMessages] = useState(initial);
+  /** Whether announcements are arriving. Decides the fallback interval only. */
+  const [streaming, setStreaming] = useState(false);
   const [dropped, setDropped] = useState<File | null>(null);
   const [dragging, setDragging] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -103,17 +106,38 @@ export function MessagePane({
     }
   }, [messages, threadId]);
 
-  // Five seconds, and nothing while the tab is hidden — one core, eight sites.
-  // Coming back to the tab checks immediately rather than waiting out the tick.
+  // The stream is what makes a message arrive at once; the poll is what makes
+  // it arrive at all. Both are kept, and the poll simply slows down while the
+  // stream is carrying — because the moment the only delivery is a stream, a
+  // stream that quietly stops delivering is a chat application that has
+  // stopped working and says nothing about it.
   useEffect(() => {
-    const timer = setInterval(poll, 5_000);
+    const unsubscribe = subscribeToChat({
+      onChange: (changed) => {
+        if (changed === threadId) void poll();
+      },
+      onReady: (mode) => {
+        // A connect is also a gap: read what was missed, then settle.
+        void poll();
+        setStreaming(mode === 'live');
+      },
+      onDrop: () => setStreaming(false),
+    });
+    return unsubscribe;
+  }, [poll, threadId]);
+
+  // Five seconds without a stream, a minute with one, and nothing at all while
+  // the tab is hidden — one core, eight sites. Coming back to the tab checks
+  // immediately rather than waiting out the tick.
+  useEffect(() => {
+    const timer = setInterval(poll, streaming ? 60_000 : 5_000);
     const onVisible = () => { if (!document.hidden) void poll(); };
     document.addEventListener('visibilitychange', onVisible);
     return () => {
       clearInterval(timer);
       document.removeEventListener('visibilitychange', onVisible);
     };
-  }, [poll]);
+  }, [poll, streaming]);
 
   // Follow the bottom, unless the reader has scrolled up to look at something.
   useEffect(() => {
