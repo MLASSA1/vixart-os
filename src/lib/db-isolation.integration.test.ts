@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Client } from 'pg';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 /**
  * The suite must not be able to touch the working database.
@@ -81,4 +83,31 @@ describe('database isolation', () => {
       await c.end();
     }
   });
+
+  it('is migrated to the same point as the repository', async () => {
+    // Running `npx vitest` directly skips scripts/test-db.ts, so the test
+    // database keeps whatever schema it had last time. The failure that
+    // produces is a bare 'relation "x" does not exist' in whichever test
+    // happens to touch the new table — which reads like a broken feature
+    // rather than a stale database. It has cost time twice.
+    if (!URL_) return;
+    const c = new Client({ connectionString: URL_, connectionTimeoutMillis: 2000 });
+    try { await c.connect(); } catch { return; }
+    try {
+      const { rows } = await c.query<{ n: string }>(
+        'SELECT count(*)::text AS n FROM drizzle.__drizzle_migrations');
+      const journal = JSON.parse(
+        readFileSync(join(process.cwd(), 'drizzle/meta/_journal.json'), 'utf8'),
+      ) as { entries: unknown[] };
+      expect(
+        Number(rows[0]!.n),
+        `The test database is ${rows[0]!.n} migrations behind the repository's ` +
+          `${journal.entries.length}. Run \`npm test\`, which provisions it — ` +
+          '`npx vitest` alone does not.',
+      ).toBe(journal.entries.length);
+    } finally {
+      await c.end();
+    }
+  });
+
 });

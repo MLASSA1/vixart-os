@@ -1018,3 +1018,53 @@ export const notification = pgTable(
   },
   (t) => [index('notification_inbox_idx').on(t.recipientId, t.createdAt)],
 );
+
+// ---------------------------------------------------------------------------
+// A person's own week, and their own notebook (0058)
+// ---------------------------------------------------------------------------
+
+/**
+ * Something on somebody's schedule that is NOT a task.
+ *
+ * A shoot day, a client meeting, a day off, a block of focus time. Tasks are
+ * never copied here — the schedule reads the task table directly, so there is
+ * one place where work lives and one place to update it.
+ */
+export const scheduleEntry = pgTable(
+  'schedule_entry',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => appUser.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    /** 'shoot' | 'meeting' | 'off' | 'block' */
+    kind: text('kind').notNull().default('block'),
+    startsOn: date('starts_on').notNull(),
+    /** Null for a single day. */
+    endsOn: date('ends_on'),
+    note: text('note'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('schedule_entry_by_person_idx').on(t.userId, t.startsOn)],
+);
+
+/**
+ * A private scratchpad. Author only — refused to everyone else including
+ * administrators, which is the entire point and is asserted by test.
+ */
+export const privateNote = pgTable(
+  'private_note',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    authorId: uuid('author_id')
+      .notNull()
+      .references(() => appUser.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    body: text('body').notNull().default(''),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('private_note_by_author_idx').on(t.authorId, t.updatedAt)],
+);
