@@ -108,7 +108,7 @@ export function ChannelList({
   const shownDms = conversations.map((d) => (d.id === openId ? { ...d, unread: 0 } : d));
 
   return (
-    <aside className="flex w-60 shrink-0 flex-col border-r border-void/10 bg-void/[0.025]">
+    <aside className="flex h-full w-full shrink-0 flex-col overflow-y-auto border-r border-void/10 bg-surface md:w-60 md:bg-void/[0.025]">
       <div className="flex items-center justify-between gap-2 px-4 pt-5 pb-3">
         <h2 className="display text-[15px] font-bold">Channels</h2>
         {canCreate && (

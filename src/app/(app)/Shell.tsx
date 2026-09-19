@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { signOutAction } from './actions';
 
 interface NavItem {
@@ -78,6 +78,29 @@ export function Shell({
   const pathname = usePathname();
   const items = NAV.filter((i) => visible(i, user.role));
   /**
+   * The mobile menu.
+   *
+   * It was a horizontal strip holding all eighteen destinations, which meant
+   * reaching Chat or Team was a long sideways scrag through a bar two
+   * centimetres tall, and the account link sat past the end of it where nobody
+   * would find it. A phone gets a title bar and a drawer, with the same groups
+   * the sidebar uses.
+   */
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  // Following a link should close it. The drawer is not a place to be.
+  useEffect(() => setMenuOpen(false), [pathname]);
+
+  // A drawer over the page must not leave the page scrolling underneath it.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [menuOpen]);
+  /**
    * Chat fills the pane instead of sitting in the reading column. Every other
    * screen is a document and wants the measure; a channel list and a message
    * river want the room, and want to scroll inside themselves rather than
@@ -86,7 +109,15 @@ export function Shell({
   const roomy = pathname === '/chat' || pathname.startsWith('/chat/');
 
   return (
-    <div className="flex min-h-screen">
+    /*
+      Chat needs a DEFINITE height, not a minimum.
+      `min-h-screen` lets the page grow to fit its content, so the message
+      river never gets a bounded box to scroll inside and the whole document
+      scrolls instead — on a phone that put the composer 6,500 pixels down a
+      channel, so writing a message meant scrolling past every message already
+      in it. Every other screen is a document and should grow.
+    */
+    <div className={roomy ? 'flex h-[100dvh] overflow-hidden md:h-screen' : 'flex min-h-screen'}>
       {/* Sidebar — fixed, scrolls independently of the content. */}
       <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col bg-void text-pure md:flex">
         <div className="px-6 pt-7 pb-6">
@@ -186,35 +217,127 @@ export function Shell({
         </div>
       </aside>
 
-      {/* Mobile bar — the sidebar collapses to a dark horizontal strip. */}
-      <div className="fixed inset-x-0 top-0 z-10 flex items-center gap-1 overflow-x-auto bg-void px-3 py-2.5 text-pure md:hidden">
-        <Link href="/dashboard" className="display px-2 font-bold whitespace-nowrap">
+      {/* --- Phone: a title bar, and a drawer behind it ---------------------- */}
+      <div className="fixed inset-x-0 top-0 z-30 flex h-14 items-center justify-between border-b border-pure/10 bg-void px-3 text-pure md:hidden">
+        <Link href="/dashboard" className="display px-1 text-[17px] font-bold whitespace-nowrap">
           VIXART
           <span aria-hidden="true" className="ml-1 inline-block h-2 w-2 rounded-[2px] bg-accent" />
         </Link>
-        {items.map((item) => {
-          const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
-          return (
+
+        <div className="flex items-center gap-1">
+          {/* The two counts worth seeing without opening anything. */}
+          {unread > 0 && (
             <Link
-              key={item.href}
-              href={item.href}
-              className={`rounded-md px-2.5 py-1 text-[13px] whitespace-nowrap ${
-                active ? 'bg-accent font-semibold text-pure' : 'text-pure/75'
-              }`}
+              href="/inbox"
+              className="rounded-md px-2 py-1 text-[13px] text-pure/80"
+              aria-label={`Inbox, ${unread} unread`}
             >
-              {item.label}
-              {item.href === '/inbox' && unread > 0 && ` (${unread})`}
-              {item.href === '/attention' && urgent > 0 && ` (${urgent})`}
+              Inbox <span className="font-semibold text-pure">{unread}</span>
             </Link>
-          );
-        })}
-        <Link href="/account" className="ml-auto px-2 text-[13px] whitespace-nowrap text-pure/75">
-          {user.name}
-        </Link>
+          )}
+          {urgent > 0 && (
+            <Link
+              href="/attention"
+              className="rounded-md bg-accent px-2 py-1 text-[13px] font-semibold text-pure"
+              aria-label={`Needs attention, ${urgent} waiting`}
+            >
+              {urgent}
+            </Link>
+          )}
+
+          <button
+            type="button"
+            onClick={() => setMenuOpen((open) => !open)}
+            aria-expanded={menuOpen}
+            aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+            // 44px: a thumb, not a cursor.
+            className="flex h-11 w-11 items-center justify-center rounded-md text-pure"
+          >
+            <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none"
+                 stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              {menuOpen ? (
+                <>
+                  <line x1="5" y1="5" x2="19" y2="19" />
+                  <line x1="19" y1="5" x2="5" y2="19" />
+                </>
+              ) : (
+                <>
+                  <line x1="3.5" y1="7" x2="20.5" y2="7" />
+                  <line x1="3.5" y1="12" x2="20.5" y2="12" />
+                  <line x1="3.5" y1="17" x2="20.5" y2="17" />
+                </>
+              )}
+            </svg>
+          </button>
+        </div>
       </div>
 
+      {menuOpen && (
+        <div className="fixed inset-0 top-14 z-30 flex flex-col bg-void text-pure md:hidden">
+          <nav className="flex-1 overflow-y-auto px-3 py-3">
+            {GROUPS.map((group) => {
+              const inGroup = items.filter((i) => i.group === group);
+              if (inGroup.length === 0) return null;
+              return (
+                <div key={group ?? 'top'} className="mb-4">
+                  {group && (
+                    // Not the `.label` utility: it sets an ink colour, which is
+                    // invisible on this dark surface. Same treatment as the
+                    // sidebar's group headings above.
+                    <p className="px-3 pt-3 pb-1.5 text-[11px] font-bold tracking-[0.1em] text-pure/35 uppercase">
+                      {group}
+                    </p>
+                  )}
+                  {inGroup.map((item) => {
+                    const active =
+                      pathname === item.href || pathname.startsWith(`${item.href}/`);
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        className={`flex items-center justify-between rounded-md px-3 py-3 text-[15px] ${
+                          active ? 'bg-accent font-semibold text-pure' : 'text-pure/80'
+                        }`}
+                      >
+                        <span>{item.label}</span>
+                        {item.href === '/inbox' && unread > 0 && (
+                          <span className="text-[13px] text-pure/70">{unread}</span>
+                        )}
+                        {item.href === '/attention' && urgent > 0 && (
+                          <span className="text-[13px] text-pure/70">{urgent}</span>
+                        )}
+                      </Link>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </nav>
+
+          <div className="border-t border-pure/10 px-5 py-4">
+            <p className="font-semibold">{user.name}</p>
+            {user.jobTitle && <p className="text-[13px] text-pure/60">{user.jobTitle}</p>}
+            <div className="mt-3 flex items-center gap-4">
+              <Link href="/account" className="text-[14px] underline underline-offset-4">
+                My account
+              </Link>
+              <form action={signOutAction}>
+                <button type="submit" className="text-[14px] text-pure/70 underline underline-offset-4">
+                  Sign out
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/*
+        `dvh` above rather than `vh`: on a phone `100vh` is the viewport WITHOUT
+        the browser's own chrome, so a composer pinned to the bottom sits just
+        below the fold.
+      */}
       {roomy ? (
-        <main className="flex min-h-screen min-w-0 flex-1 flex-col pt-14 md:pt-0">
+        <main className="flex h-full min-w-0 flex-1 flex-col overflow-hidden pt-14 md:pt-0">
           {children}
         </main>
       ) : (

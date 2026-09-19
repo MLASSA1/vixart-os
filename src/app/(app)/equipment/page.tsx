@@ -98,7 +98,7 @@ export default async function EquipmentPage() {
           <Empty message="Nothing registered yet — add the cameras, laptops and mics below" />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-left">
+            <table className="table-wide text-left">
               <thead>
                 <tr className="border-b-2 border-void">
                   <th className="th py-2 pr-4">Item</th>

@@ -91,6 +91,25 @@ h3,
 
 /* --- Labels and metadata --------------------------------------------------- */
 
+/**
+ * A data table on a narrow screen.
+ *
+ * Every table in this application already sits inside an `overflow-x-auto`
+ * wrapper, so the PAGE never scrolls sideways — but `width: 100%` alone means
+ * the table squeezes to fit instead of scrolling, and at 375px the client list
+ * turned its description column into a two-character ribbon running down the
+ * screen.
+ *
+ * A minimum width makes the wrapper do its job: readable columns, and the
+ * table scrolls inside itself. The number lives here rather than in fourteen
+ * class attributes, because fourteen copies of it drift.
+ */
+.table-wide {
+  width: 100%;
+  min-width: 44rem;
+  border-collapse: collapse;
+}
+
 .label {
   font-size: 13px;
   font-weight: 500;

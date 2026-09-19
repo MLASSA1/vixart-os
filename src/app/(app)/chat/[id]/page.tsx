@@ -10,6 +10,7 @@ import {
   postMessageAction,
   withdrawMessageAction,
 } from '../actions';
+import { ChannelsButton } from '../ChatShell';
 import { MessagePane } from '../MessagePane';
 
 /**
@@ -102,7 +103,9 @@ export default async function ChannelPage({ params }: { params: Promise<{ id: st
 
   return (
     <>
-      <header className="flex shrink-0 items-center gap-3 border-b border-void/10 bg-surface px-4 py-2.5 sm:px-5">
+      <header className="flex shrink-0 items-center gap-2 border-b border-void/10 bg-surface px-3 py-2.5 sm:gap-3 sm:px-5">
+        {/* Phone only: the channel list is a drawer there, not a column. */}
+        <ChannelsButton />
         <span aria-hidden="true" className="text-[19px] leading-none text-void/25">
           {isDm ? '@' : '#'}
         </span>

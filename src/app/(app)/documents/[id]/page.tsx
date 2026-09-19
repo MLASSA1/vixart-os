@@ -209,7 +209,7 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
           <Empty message="No line yet" />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-left">
+            <table className="table-wide text-left">
               <thead>
                 <tr className="border-b-2 border-void">
                   <th className="th py-2 pr-4">Description</th>

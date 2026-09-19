@@ -170,7 +170,7 @@ export default async function SystemPage() {
           </p>
         )}
         <div className="mt-4 overflow-x-auto">
-          <table className="w-full border-collapse text-left">
+          <table className="table-wide text-left">
             <thead>
               <tr className="border-b-2 border-void">
                 <th className="th py-2 pr-4">Table</th>
@@ -205,7 +205,7 @@ export default async function SystemPage() {
           version; a document already issued keeps the rate copied onto it.
         </p>
         <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-left">
+          <table className="table-wide text-left">
             <thead>
               <tr className="border-b-2 border-void">
                 <th className="label py-2.5 pr-4">Key</th>

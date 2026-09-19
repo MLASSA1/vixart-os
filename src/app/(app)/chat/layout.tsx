@@ -4,6 +4,7 @@ import { withUser } from '@/db/session';
 import { listChannels, listDms } from '@/lib/chat-queries';
 import { createChannelAction, openDirectMessageAction } from './actions';
 import { ChannelList } from './ChannelList';
+import { ChatShell } from './ChatShell';
 
 /**
  * Chat as a workspace rather than a list of pages.
@@ -74,17 +75,20 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
   });
 
   return (
-    <div className="flex min-h-0 flex-1">
-      <ChannelList
-        initial={channels}
-        canCreate={canCreate}
-        createAction={createChannelAction}
-        targets={targets.map((t) => ({ id: t.id, name: t.name, kind: t.kind }))}
-        dms={dms}
-        people={people.map((p) => ({ id: String(p.id), fullName: String(p.full_name) }))}
-        openDmAction={openDirectMessageAction}
-      />
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col">{children}</div>
-    </div>
+    <ChatShell
+      list={
+        <ChannelList
+          initial={channels}
+          canCreate={canCreate}
+          createAction={createChannelAction}
+          targets={targets.map((t) => ({ id: t.id, name: t.name, kind: t.kind }))}
+          dms={dms}
+          people={people.map((p) => ({ id: String(p.id), fullName: String(p.full_name) }))}
+          openDmAction={openDirectMessageAction}
+        />
+      }
+    >
+      {children}
+    </ChatShell>
   );
 }

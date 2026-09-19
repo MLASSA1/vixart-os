@@ -144,7 +144,7 @@ export default async function SchedulePage({
             day off is theirs to say.
           </p>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] border-collapse text-[13.5px]">
+            <table className="table-wide min-w-[720px] text-[13.5px]">
               <thead>
                 <tr>
                   <th className="th border-b border-void/15 py-2 text-left">Person</th>
