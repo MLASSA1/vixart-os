@@ -10,6 +10,15 @@ PGDATABASE="${PGDATABASE:?PGDATABASE missing}"
 
 mkdir -p "$BACKUP_DIR"
 
+# A dump is the whole business in one file: every client, every invoice, every
+# private message, and every password hash. It was being written 644 in a 755
+# directory — on this host `/var/lib/docker` is 710 so nothing else could
+# actually reach it, but that is a property of the host, not of the backup, and
+# the next place these are copied to may not have it. Restrict them here, where
+# it travels with the file.
+chmod 700 "$BACKUP_DIR" 2>/dev/null || true
+umask 077
+
 STAMP="$(date +%Y-%m-%d_%H%M%S)"
 TARGET="$BACKUP_DIR/vixart_${STAMP}.sql.gz"
 TMP="$TARGET.partial"
@@ -28,6 +37,7 @@ pg_dump \
   "$PGDATABASE" | gzip -9 > "$TMP"
 
 mv "$TMP" "$TARGET"
+chmod 600 "$TARGET"
 
 SIZE="$(du -h "$TARGET" | cut -f1)"
 echo "[backup] OK — $TARGET ($SIZE)"
@@ -51,6 +61,7 @@ if [ -d "$UPLOADS_DIR" ]; then
   # attachment.stored_path records.
   if tar -czf "$FILES_TMP" -C "$UPLOADS_DIR" . 2>/dev/null; then
     mv "$FILES_TMP" "$FILES_TARGET"
+    chmod 600 "$FILES_TARGET"
     FSIZE="$(du -h "$FILES_TARGET" | cut -f1)"
     FCOUNT="$(find "$UPLOADS_DIR" -type f 2>/dev/null | wc -l | tr -d " ")"
     echo "[backup] OK — $FILES_TARGET ($FSIZE, $FCOUNT file(s))"
