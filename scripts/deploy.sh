@@ -35,6 +35,17 @@ nice -n 15 $COMPOSE build app
 echo "[deploy] restarting"
 $COMPOSE up -d
 
+# The backup container runs scripts BIND-MOUNTED from ./scripts. `git reset
+# --hard` above replaces those files with new inodes, and a file bind mount
+# follows the inode it was given at container creation — so the container goes
+# on running the version it started with, however many times this deploys.
+#
+# It cost an hour: a fix that tightened the permissions on database dumps was
+# committed, deployed, and reported as done, while the container kept writing
+# them world-readable. Nothing said so; the deploy was green.
+echo "[deploy] re-binding the backup container's scripts"
+$COMPOSE up -d --force-recreate backup
+
 # The port the application is actually published on.
 #
 # `--env-file .env` above is passed to docker compose, which reads it for the
