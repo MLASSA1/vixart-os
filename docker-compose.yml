@@ -62,6 +62,20 @@ services:
       AUTH_SECRET: ${AUTH_SECRET}
       AUTH_TRUST_HOST: "true"
       SEED_DEFAULT_PASSWORD: ${SEED_DEFAULT_PASSWORD}
+      # Outgoing mail — client invitations, and the notification worker when it
+      # exists. These were in .env on the server and never forwarded here, so
+      # `mailerConfigured()` was false in production and anything that tried to
+      # send would have declined to, quietly and correctly, for as long as
+      # nobody looked. Found by an invitation refusing to go out.
+      #
+      # NOT given to the portal: a client-facing container has no reason to
+      # hold the company's mailbox password. Invitations are sent by this one.
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      MAIL_FROM: ${MAIL_FROM:-}
+      PORTAL_URL: ${PORTAL_URL:-https://client.visionxart.cloud}
       UPLOADS_DIR: /app/uploads
     volumes:
       - uploads:/app/uploads
