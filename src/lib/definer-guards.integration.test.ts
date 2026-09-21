@@ -66,6 +66,13 @@ const EXEMPT = new Set([
   // sign-in path for the portal, one row by email. Same exemption, and the
   // same reasoning, as lookup_login above.
   'lookup_client_login',
+  // Both write only WHERE contact_id = the session's own contact, which is a
+  // tighter guard than any role check — there is no argument naming a row, so
+  // there is nothing to aim them at. Definers because the client role has no
+  // UPDATE on client_account and must not be given one: that grant would
+  // cover is_active and everybody's password_hash.
+  'set_own_client_password',
+  'record_client_sign_in',
 ]);
 
 describe.skipIf(!HAS_DB)('SECURITY DEFINER functions guard their callers', () => {

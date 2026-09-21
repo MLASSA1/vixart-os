@@ -18,7 +18,7 @@ import type { Tx } from '@/db/session';
 export interface ChannelRow {
   [k: string]: unknown;
   id: string;
-  kind: 'general' | 'company' | 'project';
+  kind: 'general' | 'company' | 'project' | 'support';
   title: string;
   is_default: boolean;
   unread: number;

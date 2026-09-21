@@ -14,7 +14,7 @@
 
 import { sql } from 'drizzle-orm';
 import { requireSession } from '@/auth';
-import { getDb, type Database } from './index';
+import { getClientDb, getDb, type Database } from './index';
 
 export interface UserContext {
   id: string;
@@ -72,5 +72,42 @@ export async function withModerator<T>(
       throw new Error('Moderators only');
     }
     return work(tx, user);
+  });
+}
+
+// ---------------------------------------------------------------------------
+// The client portal
+// ---------------------------------------------------------------------------
+
+/** Who the portal is serving. A contact, never a member of staff. */
+export interface ClientContext {
+  contactId: string;
+  companyId: string;
+  name: string;
+  companyName: string;
+}
+
+/**
+ * Runs work as the signed-in CLIENT, on the client role's connection.
+ *
+ * Deliberately a separate function from `withUser` rather than a flag on it.
+ * A flag is something you can forget to pass, and forgetting it here would run
+ * a portal query on the application role — which can read every client in the
+ * system. Two doors, each leading somewhere different, is harder to walk
+ * through by accident than one door with a switch on it.
+ *
+ * Only `app.client_contact_id` is set. The company is NOT set: policies derive
+ * it with `app.current_client_company()`, so the portal cannot name a company
+ * it does not belong to even if it tried.
+ */
+export async function withClient<T>(
+  contactId: string,
+  work: (tx: Tx) => Promise<T>,
+): Promise<T> {
+  if (!contactId) throw new Error('Sign-in required');
+
+  return getClientDb().transaction(async (tx) => {
+    await tx.execute(sql`SELECT set_config('app.client_contact_id', ${contactId}, true)`);
+    return work(tx);
   });
 }

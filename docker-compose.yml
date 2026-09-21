@@ -55,6 +55,10 @@ services:
       WORK_AGENT_DB_USER: ${WORK_AGENT_DB_USER:-}
       APP_DB_USER: ${APP_DB_USER}
       APP_DB_PASSWORD: ${APP_DB_PASSWORD}
+      # The portal's role belongs to the portal, but only this container holds
+      # the owner connection — so this is where its password can be set.
+      # `apply-grants.ts` skips it when absent, for a deployment with no portal.
+      CLIENT_DB_PASSWORD: ${CLIENT_DB_PASSWORD:-}
       AUTH_SECRET: ${AUTH_SECRET}
       AUTH_TRUST_HOST: "true"
       SEED_DEFAULT_PASSWORD: ${SEED_DEFAULT_PASSWORD}
@@ -63,6 +67,50 @@ services:
       - uploads:/app/uploads
     ports:
       - "${APP_PORT:-3000}:3000"
+
+  # ---------------------------------------------------------------------------
+  # The client portal
+  #
+  # The SAME IMAGE as `app`, with a different environment. Not a second Next
+  # project: that means a second node_modules and a second build on a box with
+  # one core, for two applications that share every component they draw with.
+  #
+  # What separates them is credentials, not code:
+  #
+  #   * CLIENT_DATABASE_URL and NOTHING ELSE. There is no APP_DATABASE_URL
+  #     here, so `getDb()` throws rather than quietly connecting as the role
+  #     that can read every client. The portal cannot reach the business even
+  #     if a page in it tried.
+  #   * Its own AUTH_SECRET. A session minted here does not verify there, so a
+  #     client token is not a validly signed staff token — which it would be if
+  #     these were the same string.
+  #   * APP_MODE=portal, which registers the client sign-in provider and not
+  #     the staff one, and makes every internal route Not Found.
+  #
+  # It runs no migrations and no seed: those belong to `app`, which holds the
+  # owner connection. This container has no owner connection at all.
+  # ---------------------------------------------------------------------------
+  portal:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vixart_portal
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      TZ: ${TZ:-Africa/Casablanca}
+      APP_MODE: portal
+      CLIENT_DATABASE_URL: postgres://${CLIENT_DB_USER:-vixart_client}:${CLIENT_DB_PASSWORD}@db:5432/${POSTGRES_DB}
+      AUTH_SECRET: ${PORTAL_AUTH_SECRET}
+      AUTH_TRUST_HOST: "true"
+      PORTAL_URL: ${PORTAL_URL:-https://client.visionxart.com}
+    # Starts straight into the server: no migrations, no grants, no seed.
+    entrypoint: ["node", "server.js"]
+    ports:
+      - "${PORTAL_PORT:-4200}:3000"
 
   backup:
     image: postgres:16-alpine

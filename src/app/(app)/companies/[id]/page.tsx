@@ -1,7 +1,8 @@
-import { asc, desc, eq } from 'drizzle-orm';
+import { asc, desc, eq, sql } from 'drizzle-orm';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { auth } from '@/auth';
+import { ClientAccess } from './ClientAccess';
 import { ButtonLink, Empty, Field, PageHeader, Section, Status } from '@/components/ui';
 import { company, contact, interaction } from '@/db/schema';
 import { COMPANY_STAGES, INTERACTION_KIND_LABELS } from '@/lib/labels';
@@ -32,6 +33,9 @@ export default async function ClientPage({
   const { id } = await params;
   const session = await auth();
   const isAdmin = session?.user.role === 'admin';
+  // Opening a client account is a moderator's job as well as an admin's: it is
+  // account management for a relationship they already run.
+  const canModerate = isAdmin || session?.user.role === 'moderator';
   const currentUserId = session?.user.id;
 
   const data = await withUser(async (tx) => {
@@ -51,13 +55,27 @@ export default async function ClientPage({
       .where(eq(interaction.companyId, id))
       .orderBy(desc(interaction.occurredAt));
 
-    return { record, contacts, timeline };
+    // Which of these people can sign in, and what state their account is in.
+    // Read here rather than per-contact: one query, and the section below
+    // needs it whether or not anybody has an account yet.
+    const accounts = await tx.execute<{
+      contact_id: string; is_active: boolean; must_change_password: boolean;
+      last_sign_in_at: string | null; initial_password_expires_at: string | null;
+    }>(sql`
+      SELECT a.contact_id, a.is_active, a.must_change_password,
+             a.last_sign_in_at::text, a.initial_password_expires_at::text
+        FROM client_account a
+        JOIN contact c ON c.id = a.contact_id
+       WHERE c.company_id = ${id}
+    `);
+
+    return { record, contacts, timeline, accounts: accounts.rows };
   });
 
   const files = await listAttachments('company', id);
 
   if (!data) notFound();
-  const { record, contacts, timeline } = data;
+  const { record, contacts, timeline, accounts } = data;
 
   const addContact = createContactAction.bind(null, record.id);
   const addInteraction = createInteractionAction.bind(null, record.id);
@@ -319,6 +337,21 @@ export default async function ClientPage({
               {p}
             </p>
           ))}
+        </Section>
+      )}
+
+      {/* --- Client access: who at this company can sign in ------------------ */}
+      {canModerate && (
+        <Section title={`Client access — ${accounts.length}`}>
+          <ClientAccess
+            companyId={record.id}
+            contacts={contacts.map((c) => ({
+              id: c.id,
+              fullName: c.fullName,
+              email: c.email,
+            }))}
+            accounts={accounts}
+          />
         </Section>
       )}
 

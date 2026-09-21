@@ -62,6 +62,7 @@ function createPool(url: string, max: number): Pool {
 const cache = globalThis as unknown as {
   __vixartDbApp?: Database;
   __vixartDbOwner?: Database;
+  __vixartDbClient?: Database;
 };
 
 /** Application connection — subject to RLS. Created on first use. */
@@ -87,6 +88,32 @@ export function getOwnerDb(): Database {
     });
   }
   return cache.__vixartDbOwner;
+}
+
+/**
+ * Client portal connection — a DIFFERENT PostgreSQL role.
+ *
+ * `vixart_client` holds SELECT on six tables and INSERT on one, and no default
+ * privileges at all (migration 0064). That is the boundary: not a filter in a
+ * query, not a check in a page, but a role that cannot reach the rest of the
+ * database however wrong the code above it turns out to be.
+ *
+ * The portal container is given only this connection string. Nothing in it can
+ * open `getDb()` even by mistake, because APP_DATABASE_URL is not in its
+ * environment — `requireEnv` throws rather than quietly connecting as
+ * something more privileged.
+ *
+ * A small pool: eight clients checking their projects is not eight hundred,
+ * and the box has one core.
+ */
+export function getClientDb(): Database {
+  if (!cache.__vixartDbClient) {
+    cache.__vixartDbClient = drizzle(createPool(requireEnv('CLIENT_DATABASE_URL'), 5), {
+      schema,
+      casing: 'snake_case',
+    });
+  }
+  return cache.__vixartDbClient;
 }
 
 /**

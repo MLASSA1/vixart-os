@@ -93,6 +93,16 @@ export default async function ChannelPage({ params }: { params: Promise<{ id: st
   const { record, messages, earlier, people } = data;
 
   const isDm = record.kind === 'dm';
+  /*
+   * The client reads this one.
+   *
+   * It has to say so, loudly, before anybody types. A support thread looks
+   * exactly like the client channel of the same name in the list above it —
+   * and the difference between them is whether the client is reading. Someone
+   * pasting an internal note about a budget into the wrong one is not a bug
+   * this code can catch; a line they cannot miss is the whole defence.
+   */
+  const isSupport = record.kind === 'support';
 
   const about =
     record.kind === 'company'
@@ -107,7 +117,7 @@ export default async function ChannelPage({ params }: { params: Promise<{ id: st
         {/* Phone only: the channel list is a drawer there, not a column. */}
         <ChannelsButton />
         <span aria-hidden="true" className="text-[19px] leading-none text-void/25">
-          {isDm ? '@' : '#'}
+          {isDm ? '@' : isSupport ? '☎' : '#'}
         </span>
         <div className="min-w-0">
           <h1 className="display truncate text-[16px] font-bold leading-tight">
@@ -116,6 +126,10 @@ export default async function ChannelPage({ params }: { params: Promise<{ id: st
           <p className="hint truncate text-[12.5px] leading-tight">
             {isDm ? (
               'Private — only the two of you can read this.'
+            ) : isSupport ? (
+              <span className="font-semibold text-accent-deep">
+                The client reads this. Everything here is written to them.
+              </span>
             ) : about ? (
               <>
                 <Link href={about.href} className="underline underline-offset-2">

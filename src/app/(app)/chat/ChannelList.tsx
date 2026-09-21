@@ -25,6 +25,15 @@ const GROUPS = [
   { kind: 'general', label: null },
   { kind: 'project', label: 'Projects' },
   { kind: 'company', label: 'Clients' },
+  /*
+   * Where the clients themselves write.
+   *
+   * Listed separately from the client channel of the same name, and it matters
+   * which is which: one is the team talking ABOUT a client, the other is the
+   * client reading every word. Two lines with the same company name in
+   * different sections is the right amount of friction before typing.
+   */
+  { kind: 'support', label: 'From clients' },
 ] as const;
 
 export function ChannelList({
