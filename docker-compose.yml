@@ -91,9 +91,17 @@ services:
   # owner connection. This container has no owner connection at all.
   # ---------------------------------------------------------------------------
   portal:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    # THE SAME IMAGE AS `app`, by name — not a second build of the same
+    # Dockerfile.
+    #
+    # With its own `build:` block compose gives this service an image of its
+    # own, and `scripts/deploy.sh` builds `app`. So a deploy would put new code
+    # in the internal application and leave the portal running whatever it was
+    # built with, indefinitely and silently — two halves of one system drifting
+    # apart with nothing to say so. Naming the image ties them together: one
+    # build, one artefact, and the portal cannot be older than the thing it
+    # shares a database with.
+    image: vixart-app
     container_name: vixart_portal
     restart: unless-stopped
     depends_on:

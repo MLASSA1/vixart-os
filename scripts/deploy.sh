@@ -46,6 +46,15 @@ $COMPOSE up -d
 echo "[deploy] re-binding the backup container's scripts"
 $COMPOSE up -d --force-recreate backup
 
+# The portal runs the SAME image as the application (see docker-compose.yml),
+# so a new build only reaches it when its container is replaced. `up -d` alone
+# leaves a running container alone when nothing in its definition changed —
+# and the image tag pointing somewhere new is not a change compose looks at.
+# Without this the portal would keep serving the previous build after every
+# deploy, silently.
+echo "[deploy] restarting the client portal on the new image"
+$COMPOSE up -d --force-recreate portal
+
 # The port the application is actually published on.
 #
 # `--env-file .env` above is passed to docker compose, which reads it for the
