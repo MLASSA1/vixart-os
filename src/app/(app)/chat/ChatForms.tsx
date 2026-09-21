@@ -412,7 +412,7 @@ export function Composer({
               <VoiceNote src={pending.url} durationMs={pending.durationMs} mine />
             </div>
 
-            <Send />
+            <Send blocked={tooBig} />
           </div>
         ) : recorder.recording ? (
           /* While the microphone is open the bar is only about the microphone.
@@ -507,6 +507,9 @@ export function Composer({
               // while the picker is open — that Enter belongs to the picker.
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
+                // The other way into the same action, and it has to refuse an
+                // oversized attachment for the same reason the button does.
+                if (tooBig) return;
                 formRef.current?.requestSubmit();
               }
             }}
@@ -515,7 +518,7 @@ export function Composer({
           {/* The microphone sits beside send, and only when there is nothing
               typed: with text in the box the obvious action is to send it. */}
           <Mic recorder={recorder} />
-          <Send />
+          <Send blocked={tooBig} />
         </div>
         )}
       </div>
@@ -572,11 +575,23 @@ function Mic({ recorder }: { recorder: ReturnType<typeof useRecorder> }) {
   );
 }
 
-/** The round accent button, and the only loud thing on the bar. */
-function Send() {
+/**
+ * The round accent button, and the only loud thing on the bar.
+ *
+ * `blocked` is the over-25-MB case. The chip already says so in words; this
+ * stops the send as well. Without it the warning was decoration — the file
+ * went, the server refused the body, and the reply was the generic error
+ * screen, which says nothing about a size.
+ */
+function Send({ blocked = false }: { blocked?: boolean }) {
   const { pending } = useFormStatus();
   return (
-    <button type="submit" className="composer-send" disabled={pending} aria-label="Send">
+    <button
+      type="submit"
+      className="composer-send"
+      disabled={pending || blocked}
+      aria-label="Send"
+    >
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
            strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
         <path d="M4 12l16-8-6 8 6 8z" />
