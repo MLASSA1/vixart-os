@@ -16,7 +16,7 @@ import {
 
 /** Where a client signs in. The portal's own host, never the internal one. */
 function portalUrl(): string {
-  return process.env.PORTAL_URL ?? 'https://client.visionxart.com';
+  return process.env.PORTAL_URL ?? 'https://client.visionxart.cloud';
 }
 
 /**

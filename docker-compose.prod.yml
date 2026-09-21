@@ -47,7 +47,7 @@ services:
     environment:
       # Auth.js builds its callback URLs from this and marks its cookies
       # Secure. It is the portal's OWN host, never the internal one.
-      AUTH_URL: ${PORTAL_AUTH_URL:-https://client.visionxart.com}
+      AUTH_URL: ${PORTAL_AUTH_URL:-https://client.visionxart.cloud}
       AUTH_TRUST_HOST: "true"
     restart: always
     logging:

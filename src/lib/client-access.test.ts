@@ -71,7 +71,7 @@ describe('opening a client account', () => {
       companyName: 'Laboratoire Talborjt',
       email: 'ahmed@example.com',
       password: 'Abcd2345Efgh6',
-      url: 'https://client.visionxart.com',
+      url: 'https://client.visionxart.cloud',
     });
 
     for (const body of [mail.text, mail.html]) {
@@ -92,7 +92,7 @@ describe('opening a client account', () => {
       companyName: 'Foo & <script>bar</script>',
       email: 'a@b.c',
       password: 'Abcd2345Efgh6',
-      url: 'https://client.visionxart.com',
+      url: 'https://client.visionxart.cloud',
     });
     // What matters is that no TAG survives, not that the word "onerror"
     // never appears: escaped, `<img ... onerror=...>` is inert text that

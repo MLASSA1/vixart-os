@@ -114,7 +114,7 @@ services:
       CLIENT_DATABASE_URL: postgres://${CLIENT_DB_USER:-vixart_client}:${CLIENT_DB_PASSWORD}@db:5432/${POSTGRES_DB}
       AUTH_SECRET: ${PORTAL_AUTH_SECRET}
       AUTH_TRUST_HOST: "true"
-      PORTAL_URL: ${PORTAL_URL:-https://client.visionxart.com}
+      PORTAL_URL: ${PORTAL_URL:-https://client.visionxart.cloud}
     # Starts straight into the server: no migrations, no grants, no seed.
     entrypoint: ["node", "server.js"]
     ports:
