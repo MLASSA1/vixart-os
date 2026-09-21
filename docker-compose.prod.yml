@@ -34,6 +34,26 @@ services:
       driver: json-file
       options: { max-size: "10m", max-file: "3" }
 
+  portal:
+    # The same rule as the application, for the same reason, and it was not
+    # free: started without this the portal came up on 0.0.0.0:4200 — the only
+    # container on this machine published on a public interface. ufw happens
+    # to deny 4200, so nothing was reachable; but that is one layer holding a
+    # door that should have two, and the one it was relying on is a list of
+    # port numbers somebody edits by hand.
+    ports: !override
+      # LOOPBACK ONLY. nginx is the only way in.
+      - "127.0.0.1:${PORTAL_PORT:-4200}:3000"
+    environment:
+      # Auth.js builds its callback URLs from this and marks its cookies
+      # Secure. It is the portal's OWN host, never the internal one.
+      AUTH_URL: ${PORTAL_AUTH_URL:-https://client.visionxart.com}
+      AUTH_TRUST_HOST: "true"
+    restart: always
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
   db:
     # Identical to the base entry today, so the merge happens to be harmless —
     # stated explicitly anyway, so it stays correct if the base file changes.
