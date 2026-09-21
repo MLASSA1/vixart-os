@@ -449,6 +449,13 @@
       "when": 1789808413439,
       "tag": "0063_a_task_without_a_project_can_be_signed_off",
       "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1789965202123,
+      "tag": "0064_client_boundary",
+      "breakpoints": true
     }
   ]
 }

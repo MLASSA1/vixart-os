@@ -203,10 +203,19 @@ describe.skipIf(!HAS_DB)('mention safety assumption', () => {
     const total = Number(people.rows[0]!.n);
 
     // Both parents of a thread are visible to any signed-in person today.
+    //
+    // Policies that apply ONLY to the client portal's role are excluded, and
+    // the distinction matters: this test is about whether a MEMBER OF STAFF
+    // can still see every thread. A policy `TO vixart_client` can never be
+    // evaluated for a staff session — it cannot narrow what staff see, and it
+    // cannot widen it either. What must keep firing this test is somebody
+    // narrowing `company_select` or `project_select` themselves, which are
+    // `{public}` and are checked below exactly as before.
     const parents = await owner.query<{ tablename: string; qual: string }>(
       `SELECT tablename, qual FROM pg_policies
         WHERE tablename IN ('company','project') AND cmd = 'SELECT'
-          AND policyname NOT LIKE '%bootstrap%'`);
+          AND policyname NOT LIKE '%bootstrap%'
+          AND NOT (roles = '{vixart_client}')`);
 
     const narrowed = parents.rows.filter((r) => !/is_authenticated\(\)/.test(r.qual ?? ''));
 

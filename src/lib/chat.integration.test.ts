@@ -457,12 +457,56 @@ describe.skipIf(!HAS_DB)('team chat (integration)', () => {
     // never run — the policy below refuses the update before any trigger is
     // reached — so 0057 removed it. A door that does not open is worse than
     // no door.
-    const { rows } = await owner.query<{ qual: string }>(
-      `SELECT qual FROM pg_policies WHERE tablename='message' AND cmd='UPDATE'`);
-    expect(rows).toHaveLength(1);
-    expect(rows[0]!.qual).toContain('author_id');
-    expect(rows[0]!.qual).toContain('current_user_id');
-    expect(rows[0]!.qual).not.toMatch(/is_admin|is_moderator/);
+    // Asserted by DOING it, with a second staff account made here on purpose.
+    //
+    // The original version of this test read the policy text and checked it
+    // never mentioned is_moderator. That stopped being the right question in
+    // 0064: a moderator CAN now withdraw a message a CLIENT wrote in a support
+    // thread, because otherwise a wrong attachment or somebody's personal
+    // details posted by a client would stay there for ever — the client has no
+    // UPDATE grant at all, and staff could not touch what they did not write.
+    //
+    // What must still be impossible is a moderator touching a message written
+    // by a COLLEAGUE, and reading the policy for the absence of a word no
+    // longer establishes that. So: a real second account, a real attempt.
+    await owner.query("SET app.bootstrap = 'on'");
+    const boss = (await owner.query<{ id: string }>(
+      `INSERT INTO app_user (email, full_name, role, password_hash, is_active, is_assignable)
+       VALUES ('zzz-withdraw-probe@example.invalid','ZZZ withdraw probe','moderator',
+               'NO-LOGIN-probe', true, true)
+       RETURNING id`)).rows[0]!.id;
+
+    try {
+      await actAs(alice, 'member');
+      const { rows: m } = await app.query<{ id: string }>(
+        `INSERT INTO message (thread_id, author_id, author_name, body)
+         VALUES ($1,$2,'Alice','written by a colleague') RETURNING id`,
+        [generalId, alice]);
+
+      await actAs(boss, 'moderator');
+      const attempt = await app.query(
+        `UPDATE message SET withdrawn_at = now(), withdrawn_by_id = $2, body = ''
+          WHERE id = $1`, [m[0]!.id, boss]);
+      // RLS refuses before any trigger: the UPDATE matches no row rather than
+      // raising, which is the quiet form this has to be checked for.
+      expect(attempt.rowCount).toBe(0);
+
+      const after = await owner.query<{ withdrawn_at: string | null; body: string }>(
+        `SELECT withdrawn_at, body FROM message WHERE id = $1`, [m[0]!.id]);
+      expect(after.rows[0]!.withdrawn_at).toBeNull();
+      expect(after.rows[0]!.body).toBe('written by a colleague');
+
+      // And the author still can.
+      await actAs(alice, 'member');
+      const own = await app.query(
+        `UPDATE message SET withdrawn_at = now(), withdrawn_by_id = $2 WHERE id = $1`,
+        [m[0]!.id, alice]);
+      expect(own.rowCount).toBe(1);
+    } finally {
+      await owner.query("SET app.bootstrap = 'on'");
+      await owner.query(`DELETE FROM message WHERE author_id = $1`, [boss]);
+      await owner.query(`DELETE FROM app_user WHERE id = $1`, [boss]);
+    }
   });
 
   it('will not let a withdrawn message be changed again', async () => {

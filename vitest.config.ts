@@ -57,7 +57,10 @@ loadEnvFiles();
  */
 function useTestDatabase() {
   const TEST_DB = 'vixart_test';
-  for (const key of ['DATABASE_URL', 'APP_DATABASE_URL']) {
+  // CLIENT_DATABASE_URL too: the portal's role is the subject of the boundary
+  // tests, and a boundary test that ran against the WORKING database would be
+  // reading real clients to prove they cannot be read.
+  for (const key of ['DATABASE_URL', 'APP_DATABASE_URL', 'CLIENT_DATABASE_URL']) {
     const value = process.env[key];
     if (!value) continue;
     try {

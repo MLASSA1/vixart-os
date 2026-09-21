@@ -25,6 +25,13 @@ async function main() {
   const ownerUrl = requireEnv('DATABASE_URL');
   const appUser = requireEnv('APP_DB_USER');
   const appPassword = requireEnv('APP_DB_PASSWORD');
+  /*
+   * The client portal's role (0064). Optional: a deployment that does not run
+   * the portal has no reason to hold its password, and the role's grants are
+   * written by the migration either way — this only sets the password it logs
+   * in with.
+   */
+  const clientPassword = process.env.CLIENT_DB_PASSWORD ?? '';
 
   const client = new Client({ connectionString: ownerUrl });
   await client.connect();
@@ -32,6 +39,25 @@ async function main() {
   try {
     // CREATE ROLE / ALTER ROLE take no bound parameters: go through a DO block,
     // where `format()` with %I / %L escapes correctly.
+    if (clientPassword) {
+      await client.query(
+        `DO $$
+         DECLARE
+           r text := 'vixart_client';
+           p text := ${literal(clientPassword)};
+         BEGIN
+           IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = r) THEN
+             EXECUTE format('CREATE ROLE %I LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS', r);
+           END IF;
+           -- Password only. The GRANTs belong to migration 0064, where the
+           -- list of what a client may touch can be read as one thing.
+           EXECUTE format('ALTER ROLE %I WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS PASSWORD %L', r, p);
+         END
+         $$;`,
+      );
+      console.log('[grants] role "vixart_client" password set (portal)');
+    }
+
     await client.query(
       `DO $$
        DECLARE

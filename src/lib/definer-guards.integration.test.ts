@@ -52,6 +52,20 @@ const EXEMPT = new Set([
   // application routes to either of them except the sign-in path itself.
   'login_retry_after',
   'record_login_attempt',
+  // Bumps thread.updated_at when a message is inserted, so the channel list
+  // sorts by recency. A definer because the client portal's role has no UPDATE
+  // on `thread` and must not be given one (0064). It has no caller to check:
+  // it takes no argument, writes one timestamp, and only on the parent of a
+  // row that row level security has already admitted.
+  'touch_thread_on_message',
+  // Reads one column of one contact — the one the session already claims — so
+  // that a client's company is derived from the database rather than accepted
+  // from the session. Discloses nothing the caller did not submit.
+  'current_client_company',
+  // Runs before any client session exists, which is its entire purpose: the
+  // sign-in path for the portal, one row by email. Same exemption, and the
+  // same reasoning, as lookup_login above.
+  'lookup_client_login',
 ]);
 
 describe.skipIf(!HAS_DB)('SECURITY DEFINER functions guard their callers', () => {
