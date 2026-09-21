@@ -1,0 +1,435 @@
+[
+  {
+    "slug": "property-experience-system",
+    "name": "Property Experience System™",
+    "family": "Growth",
+    "position": 1,
+    "what_it_fixes": "Home buyers deciding from flat, low-quality listings.",
+    "what_it_is": "A way of showing property that answers the buyer's real question: what it would be like to be there. Film, stills and a listing built so certainty replaces guesswork.",
+    "what_you_get": [
+      "On-site cinematography and drone",
+      "Interior and exterior stills",
+      "A listing page built around the decision, not the specification",
+      "One visual standard across every property",
+      "Measurement of what buyers actually look at"
+    ],
+    "who_it_is_for": "Agencies and developers whose listings look like everyone else's.",
+    "image": "property-experience-system.webp"
+  },
+  {
+    "slug": "restaurant-memory-system",
+    "name": "Restaurant Memory System™",
+    "family": "Growth",
+    "position": 2,
+    "what_it_fixes": "Hotels and restaurants that are hard to remember in a crowded market.",
+    "what_it_is": "The parts of a hospitality brand people remember afterwards: how it looks, how it is photographed, what arrives at the table, and what is posted between visits.",
+    "what_you_get": [
+      "Identity and the rules that hold it",
+      "Food and interior photography",
+      "Menu, signage and printed pieces",
+      "A social pattern that survives a busy week",
+      "One look across the room, the plate and the feed"
+    ],
+    "who_it_is_for": "Hotels and restaurants that are good in person and forgettable online.",
+    "image": "restaurant-memory-system.webp"
+  },
+  {
+    "slug": "authority-engine",
+    "name": "Authority Engine™",
+    "family": "Growth",
+    "position": 3,
+    "what_it_fixes": "Money lost on plain ads that do not build trust or justify higher prices.",
+    "what_it_is": "Turning proof into pricing power. Instead of ads that ask for trust, we publish the evidence that earns it, then put budget behind the pieces that move people.",
+    "what_you_get": [
+      "Positioning and the argument behind the price",
+      "Proof assets: case studies, results, written work",
+      "Paid and organic distribution",
+      "Funnels and follow-up",
+      "Measurement tied to enquiries, not impressions"
+    ],
+    "who_it_is_for": "Premium businesses whose prices are questioned because nothing proves them.",
+    "image": null
+  },
+  {
+    "slug": "growth-clarity-framework",
+    "name": "Growth Clarity Framework™",
+    "family": "Growth",
+    "position": 4,
+    "what_it_fixes": "Doing random marketing tasks without knowing the real problem.",
+    "what_it_is": "The diagnosis. Eight pillars measured, one score out of a hundred, and a written map of where attention, trust and revenue are leaking, before anyone proposes a tactic.",
+    "what_you_get": [
+      "The VIXART Growth Audit™ across eight pillars",
+      "A score out of one hundred with the working shown",
+      "Competitor comparison",
+      "Every leak named and quantified",
+      "A sequenced roadmap of what to fix, in order"
+    ],
+    "who_it_is_for": "Anyone about to spend money on marketing without knowing what is broken.",
+    "image": null
+  },
+  {
+    "slug": "business-transformation-sprint",
+    "name": "Business Transformation Sprint™",
+    "family": "Growth",
+    "position": 5,
+    "what_it_fixes": "A gap between the big plan and the actual build.",
+    "what_it_is": "Diagnose, design, build and launch under one timeline, with the whole team on one client. Roughly twelve weeks from the audit to a live system, then into ongoing growth.",
+    "what_you_get": [
+      "The full audit and roadmap",
+      "Brand, platform and acquisition built in parallel",
+      "One accountable timeline",
+      "A coordinated launch, not a switch flip",
+      "A weekly report and a quarterly review",
+      "Handover and training"
+    ],
+    "who_it_is_for": "A business that needs the whole thing moved, not one piece improved.",
+    "image": null
+  },
+  {
+    "slug": "always-on-answer-system",
+    "name": "Always-On Answer System™",
+    "family": "Engineering",
+    "position": 1,
+    "what_it_fixes": "Customers waiting on answers your team types out by hand, every day.",
+    "what_it_is": "An assistant that answers your customers from your own material (your catalogue, your prices, your policies) on your website, on WhatsApp, or inside your app. It only answers from what you give it, so it does not invent things.",
+    "what_you_get": [
+      "Trained on your own documents, catalogue and policies",
+      "Web, WhatsApp or in-app",
+      "Handover to a human when it should not answer",
+      "Call transcription and written summaries",
+      "Scanned archives read and made searchable",
+      "Private or on-premise setup when the data is sensitive"
+    ],
+    "who_it_is_for": "Businesses answering the same questions all day, or losing enquiries that arrive after hours.",
+    "image": "always-on-answer-system.webp"
+  },
+  {
+    "slug": "back-office-autopilot",
+    "name": "Back-Office Autopilot™",
+    "family": "Engineering",
+    "position": 2,
+    "what_it_fixes": "Staff retyping the same invoices, quotes and follow-ups instead of selling.",
+    "what_it_is": "The repetitive paperwork handled by software. Invoices, contracts, purchase orders, IDs and receipts are read, turned into clean data, sorted and passed to the right person. Quotes, order intake and follow-ups are drafted for approval.",
+    "what_you_get": [
+      "Invoice, contract, PO, ID and receipt reading",
+      "Automatic sorting and routing",
+      "Quote generation and order intake",
+      "Support ticket triage",
+      "Lead qualification and follow-up emails",
+      "A person approves before anything is sent"
+    ],
+    "who_it_is_for": "Teams whose day is filled with retyping, and who lose deals to slow quotes.",
+    "image": "back-office-autopilot.webp"
+  },
+  {
+    "slug": "operations-backbone",
+    "name": "Operations Backbone™",
+    "family": "Engineering",
+    "position": 3,
+    "what_it_fixes": "A business run on spreadsheets that no two people read the same way.",
+    "what_it_is": "One place where sales, purchasing, stock, production, accounting, HR and till all live. We set up the ERP, build the parts your business does differently, and move you off spreadsheets with the data cleaned on the way in.",
+    "what_you_get": [
+      "Odoo or a comparable ERP, set up and rolled out",
+      "Sales, purchase, inventory, manufacturing, accounting, HR, POS",
+      "Custom modules for what the standard product will not do",
+      "Migration from spreadsheets or an old system",
+      "Data cleaned and checked before it lands",
+      "Demand forecasting, smart reordering, and alerts on odd invoices or stock"
+    ],
+    "who_it_is_for": "A business big enough that no one person can hold the whole picture any more.",
+    "image": null
+  },
+  {
+    "slug": "revenue-pipeline-system",
+    "name": "Revenue Pipeline System™",
+    "family": "Engineering",
+    "position": 4,
+    "what_it_fixes": "Leads going cold because nobody knows whose turn it is.",
+    "what_it_is": "A CRM set up the way you actually sell. Every enquiry lands in one pipeline with an owner and a next step, and the follow-up happens whether or not anyone remembers.",
+    "what_you_get": [
+      "Pipelines, stages, scoring, permissions and dashboards",
+      "Lead capture from your site and your ads",
+      "Email, WhatsApp and SMS sequences",
+      "Lead scoring so the best enquiries surface first",
+      "Call and meeting summaries written automatically",
+      "Next-best-action and churn warnings"
+    ],
+    "who_it_is_for": "Anyone whose leads arrive in several places and get followed up by memory.",
+    "image": null
+  },
+  {
+    "slug": "owned-platform-system",
+    "name": "Owned Platform System™",
+    "family": "Engineering",
+    "position": 5,
+    "what_it_fixes": "Renting your business on tools that were never built for it.",
+    "what_it_is": "Software built for your business and owned by your business. A web app, a mobile app, a client portal or a shop, built to fit how you work, with no licence you cannot leave.",
+    "what_you_get": [
+      "Web applications and SaaS platforms, multi-tenant and billing-ready",
+      "iOS and Android from one codebase",
+      "Client portals, admin panels and internal tools",
+      "E-commerce, marketplaces, payment and delivery",
+      "Roles and permissions",
+      "You keep the code"
+    ],
+    "who_it_is_for": "Businesses paying monthly for tools that still do not do the one thing they need.",
+    "image": null
+  },
+  {
+    "slug": "single-source-of-truth",
+    "name": "Single Source of Truth™",
+    "family": "Engineering",
+    "position": 6,
+    "what_it_fixes": "Every tool showing a different number for the same question.",
+    "what_it_is": "Your systems joined up so they agree. ERP, CRM, shop, accounting, payments and delivery pass data to each other, and the reporting is built once, on top of all of it.",
+    "what_you_get": [
+      "Integration between ERP, CRM, e-commerce, accounting, payment and logistics",
+      "API design and third-party connections",
+      "Bridging to older systems that cannot be replaced yet",
+      "Data pipelines and a warehouse",
+      "BI dashboards",
+      "Reports that send themselves"
+    ],
+    "who_it_is_for": "Anyone who has been in a meeting where two departments quoted different numbers.",
+    "image": null
+  },
+  {
+    "slug": "continuity-system",
+    "name": "Continuity System™",
+    "family": "Engineering",
+    "position": 7,
+    "what_it_fixes": "Software that quietly rots until the day it breaks.",
+    "what_it_is": "Keeping what we built alive and safe. Hosting, deployment, monitoring, backups, security and cost control, plus the training and documentation your team needs to run it without us.",
+    "what_you_get": [
+      "Cloud deployment and CI/CD",
+      "Monitoring, backups and alerting",
+      "Cost tuning",
+      "Performance, security and code audits",
+      "Refactoring and modernising ageing systems",
+      "Support retainers, training and written documentation"
+    ],
+    "who_it_is_for": "Any business whose software is now load-bearing.",
+    "image": null
+  },
+  {
+    "slug": "brand-film-system",
+    "name": "Brand Film System™",
+    "family": "Production",
+    "position": 1,
+    "what_it_fixes": "A business that has to be explained every time, instead of simply being seen.",
+    "what_it_is": "One film that says what the business is, so it stops needing to be explained. Directed, shot and edited in-house, from the same visual rules as everything else you own.",
+    "what_you_get": [
+      "Direction and script",
+      "Shooting, including drone where it helps",
+      "Grade, sound and motion graphics",
+      "A long cut plus the short versions",
+      "Delivered in every format you actually post in"
+    ],
+    "who_it_is_for": "Businesses whose story only works when a person is there to tell it.",
+    "image": "brand-film-system.webp"
+  },
+  {
+    "slug": "location-story-system",
+    "name": "Location Story System™",
+    "family": "Production",
+    "position": 2,
+    "what_it_fixes": "A place that looks nothing like the feeling of standing inside it.",
+    "what_it_is": "Filming a place so the footage feels like standing in it. Cinematography and drone work built around the route a guest or buyer actually takes.",
+    "what_you_get": [
+      "On-site cinematography",
+      "Drone operations",
+      "Interior and detail coverage",
+      "A cut per space or per journey",
+      "Stills pulled from the same shoot"
+    ],
+    "who_it_is_for": "Hotels, restaurants, venues and property, where the place is the product.",
+    "image": "location-story-system.webp"
+  },
+  {
+    "slug": "product-image-system",
+    "name": "Product Image System™",
+    "family": "Production",
+    "position": 3,
+    "what_it_fixes": "Products shot a different way every time, so nothing looks like one brand.",
+    "what_it_is": "Photography turned into a rule rather than a booking. The lighting, angles, background and crops are decided once and written down, so every future shot matches the first.",
+    "what_you_get": [
+      "Lighting and framing defined and documented",
+      "The full product set shot",
+      "Packaging and detail shots",
+      "Crops for shop, social and print",
+      "A written guide so a re-shoot matches"
+    ],
+    "who_it_is_for": "Anyone whose catalogue looks like it was photographed by five different people.",
+    "image": null
+  },
+  {
+    "slug": "social-cut-system",
+    "name": "Social Cut System™",
+    "family": "Production",
+    "position": 4,
+    "what_it_fixes": "Running out of things to post two weeks after the camera leaves.",
+    "what_it_is": "One shoot cut into a run of short videos, so posting does not stop when the camera leaves. Cut from the same footage and the same look as the brand film.",
+    "what_you_get": [
+      "Vertical and square cuts",
+      "Subtitles and motion graphics",
+      "A posting run planned in advance",
+      "Reuse of existing footage",
+      "Templates so your team can cut more"
+    ],
+    "who_it_is_for": "Teams who shoot once, post for two weeks, and then go quiet.",
+    "image": null
+  },
+  {
+    "slug": "launch-film-system",
+    "name": "Launch Film System™",
+    "family": "Production",
+    "position": 5,
+    "what_it_fixes": "A launch that comes and goes without anyone noticing it happened.",
+    "what_it_is": "The film and the images for a launch (a drop, an opening, a new product), built as an event with a date, rather than a post.",
+    "what_you_get": [
+      "Teaser, launch film and after-cut",
+      "Stills for the launch page and ads",
+      "A release plan across channels",
+      "Coordinated go-live",
+      "Performance watched live on the day"
+    ],
+    "who_it_is_for": "Brands whose launches pass without anyone noticing.",
+    "image": null
+  },
+  {
+    "slug": "brand-identity-system",
+    "name": "Brand Identity System™",
+    "family": "Design",
+    "position": 1,
+    "what_it_fixes": "A brand that looks like a different company on every surface it appears on.",
+    "what_it_is": "The mark, the type, the colour and the rules that hold them together, so the brand looks like one company everywhere it appears.",
+    "what_you_get": [
+      "Logo and its construction",
+      "Typography and colour",
+      "Layout and spacing rules",
+      "Written guidelines",
+      "Files in every format your suppliers need"
+    ],
+    "who_it_is_for": "Businesses whose logo means something different on every surface.",
+    "image": "brand-identity-system.webp"
+  },
+  {
+    "slug": "packaging-system",
+    "name": "Packaging System™",
+    "family": "Design",
+    "position": 2,
+    "what_it_fixes": "A product that loses its argument the moment it sits on a shelf.",
+    "what_it_is": "Packaging designed so the argument survives the shelf. Structure, artwork and print files, built as a system that stretches to the next product without a redesign.",
+    "what_you_get": [
+      "Structure and dielines",
+      "Artwork and finishes",
+      "Print-ready files and printer liaison",
+      "Labelling and legal marks",
+      "A rule set for the next product in the range"
+    ],
+    "who_it_is_for": "Products that convince online and lose the argument in the hand.",
+    "image": "packaging-system.webp"
+  },
+  {
+    "slug": "interface-design-system",
+    "name": "Interface Design System™",
+    "family": "Design",
+    "position": 3,
+    "what_it_fixes": "Screens that look unfinished next to the brand that pays for them.",
+    "what_it_is": "The visual layer of your screens: type, spacing, colour, states and detail, so the product looks like it belongs to the brand paying for it.",
+    "what_you_get": [
+      "Visual design for every screen",
+      "Type, colour and spacing scales",
+      "States: hover, empty, loading, error",
+      "Icons and imagery rules",
+      "Files handed to the build team in a usable form"
+    ],
+    "who_it_is_for": "Products that work but look unfinished.",
+    "image": null
+  },
+  {
+    "slug": "print-signage-system",
+    "name": "Print & Signage System™",
+    "family": "Design",
+    "position": 4,
+    "what_it_fixes": "Menus, cards and signs that look nothing like the brand online.",
+    "what_it_is": "The physical surfaces: menus, cards, signage, packaging inserts, vehicle and window graphics, all designed from the same rules as the brand online.",
+    "what_you_get": [
+      "Menus, cards and printed collateral",
+      "Interior and exterior signage",
+      "Window and vehicle graphics",
+      "Print-ready artwork and supplier files",
+      "A template set your team can reuse"
+    ],
+    "who_it_is_for": "Businesses whose printed material was made by whoever was free that week.",
+    "image": null
+  },
+  {
+    "slug": "campaign-art-system",
+    "name": "Campaign Art System™",
+    "family": "Design",
+    "position": 5,
+    "what_it_fixes": "A campaign that has to be redesigned from scratch for every channel.",
+    "what_it_is": "A campaign designed once as a system, then sized to every channel, so nothing has to be redesigned from scratch for a new format.",
+    "what_you_get": [
+      "The campaign's visual idea",
+      "A master layout and its variations",
+      "Every channel size produced",
+      "Rules for headlines and imagery",
+      "Editable files for the next round"
+    ],
+    "who_it_is_for": "Teams re-making the same campaign for every platform.",
+    "image": null
+  },
+  {
+    "slug": "product-ux-system",
+    "name": "Product UX System™",
+    "family": "Design",
+    "position": 6,
+    "what_it_fixes": "A product built on guesses about what people actually want.",
+    "what_it_is": "Deciding what the product should do, and proving it, before it is built. Research, flows and a clickable prototype tested with real people.",
+    "what_you_get": [
+      "Interviews and research",
+      "User journeys and flows",
+      "Wireframes",
+      "A clickable prototype",
+      "Testing with real users, and what changed because of it"
+    ],
+    "who_it_is_for": "Anyone about to build a product from an opinion.",
+    "image": null
+  },
+  {
+    "slug": "usability-repair-system",
+    "name": "Usability Repair System™",
+    "family": "Design",
+    "position": 7,
+    "what_it_fixes": "A product people use, then quietly give up on.",
+    "what_it_is": "Finding why an existing product loses people, and fixing it. We watch real sessions, measure where users drop out, and repair the worst points in order.",
+    "what_you_get": [
+      "Usability audit of the live product",
+      "Session and funnel analysis",
+      "Every drop-off point ranked by cost",
+      "Fixes designed and specified",
+      "Re-measurement after the change"
+    ],
+    "who_it_is_for": "Products with traffic and complaints, but no clear reason why.",
+    "image": null
+  },
+  {
+    "slug": "component-library-system",
+    "name": "Component Library System™",
+    "family": "Design",
+    "position": 8,
+    "what_it_fixes": "Every new page rebuilt from scratch, and slightly different each time.",
+    "what_it_is": "A reusable kit of the product's parts (buttons, forms, tables, layouts), so a new page is assembled rather than redrawn, and stays consistent as the team grows.",
+    "what_you_get": [
+      "An audit of what already exists",
+      "A component set, designed and documented",
+      "Rules for spacing, type and colour as tokens",
+      "Built in code, ready to use",
+      "Documentation so new people follow it"
+    ],
+    "who_it_is_for": "Teams where every new screen is slightly different from the last.",
+    "image": null
+  }
+]

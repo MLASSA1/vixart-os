@@ -9,28 +9,23 @@ export default async function AccountPage() {
 
   return (
     <>
-      <p className="label" style={{ opacity: 0.6 }}>{session.user.companyName}</p>
-      <h1 className="display mt-1 text-3xl font-bold tracking-tight">
+      <p className="vix-meta">{session.user.companyName}</p>
+      <h1 className="vix-h1 mt-4">
         {first ? 'Choose your password' : 'Your account'}
       </h1>
 
-      {first ? (
-        <p className="prose-vixart mt-3" style={{ opacity: 0.7 }}>
-          The password we emailed you works once. Choose your own now — it is
-          the only one we will not know.
-        </p>
-      ) : (
-        <p className="prose-vixart mt-3" style={{ opacity: 0.7 }}>
-          Signed in as {session.user.email}. You can change your password here.
-        </p>
-      )}
+      <p className="vix-lead mt-5">
+        {first
+          ? 'The password we emailed you works once. Choose your own now — it is the only one we will not know.'
+          : `Signed in as ${session.user.email}. You can change your password here.`}
+      </p>
 
       <ClientPasswordForm label={first ? 'Set password' : 'Change password'} />
 
       {!first && (
-        <p className="hint mt-10">
-          To close this account, or to give somebody else at
-          {' '}{session.user.companyName} their own, ask us under “Talk to us”.
+        <p className="vix-quiet vix-rule mt-14 border-t pt-6">
+          To close this account, or to give somebody else at{' '}
+          {session.user.companyName} their own, ask us under “Talk to us”.
         </p>
       )}
     </>

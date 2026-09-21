@@ -105,6 +105,51 @@ export async function findSupportThread(tx: Tx): Promise<string | null> {
   return result.rows[0]?.id ?? null;
 }
 
+export interface PortalSystem {
+  [k: string]: unknown;
+  id: string;
+  slug: string;
+  name: string;
+  family: string;
+  position: number;
+  what_it_fixes: string;
+  what_it_is: string;
+  what_you_get: string[];
+  who_it_is_for: string;
+  image: string | null;
+}
+
+/**
+ * The twenty-five systems, as visionxart.com states them.
+ *
+ * Nothing here belongs to one client — it is the public catalogue — so unlike
+ * every other query in this file there is no company to scope by. The only
+ * rule the policy applies is that a retired system stops being shown.
+ */
+export async function listPortalSystems(tx: Tx): Promise<PortalSystem[]> {
+  const result = await tx.execute<PortalSystem>(sql`
+    SELECT id, slug, name, family, position,
+           what_it_fixes, what_it_is, what_you_get, who_it_is_for, image
+      FROM growth_system
+     ORDER BY CASE family WHEN 'Growth' THEN 0 WHEN 'Engineering' THEN 1
+                          WHEN 'Production' THEN 2 ELSE 3 END, position
+  `);
+  return result.rows;
+}
+
+/** One system, by the slug the website uses. */
+export async function findPortalSystem(
+  tx: Tx,
+  slug: string,
+): Promise<PortalSystem | null> {
+  const result = await tx.execute<PortalSystem>(sql`
+    SELECT id, slug, name, family, position,
+           what_it_fixes, what_it_is, what_you_get, who_it_is_for, image
+      FROM growth_system WHERE slug = ${slug}
+  `);
+  return result.rows[0] ?? null;
+}
+
 export interface PortalService {
   [k: string]: unknown;
   id: string;

@@ -15,30 +15,27 @@ export default async function ClientSignInPage({
 
   return (
     <main className="flex min-h-[100dvh] flex-col justify-center px-6 py-16">
-      <div className="mx-auto w-full max-w-md">
-        <p className="display flex items-baseline gap-2.5 text-2xl font-bold tracking-tight">
-          VIXART
-          <span aria-hidden="true" className="inline-block h-3 w-3 rounded-[3px] bg-accent" />
-        </p>
-        <p className="hint mt-1">SOCIETE VIXART SARL — Agadir</p>
+      <div className="mx-auto w-full max-w-[440px]">
+        <p className="vix-wordmark text-2xl">VIXART</p>
+        <p className="vix-meta mt-2">Business Growth Engineering™</p>
 
-        <div className="card mt-8 px-6 py-7">
+        <div className="vix-card mt-10 px-7 py-8">
           {changed === '1' && (
-            <p role="status" className="tone-ok mb-4 rounded-[10px] px-4 py-3">
+            <p role="status" className="vix-alert mb-5">
               Password changed. Sign in with the new one.
             </p>
           )}
-          <h1 className="display text-xl font-bold">Your account</h1>
-          <p className="hint mt-1">
+          <h1 className="vix-h2">Your account</h1>
+          <p className="vix-body mt-2">
             See your projects, follow the work, and write to us.
           </p>
           <ClientSignInForm />
         </div>
 
-        <p className="hint mt-6">
-          This is for VIXART clients. If you work at VIXART, sign in at the
-          address you normally use. If you have not been given an account and
-          would like one, ask us.
+        <p className="vix-quiet mt-8">
+          For VIXART clients. If you work at VIXART, sign in at the address you
+          normally use. If you have not been given an account and would like
+          one, ask us.
         </p>
       </div>
     </main>

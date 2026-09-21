@@ -8,6 +8,8 @@ import {
   listPortalMessages,
   listPortalProjects,
   listPortalServices,
+  listPortalSystems,
+  findPortalSystem,
 } from './client-portal-queries';
 import type { Tx } from '@/db/session';
 
@@ -214,6 +216,65 @@ describe.skipIf(!HAS_DB)('the client portal (integration)', () => {
     expect(services.map((s) => s.name)).not.toContain(`${MARK} retired service`);
 
     await owner.query(`DELETE FROM service WHERE name = $1`, [`${MARK} retired service`]);
+  });
+
+  it('shows the same twenty-five systems to every client', async () => {
+    // The public catalogue. Unlike everything else in this file it is NOT
+    // scoped to a company — both clients must see all of it, and a portal that
+    // filtered it by company would show an empty page to everybody.
+    const ours = await asClient(mine.contact, (tx) => listPortalSystems(tx));
+    const yours = await asClient(theirs.contact, (tx) => listPortalSystems(tx));
+
+    expect(ours.length).toBeGreaterThanOrEqual(20);
+    expect(ours.map((s) => s.slug)).toEqual(yours.map((s) => s.slug));
+
+    const families = new Set(ours.map((s) => s.family));
+    expect(families).toEqual(new Set(['Growth', 'Engineering', 'Production', 'Design']));
+  });
+
+  it('carries the four sections the website states', async () => {
+    const system = await asClient(mine.contact, (tx) =>
+      findPortalSystem(tx, 'brand-film-system'));
+
+    expect(system).not.toBeNull();
+    // The exact words from visionxart.com, which is the point of the feature:
+    // a client reading this should be reading what they read on the site.
+    expect(system!.name).toBe('Brand Film System™');
+    expect(system!.family).toBe('Production');
+    expect(system!.what_it_fixes).toContain('explained every time');
+    expect(system!.what_it_is).toContain('Directed, shot and edited in-house');
+    expect(system!.what_you_get).toContain('Direction and script');
+    expect(system!.who_it_is_for).toContain('only works when a person is there');
+  });
+
+  it('hides a system that has been retired', async () => {
+    await owner.query("SET app.bootstrap = 'on'");
+    await owner.query(`UPDATE growth_system SET is_active=false WHERE slug='packaging-system'`);
+    try {
+      const shown = await asClient(mine.contact, (tx) => listPortalSystems(tx));
+      expect(shown.map((s) => s.slug)).not.toContain('packaging-system');
+    } finally {
+      await owner.query("SET app.bootstrap = 'on'");
+      await owner.query(`UPDATE growth_system SET is_active=true WHERE slug='packaging-system'`);
+    }
+  });
+
+  it('will not let a client edit the catalogue', async () => {
+    // Read-only, by grant. The client role has SELECT on growth_system and
+    // nothing else, so this fails before any policy is consulted.
+    //
+    // Asserted on the raw connection rather than through drizzle, which wraps
+    // the driver's message in "Failed query: …" — the assertion would then be
+    // about drizzle's error formatting rather than about the refusal.
+    const raw = await pool.connect();
+    try {
+      await raw.query(`SELECT set_config('app.client_contact_id',$1,false)`, [mine.contact]);
+      await expect(
+        raw.query(`UPDATE growth_system SET name = 'mine now'`),
+      ).rejects.toThrow(/permission denied/i);
+    } finally {
+      raw.release();
+    }
   });
 
   it('shows nothing to a session with no contact set', async () => {

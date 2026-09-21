@@ -147,6 +147,9 @@ async function main() {
   run('scripts/migrate.ts', env);
   run('scripts/apply-grants.ts', env);
   run('seed/vixart.seed.ts', env);
+  // The public catalogue. The portal tests read it, and a suite that had to be
+  // told to import it first would be a suite that passes on one machine.
+  run('scripts/import-systems.ts', env);
 
   console.log(`[test-db] ready — ${TEST_DB}`);
 }

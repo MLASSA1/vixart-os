@@ -1,0 +1,235 @@
+/* =============================================================================
+   The client portal — visionxart.com's clothes.
+
+   The internal system is "Studio dusk": warm bone paper, warm near-black ink,
+   a violet accent. It is a tool, and it is dressed as one.
+
+   This is the half of the system a CLIENT looks at, so it wears what the
+   company wears in public. Tokens read straight off visionxart.com rather than
+   matched by eye:
+
+     black     #000000   the page
+     white     #ffffff   text, and the one button treatment
+     ink       #0b0b0f   text ON white, never pure black
+     900/800   #0a0a0a / #171717
+     600/400   #525252 / #a3a3a3   dividers, quiet text
+     meta      #ffffff85           the wide-tracked labels
+
+   NO ACCENT COLOUR. The site has none: emphasis is weight, scale and a single
+   white fill. Adding violet here would be the one thing that gave the portal
+   away as something else wearing the brand.
+
+   SCOPED TO `.portal`, deliberately. The internal application's own tokens are
+   global, and inverting them would flip surfaces that are supposed to stay
+   dark — the staff sidebar among them. So none of this leaks: every rule below
+   is a descendant of one class, applied once, in the portal layout.
+   ============================================================================= */
+
+.portal {
+  --vix-black: #000000;
+  --vix-white: #ffffff;
+  --vix-ink: #0b0b0f;
+  --vix-900: #0a0a0a;
+  --vix-800: #171717;
+  --vix-600: #525252;
+  --vix-400: #a3a3a3;
+  --vix-300: #d4d4d4;
+  --vix-meta: #ffffff85;
+  --vix-line: #ffffff1f;
+
+  /* The site's own scale, kept so spacing rhythms match rather than approximate. */
+  --vix-space-2: 16px;
+  --vix-space-3: 24px;
+  --vix-space-5: 48px;
+  --vix-space-6: 64px;
+
+  background-color: var(--vix-black);
+  color: var(--vix-white);
+  font-family: var(--font-interface), system-ui, sans-serif;
+  min-height: 100dvh;
+}
+
+/* The page behind the layout, so overscroll does not flash bone white. */
+body:has(.portal) {
+  background-color: #000000;
+}
+
+/* --- Type ------------------------------------------------------------------ */
+
+/* The logotype, and nothing else. One word, the company's own face. */
+.portal .vix-wordmark {
+  font-family: var(--font-wordmark), var(--font-interface), sans-serif;
+  letter-spacing: 0.02em;
+  font-weight: 700;
+}
+
+/* The wide-tracked label the site puts above every section. */
+.portal .vix-meta {
+  font-family: var(--font-figures), ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--vix-meta);
+}
+
+.portal .vix-h1 {
+  font-size: clamp(30px, 5vw, 52px);
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  font-weight: 700;
+}
+
+.portal .vix-h2 {
+  font-size: clamp(22px, 3vw, 30px);
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  font-weight: 700;
+}
+
+.portal .vix-lead {
+  font-size: clamp(16px, 1.6vw, 19px);
+  line-height: 1.5;
+  color: #ffffffcc;
+  max-width: 68ch;
+}
+
+.portal .vix-body {
+  font-size: 15px;
+  line-height: 1.6;
+  color: #ffffffb8;
+  max-width: 68ch;
+}
+
+.portal .vix-quiet {
+  color: var(--vix-meta);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* --- Surfaces -------------------------------------------------------------- */
+
+/* 2px, not 14px. The site is square; softening it is the tell. */
+.portal .vix-card {
+  background-color: #ffffff0a;
+  border: 1px solid var(--vix-line);
+  border-radius: 2px;
+}
+
+.portal .vix-rule {
+  border-color: var(--vix-line);
+}
+
+/* --- Controls -------------------------------------------------------------- */
+
+/*
+ * The signature: square but for one rounded top-left corner, white on black.
+ * Taken from the site's own button rather than invented, because a button is
+ * the thing a visitor's eye lands on and a different one would read as a
+ * different company.
+ */
+.portal .vix-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  padding: 13px 26px;
+  font-size: 14px;
+  font-weight: 600;
+  background-color: var(--vix-white);
+  color: var(--vix-ink);
+  border: 1px solid var(--vix-white);
+  border-radius: 0;
+  border-top-left-radius: 22px;
+  transition: background-color 200ms, color 200ms, border-color 200ms;
+  cursor: pointer;
+}
+
+.portal .vix-btn:hover:not(:disabled) {
+  background-color: transparent;
+  color: var(--vix-white);
+}
+
+.portal .vix-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.portal .vix-btn-quiet {
+  background-color: transparent;
+  color: var(--vix-white);
+  border-color: var(--vix-line);
+}
+
+.portal .vix-btn-quiet:hover:not(:disabled) {
+  border-color: var(--vix-white);
+  background-color: transparent;
+  color: var(--vix-white);
+}
+
+.portal .vix-input {
+  width: 100%;
+  background-color: #ffffff0a;
+  border: 1px solid var(--vix-line);
+  border-radius: 2px;
+  padding: 11px 14px;
+  font-size: 15px;
+  color: var(--vix-white);
+}
+
+.portal .vix-input::placeholder {
+  color: #ffffff5c;
+}
+
+.portal .vix-input:focus {
+  outline: none;
+  border-color: var(--vix-white);
+}
+
+/* Focus that is visible on black, and matches the site's ring. */
+.portal a:focus-visible,
+.portal button:focus-visible,
+.portal .vix-input:focus-visible {
+  outline: 2px solid var(--vix-white);
+  outline-offset: 2px;
+}
+
+/* --- Progress -------------------------------------------------------------- */
+
+.portal .vix-track {
+  height: 2px;
+  background-color: #ffffff24;
+  overflow: hidden;
+}
+
+.portal .vix-track > span {
+  display: block;
+  height: 100%;
+  background-color: var(--vix-white);
+}
+
+/* --- Conversation ---------------------------------------------------------- */
+
+.portal .vix-said-us {
+  background-color: #ffffff0a;
+  border: 1px solid var(--vix-line);
+  border-radius: 2px;
+}
+
+/* Theirs is the filled one: on a black page, white is the emphasis. */
+.portal .vix-said-them {
+  background-color: #ffffff14;
+  border: 1px solid #ffffff2e;
+  border-radius: 2px;
+}
+
+/* --- Tone ------------------------------------------------------------------ */
+
+.portal .vix-alert {
+  border: 1px solid #ffffff3d;
+  border-left: 2px solid var(--vix-white);
+  background-color: #ffffff0a;
+  border-radius: 2px;
+  padding: 12px 16px;
+  font-size: 14px;
+}

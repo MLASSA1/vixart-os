@@ -34,6 +34,11 @@ function allowedInPortal(path: string): boolean {
     // Auth.js's own endpoints: sign-in, callback, session, csrf, sign-out.
     path.startsWith('/api/auth') ||
     path.startsWith('/_next') ||
+    // The system hero images, served out of `public/systems`. Files in
+    // `public` are NOT covered by the `_next` exclusion below, so without this
+    // every illustration on the catalogue was a 404 — the page rendered, the
+    // layout held, and eight pictures silently did not appear.
+    path.startsWith('/systems/') ||
     path.startsWith('/favicon') ||
     path === '/robots.txt'
   );

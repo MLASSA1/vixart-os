@@ -20,38 +20,36 @@ export default async function SupportPage() {
 
   return (
     <>
-      <p className="label" style={{ opacity: 0.6 }}>{session.user.companyName}</p>
-      <h1 className="display mt-1 text-3xl font-bold tracking-tight">Talk to us</h1>
-      <p className="prose-vixart mt-3" style={{ opacity: 0.7 }}>
+      <p className="vix-meta">{session.user.companyName}</p>
+      <h1 className="vix-h1 mt-4">Talk to us</h1>
+      <p className="vix-lead mt-5">
         This goes straight to the team. It is private between you and VIXART —
         no other client can see it.
       </p>
 
       {messages.length === 0 ? (
-        <div className="card mt-8 px-6 py-8">
+        <div className="vix-card mt-10 px-7 py-8">
           <p className="font-semibold">Nothing said yet.</p>
-          <p className="hint mt-1">Write the first thing below.</p>
+          <p className="vix-body mt-2">Write the first thing below.</p>
         </div>
       ) : (
-        <ul className="mt-8 space-y-3">
+        <ul className="mt-10 space-y-3">
           {messages.map((m) => (
             <li
               key={m.id}
-              className={`max-w-[85%] rounded-2xl px-4 py-3 ${
-                m.mine ? 'ml-auto bg-accent/10' : 'bg-surface border border-void/10'
+              className={`max-w-[85%] px-5 py-4 ${
+                m.mine ? 'vix-said-them ml-auto' : 'vix-said-us'
               }`}
             >
-              <p className="text-[12.5px] font-semibold" style={{ opacity: 0.7 }}>
-                {m.mine ? 'You' : m.author_name}
-              </p>
+              <p className="vix-meta">{m.mine ? 'You' : m.author_name}</p>
               {m.withdrawn_at ? (
-                <p className="mt-0.5 italic" style={{ opacity: 0.55 }}>
-                  This message was withdrawn.
-                </p>
+                <p className="vix-quiet mt-2 italic">This message was withdrawn.</p>
               ) : (
-                <p className="mt-0.5 whitespace-pre-wrap">{m.body}</p>
+                <p className="mt-2 text-[15px] leading-relaxed whitespace-pre-wrap">
+                  {m.body}
+                </p>
               )}
-              <p className="hint mt-1 text-[11.5px]">{when(m.created_at)}</p>
+              <p className="vix-quiet mt-2 text-[11.5px]">{when(m.created_at)}</p>
             </li>
           ))}
         </ul>

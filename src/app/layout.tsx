@@ -40,6 +40,23 @@ const grotesk = localFont({
   display: 'block',
 });
 
+/*
+ * The wordmark, and only the wordmark.
+ *
+ * VIXART's own brand face, taken from visionxart.com where it is self-hosted.
+ * It is used for one word on one surface — the logotype in the client portal's
+ * header — because the portal is the half of this system clients look at, and
+ * it should look like the company they hired. The internal application keeps
+ * Space Grotesk: nobody outside the team ever sees it.
+ *
+ * Nine kilobytes: it covers the letters of the name and little else.
+ */
+const wordmark = localFont({
+  src: [{ path: './fonts/vixart-wordmark.otf', weight: '700', style: 'normal' }],
+  variable: '--font-wordmark',
+  display: 'block',
+});
+
 const plexMono = localFont({
   src: [{ path: './fonts/plexmono-500-latin.woff2', weight: '500', style: 'normal' }],
   variable: '--font-figures',
@@ -55,7 +72,7 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${inter.variable} ${plexMono.variable} ${grotesk.variable}`}>
+    <html lang="en" className={`${inter.variable} ${plexMono.variable} ${grotesk.variable} ${wordmark.variable}`}>
       <body>{children}</body>
     </html>
   );
