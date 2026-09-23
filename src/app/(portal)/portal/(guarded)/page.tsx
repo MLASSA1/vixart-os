@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { requireClientSession } from '@/auth';
+import { requireClientPage } from './session';
 import { withClient } from '@/db/session';
 import { listPortalProjects } from '@/lib/client-portal-queries';
 import { formatDate } from '@/lib/format';
@@ -14,7 +14,7 @@ const STATUS: Record<string, string> = {
 };
 
 export default async function PortalHome() {
-  const session = await requireClientSession();
+  const session = await requireClientPage();
   if (session.user.mustChangePassword) redirect('/portal/account');
 
   const projects = await withClient(session.user.id, (tx) => listPortalProjects(tx));

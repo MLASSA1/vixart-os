@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { requireClientSession } from '@/auth';
+import { requireClientPage } from '../session';
 import { withClient } from '@/db/session';
 import { listPortalMessages } from '@/lib/client-portal-queries';
 import { SupportComposer } from './Composer';
@@ -13,7 +13,7 @@ function when(iso: string): string {
 }
 
 export default async function SupportPage() {
-  const session = await requireClientSession();
+  const session = await requireClientPage();
   if (session.user.mustChangePassword) redirect('/portal/account');
 
   const messages = await withClient(session.user.id, (tx) => listPortalMessages(tx));

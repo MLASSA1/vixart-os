@@ -1,10 +1,10 @@
-import { requireClientSession } from '@/auth';
+import { requireClientPage } from '../session';
 import { ClientPasswordForm } from './PasswordForm';
 
 export const dynamic = 'force-dynamic';
 
 export default async function AccountPage() {
-  const session = await requireClientSession();
+  const session = await requireClientPage();
   const first = session.user.mustChangePassword;
 
   return (

@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
-import { requireClientSession } from '@/auth';
+import { requireClientPage } from '../../session';
 import { withClient } from '@/db/session';
 import { findPortalSystem, listPortalSystems } from '@/lib/client-portal-queries';
 
@@ -20,7 +20,7 @@ export default async function SystemPage({
 }: {
   params: Promise<{ slug: string }>;
 }) {
-  const session = await requireClientSession();
+  const session = await requireClientPage();
   if (session.user.mustChangePassword) redirect('/portal/account');
 
   const { slug } = await params;

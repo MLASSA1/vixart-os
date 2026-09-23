@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { requireClientSession } from '@/auth';
+import { requireClientPage } from '../session';
 import { withClient } from '@/db/session';
 import { listPortalSystems, type PortalSystem } from '@/lib/client-portal-queries';
 
@@ -15,7 +15,7 @@ const FAMILIES: Array<{ name: string; blurb: string }> = [
 ];
 
 export default async function SystemsPage() {
-  const session = await requireClientSession();
+  const session = await requireClientPage();
   if (session.user.mustChangePassword) redirect('/portal/account');
 
   const systems = await withClient(session.user.id, (tx) => listPortalSystems(tx));

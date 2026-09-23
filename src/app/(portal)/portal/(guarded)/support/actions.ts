@@ -27,7 +27,19 @@ export async function sendSupportMessageAction(
   _previous: FormState,
   formData: FormData,
 ): Promise<FormState> {
-  const session = await requireClientSession();
+  /*
+   * Caught rather than allowed to propagate. A session that expired between
+   * loading the page and pressing the button is ordinary — twelve hours is not
+   * long — and it should read as "sign in again", not as the application
+   * breaking. The thrown version is still correct for anything that is not a
+   * form.
+   */
+  let session;
+  try {
+    session = await requireClientSession();
+  } catch {
+    return { error: 'Your session has expired. Sign in again and retry.' };
+  }
   if (session.user.mustChangePassword) {
     return { error: 'Choose your password first.' };
   }
