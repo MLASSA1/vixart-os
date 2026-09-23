@@ -6,6 +6,7 @@ import { auth } from '@/auth';
 import { attachment } from '@/db/schema';
 import { withUser } from '@/db/session';
 import { resolveInsideRoot } from '@/lib/uploads';
+import { servedInline } from '@/lib/upload-types';
 import { parseRange } from '@/lib/http-range';
 
 /**
@@ -76,11 +77,26 @@ export async function GET(
   // Common to every answer below.
   const headers: Record<string, string> = {
     'Content-Type': record.mimeType,
-    // `attachment` for everything: an inline PDF or image from our own origin
-    // is a needless risk, and the allowlist is not a substitute for it. It does
-    // not stop an <audio> or <video> element playing the bytes, which is how a
-    // voice note is heard.
-    'Content-Disposition': `attachment; filename="${encodeURIComponent(record.originalName)}"`,
+    /*
+     * Shown, or saved.
+     *
+     * This said `attachment` for everything, and the reasoning was sound as
+     * far as it went: an inline PDF or image from our own origin is a risk
+     * worth avoiding. What it missed is that `attachment` is not a quiet
+     * hardening measure — it is the browser being told to put the bytes in the
+     * downloads folder and show the reader nothing. A photograph posted in a
+     * conversation went out as a file to be found later in Finder, which is
+     * not what posting a photograph means.
+     *
+     * The narrow list in `servedInline` gets `inline` instead. What makes that
+     * safe is not the list on its own but the two headers below it: `sandbox`
+     * gives the response an opaque origin with no script, and `nosniff` means
+     * the browser may not decide it is something more interesting than what we
+     * said it was. SVG and HTML are not on the list, and are refused at upload
+     * as well — two doors, because this is the pair that turns a file store
+     * into script running against a signed-in session.
+     */
+    'Content-Disposition': `${servedInline(record.mimeType) ? 'inline' : 'attachment'}; filename="${encodeURIComponent(record.originalName)}"`,
     'Content-Security-Policy': "default-src 'none'; sandbox",
     'X-Content-Type-Options': 'nosniff',
     // WHY THIS IS CACHEABLE, AND WHY IT IS SAFE.

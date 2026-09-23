@@ -67,6 +67,65 @@ export function isAudio(mime: string | null | undefined): boolean {
   return normaliseMime(mime ?? '').startsWith('audio/');
 }
 
+export function isImage(mime: string | null | undefined): boolean {
+  return normaliseMime(mime ?? '').startsWith('image/');
+}
+
+export function isVideo(mime: string | null | undefined): boolean {
+  return normaliseMime(mime ?? '').startsWith('video/');
+}
+
+/**
+ * Served to be LOOKED AT, or served to be SAVED.
+ *
+ * Every attachment went out as `Content-Disposition: attachment`, which is
+ * what a browser obeys by putting the bytes in the downloads folder and
+ * nothing on the screen. For a spreadsheet that is exactly right. For a
+ * photograph somebody just posted in a conversation it is the whole complaint:
+ * you send a picture and the person you sent it to has to go and find it in
+ * Finder to see what you said.
+ *
+ * So: a short list of types a browser renders and cannot be tricked into
+ * executing. NOT a general "is it safe" test — SVG and HTML never reach this
+ * function because `ALLOWED_TYPES` refuses to store them at all, and if that
+ * ever changes this list must not quietly inherit the change. Named one by
+ * one for that reason.
+ *
+ * The response keeps `default-src 'none'; sandbox` and `nosniff` either way,
+ * so even an inline document is opened with no origin, no script and no
+ * ability to be re-interpreted as something else.
+ */
+const SHOWN_INLINE = new Set([
+  'image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/heic',
+  'video/mp4', 'video/quicktime',
+  'audio/mpeg', 'audio/wav', 'audio/webm', 'audio/ogg', 'audio/mp4', 'audio/aac',
+  'application/pdf',
+  'text/plain', 'text/csv',
+]);
+
+export function servedInline(mime: string | null | undefined): boolean {
+  return SHOWN_INLINE.has(normaliseMime(mime ?? ''));
+}
+
+/**
+ * What an iPhone produces that a browser other than Safari cannot decode.
+ *
+ * HEIC photographs and HEVC video inside a .mov are what an iPhone records on
+ * its default "High Efficiency" setting. They upload fine, they are stored
+ * fine, and Chrome, Brave and Firefox then show a broken image or a black
+ * rectangle — which reads as "this app lost my photo" rather than "your phone
+ * chose a format this browser never supported".
+ *
+ * There is no transcoder here to fix it, so the interface says so instead: the
+ * element is given a chance to fail and what replaces it explains itself and
+ * offers the file. `.mov` is a container that MAY hold H.264, which does play,
+ * so video is judged by whether it actually failed rather than by its type —
+ * this is only used for the still image case, where HEIC never works.
+ */
+export function needsSafari(mime: string | null | undefined): boolean {
+  return normaliseMime(mime ?? '') === 'image/heic';
+}
+
 /** 0:07, 1:42, 12:05 — the way a voice note states its length. */
 export function formatDuration(ms: number): string {
   const total = Math.max(0, Math.round(ms / 1000));

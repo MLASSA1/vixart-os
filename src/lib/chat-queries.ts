@@ -28,7 +28,22 @@ export interface ChannelRow {
 export interface MessageRow {
   [k: string]: unknown;
   id: string;
-  author_id: string;
+  /**
+   * NULL when a CLIENT wrote it.
+   *
+   * 0064 made this nullable so a contact in the portal could be the author of
+   * a support message, and this type was left saying `string`. Nothing
+   * complained, because a lie in a row type is invisible to everything: the
+   * SQL was right, the tests passed, and the first client message made every
+   * staff member's view of that thread throw — `hueFor(m.author_id)` read
+   * `.length` off null and the whole page 500'd.
+   *
+   * Say `| null` and the compiler finds the places that assumed otherwise.
+   * Use `authorKey()` rather than reaching for this directly.
+   */
+  author_id: string | null;
+  /** Set instead of `author_id` when a client wrote it. Exactly one of the two. */
+  author_contact_id: string | null;
   author_name: string;
   body: string;
   created_at: string;
@@ -50,7 +65,13 @@ export async function listChannels(tx: Tx, meId: string): Promise<ChannelRow[]> 
            (SELECT count(*) FROM message m
              WHERE m.thread_id = t.id
                -- Your own messages are never unread, whenever you last looked.
-               AND m.author_id <> ${meId}
+               --
+               -- IS DISTINCT FROM, not <>. A client's message has a NULL
+               -- author_id, and NULL <> 'uuid' evaluates to NULL — not TRUE —
+               -- so the row failed the WHERE and no support message raised the
+               -- badge. The one thread where somebody outside the company is
+               -- waiting for an answer was the one thread that never said so.
+               AND m.author_id IS DISTINCT FROM ${meId}
                AND m.created_at > coalesce(
                  (SELECT r.last_read_at FROM thread_read r
                    WHERE r.thread_id = t.id AND r.user_id = ${meId}),
@@ -92,7 +113,7 @@ export async function listDms(tx: Tx, meId: string): Promise<DmRow[]> {
            u.id        AS other_id,
            (SELECT count(*) FROM message m
              WHERE m.thread_id = t.id
-               AND m.author_id <> ${meId}
+               AND m.author_id IS DISTINCT FROM ${meId}
                AND m.created_at > coalesce(
                  (SELECT r.last_read_at FROM thread_read r
                    WHERE r.thread_id = t.id AND r.user_id = ${meId}),
@@ -155,7 +176,7 @@ export async function listMessages(
 
   const result = await tx.execute<MessageRow>(sql`
     WITH page AS (
-      SELECT m.id, m.author_id, m.author_name, m.body,
+      SELECT m.id, m.author_id, m.author_contact_id, m.author_name, m.body,
              m.created_at, m.edited_at,
              -- Computed by the database, so the button and the trigger that
              -- enforces the window cannot disagree about whether it is open.
@@ -185,7 +206,7 @@ export async function listMessages(
                 m.created_at DESC
        LIMIT ${limit}
     )
-    SELECT p.id, p.author_id, p.author_name, p.body,
+    SELECT p.id, p.author_id, p.author_contact_id, p.author_name, p.body,
            p.created_at::text, p.edited_at::text, p.editable,
            p.withdrawn_at::text,
            w.full_name AS withdrawn_by,

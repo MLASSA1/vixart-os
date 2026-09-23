@@ -4,10 +4,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { MESSAGE_PAGE, type MessageRow } from '@/lib/chat-queries';
 import { subscribeToChat } from '@/lib/chat-stream-client';
 import type { FormState } from '@/lib/form-state';
-import { formatBytes, isAudio } from '@/lib/upload-types';
+import { Attachment } from './Attachment';
 import { Avatar, clockTime, dayLabel, hueFor, MentionText } from './ChatBits';
 import { Composer, EditMessageForm } from './ChatForms';
-import { VoiceNote } from './VoiceNote';
 
 /**
  * One channel: oldest at the top, newest at the bottom, composer pinned below.
@@ -35,8 +34,26 @@ const GROUP_WINDOW_MS = 5 * 60 * 1000;
  */
 const OWN_ON_RIGHT = false;
 
+/**
+ * Who wrote it, as one value — whether that is a colleague or a client.
+ *
+ * A message carries EITHER `author_id` (staff) or `author_contact_id` (a
+ * client writing from the portal); 0064 made them exclusive and made the first
+ * one nullable. Every place that wants "which person is this" wanted both
+ * columns and was written before the second existed, so each one quietly meant
+ * "staff only": the colour reached for `author_id` and threw on null, and the
+ * grouping compared `null !== null`, which is false — so two different
+ * contacts writing in a row were folded into one run under the first one's
+ * name. A message attributed to the wrong person is worse than an ugly one.
+ *
+ * The name is the last resort and never NULL, so this always returns a string.
+ */
+function authorKey(m: MessageRow): string {
+  return m.author_id ?? m.author_contact_id ?? m.author_name;
+}
+
 function sameGroup(a: MessageRow | undefined, b: MessageRow): boolean {
-  if (!a || a.author_id !== b.author_id) return false;
+  if (!a || authorKey(a) !== authorKey(b)) return false;
   if (new Date(a.created_at).toDateString() !== new Date(b.created_at).toDateString()) return false;
   return new Date(b.created_at).getTime() - new Date(a.created_at).getTime() < GROUP_WINDOW_MS;
 }
@@ -265,8 +282,6 @@ export function MessagePane({
           const sided = OWN_ON_RIGHT && mine;
           // A new day always starts a fresh run, so the name comes back.
           const grouped = !newDay && sameGroup(messages[i - 1], m);
-          const image = (m.file_mime ?? '').startsWith('image/');
-          const voice = isAudio(m.file_mime);
 
           return (
             <div key={m.id}>
@@ -285,7 +300,7 @@ export function MessagePane({
                     one column instead of stepping left under the avatar. */}
                 <div className="w-8 shrink-0">
                   {!grouped && !sided && (
-                    <Avatar name={m.author_name} id={m.author_id} size={32} />
+                    <Avatar name={m.author_name} id={authorKey(m)} size={32} />
                   )}
                 </div>
 
@@ -301,7 +316,7 @@ export function MessagePane({
                     {!grouped && !sided && (
                       <p
                         className="mb-0.5 text-[13px] font-bold"
-                        style={{ color: `hsl(${hueFor(m.author_id)} 46% 38%)` }}
+                        style={{ color: `hsl(${hueFor(authorKey(m))} 46% 38%)` }}
                       >
                         {m.author_name}
                       </p>
@@ -309,48 +324,16 @@ export function MessagePane({
 
                     {m.file_id && !m.withdrawn_at && (
                       <div className={m.body === '(file)' ? 'mb-0.5' : 'mb-1.5'}>
-                        {/* Never a static path: the only way to the bytes is
-                            the authenticated route, which re-checks who asks. */}
-                        {voice ? (
-                          <VoiceNote
-                            src={`/api/files/${m.file_id}`}
-                            durationMs={
-                              m.file_duration_ms === null ? null : Number(m.file_duration_ms)
-                            }
-                            mine={mine}
-                          />
-                        ) : image ? (
-                          <a href={`/api/files/${m.file_id}`} target="_blank" rel="noreferrer">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                              src={`/api/files/${m.file_id}`}
-                              alt={m.file_name ?? 'Attachment'}
-                              className="max-h-80 w-full rounded-[11px] object-cover"
-                            />
-                          </a>
-                        ) : (
-                          <a
-                            href={`/api/files/${m.file_id}`}
-                            className={`flex items-center gap-2.5 rounded-[11px] px-2.5 py-2 ${
-                              mine ? 'bg-void/[0.06] hover:bg-void/[0.1]' : 'bg-void/[0.045] hover:bg-void/[0.08]'
-                            }`}
-                          >
-                            <span
-                              aria-hidden="true"
-                              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-void/10 text-[15px]"
-                            >
-                              ▤
-                            </span>
-                            <span className="min-w-0">
-                              <span className="block truncate text-[13.5px] font-semibold">
-                                {m.file_name}
-                              </span>
-                              <span className="block text-[11.5px] text-void/50">
-                                {m.file_size ? formatBytes(Number(m.file_size)) : ''}
-                              </span>
-                            </span>
-                          </a>
-                        )}
+                        <Attachment
+                          fileId={m.file_id}
+                          name={m.file_name}
+                          mime={m.file_mime}
+                          sizeBytes={m.file_size === null ? null : Number(m.file_size)}
+                          durationMs={
+                            m.file_duration_ms === null ? null : Number(m.file_duration_ms)
+                          }
+                          mine={mine}
+                        />
                       </div>
                     )}
 

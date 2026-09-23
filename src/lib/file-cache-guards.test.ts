@@ -59,9 +59,52 @@ describe('the attachment route authorises before it answers from cache', () => {
     }
   });
 
-  it('still refuses to render an attachment inline', () => {
-    // Unrelated to caching and easy to lose while editing these headers.
-    expect(ROUTE).toContain("'Content-Disposition': `attachment;");
+  /*
+   * This used to assert `attachment;` for every file, full stop. That was
+   * deliberately relaxed, and the reason is written down rather than left as
+   * a deleted line: `attachment` is not only a hardening measure, it is also
+   * the header that told the browser to put a posted photograph in the
+   * downloads folder and show the reader nothing at all.
+   *
+   * What replaces it is narrower, not weaker — the allowlist below, plus the
+   * sandbox and nosniff headers that are what actually make inline safe. The
+   * types that make inline dangerous, SVG and HTML, cannot be stored in the
+   * first place and are asserted out of the list in `uploads.test.ts`.
+   */
+  it('never renders an unknown type inline', () => {
+    expect(ROUTE).toContain("'X-Content-Type-Options': 'nosniff'");
+    // No unconditional inline: the disposition must be a decision.
+    expect(ROUTE).not.toMatch(/'Content-Disposition': `inline;/);
+  });
+});
+
+/**
+ * Inline is a decision, not a default.
+ *
+ * Every attachment used to go out as `Content-Disposition: attachment`, and
+ * the cost of that was invisible from the server's side: the bytes were served
+ * correctly every time, and the reader got a downloads-folder entry instead of
+ * a photograph in the conversation.
+ *
+ * The fix hands the decision to one narrow allowlist. Both halves of that need
+ * guarding — that the route consults the list at all, and that it does not
+ * quietly become "inline for everything", which would be the same class of
+ * mistake in the other and more dangerous direction.
+ */
+describe('the attachment route decides disposition from the allowlist', () => {
+  it('asks servedInline rather than hardcoding either answer', () => {
+    expect(ROUTE).toContain('servedInline(record.mimeType)');
+    expect(ROUTE).toMatch(/Content-Disposition/);
+    // Both outcomes must still exist in the route.
+    expect(ROUTE).toContain("'inline'");
+    expect(ROUTE).toContain("'attachment'");
+  });
+
+  it('keeps the two headers that make inline safe', () => {
+    // An opaque origin with no script, and no re-interpreting the bytes as a
+    // more interesting type than the one we declared. Serving inline without
+    // these is the version of this change that would be a mistake.
+    expect(ROUTE).toContain("default-src 'none'; sandbox");
     expect(ROUTE).toContain("'X-Content-Type-Options': 'nosniff'");
   });
 });

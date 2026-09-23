@@ -7,7 +7,12 @@ import {
   formatDuration,
   isAllowedType,
   isAudio,
+  isImage,
+  isVideo,
+  needsSafari,
   normaliseMime,
+  servedInline,
+  ALLOWED_TYPES,
 } from './upload-types';
 
 describe('upload type allowlist', () => {
@@ -100,6 +105,82 @@ describe('recorded audio', () => {
     expect(isAudio('video/mp4')).toBe(false);
     expect(isAudio('application/pdf')).toBe(false);
     expect(isAudio(null)).toBe(false);
+  });
+
+  /**
+   * The disposition rule, which decides whether a thing you post is SEEN.
+   *
+   * `inline` is what makes a photograph appear in the conversation instead of
+   * landing in the downloads folder. It is also the header that would let a
+   * stored file run as a document on our own origin, so the list is narrow on
+   * purpose and these tests exist to keep it that way — particularly the last
+   * one, which fails if a future edit widens the list past what may even be
+   * stored.
+   */
+  describe('shown inline, or saved', () => {
+    it('shows what a conversation is made of', () => {
+      for (const t of ['image/jpeg', 'image/png', 'image/webp', 'image/gif',
+                       'video/mp4', 'video/quicktime', 'application/pdf',
+                       'audio/webm', 'text/plain']) {
+        expect(servedInline(t), t).toBe(true);
+      }
+      // Parameters are not the container's business here either.
+      expect(servedInline('audio/webm;codecs=opus')).toBe(true);
+    });
+
+    it('saves what no browser can render', () => {
+      for (const t of [
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'application/vnd.ms-powerpoint',
+      ]) {
+        expect(servedInline(t), t).toBe(false);
+      }
+      expect(servedInline(null)).toBe(false);
+      expect(servedInline('')).toBe(false);
+    });
+
+    it('never serves script-bearing formats inline', () => {
+      // Neither can be uploaded either. Two doors, because one of them is the
+      // difference between a file store and script running against a session.
+      for (const t of ['image/svg+xml', 'text/html', 'application/xhtml+xml',
+                       'application/javascript']) {
+        expect(servedInline(t), t).toBe(false);
+        expect(isAllowedType(t), t).toBe(false);
+      }
+    });
+
+    it('cannot be widened past what may be stored', () => {
+      // A type served inline that cannot be uploaded is a list that has
+      // drifted from the one it is supposed to shadow.
+      for (const t of Object.keys(ALLOWED_TYPES)) {
+        if (servedInline(t)) expect(isAllowedType(t), t).toBe(true);
+      }
+      for (const t of ['image/jpeg', 'video/quicktime', 'application/pdf']) {
+        expect(isAllowedType(t), t).toBe(true);
+      }
+    });
+
+    it('sorts the media a chat bubble has to choose between', () => {
+      expect(isImage('image/png')).toBe(true);
+      expect(isImage('video/mp4')).toBe(false);
+      expect(isVideo('video/quicktime')).toBe(true);
+      expect(isVideo('audio/webm')).toBe(false);
+      expect(isImage(null)).toBe(false);
+      expect(isVideo(null)).toBe(false);
+    });
+
+    it('knows the one still image other browsers cannot decode', () => {
+      // An iPhone on "High Efficiency" produces these, and only Safari shows
+      // them. Rendering one anyway gives a broken image icon, which reads as
+      // the application having lost the photograph.
+      expect(needsSafari('image/heic')).toBe(true);
+      expect(needsSafari('image/jpeg')).toBe(false);
+      // .mov is judged by whether it actually failed to play, not by type: the
+      // same container holds H.264, which plays everywhere.
+      expect(needsSafari('video/quicktime')).toBe(false);
+    });
   });
 
   it('states a length the way a voice note does', () => {
