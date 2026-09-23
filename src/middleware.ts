@@ -39,7 +39,14 @@ function allowedInPortal(path: string): boolean {
     // every illustration on the catalogue was a 404 — the page rendered, the
     // layout held, and eight pictures silently did not appear.
     path.startsWith('/systems/') ||
+    // The tab icon, in all three shapes Next serves it as: favicon.ico for
+    // browsers, icon.png for everything modern, apple-icon.png for a phone
+    // home screen. Allowing only `/favicon` left the other two 404ing, which
+    // is not a blank tab — it is a browser falling back to its own grey
+    // placeholder, which looks like a site that forgot.
     path.startsWith('/favicon') ||
+    path.startsWith('/icon') ||
+    path.startsWith('/apple-icon') ||
     path === '/robots.txt'
   );
 }
