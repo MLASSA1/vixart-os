@@ -3,6 +3,7 @@ import { requireClientPage } from '../session';
 import { withClient } from '@/db/session';
 import { listPortalMessages } from '@/lib/client-portal-queries';
 import { SupportComposer } from './Composer';
+import { PortalAttachment } from './PortalAttachment';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,9 +46,27 @@ export default async function SupportPage() {
               {m.withdrawn_at ? (
                 <p className="vix-quiet mt-2 italic">This message was withdrawn.</p>
               ) : (
-                <p className="mt-2 text-[15px] leading-relaxed whitespace-pre-wrap">
-                  {m.body}
-                </p>
+                <>
+                  {/* "(file)" is the placeholder written when something is sent
+                      with no words beside it. Showing it would be showing the
+                      database's private business to the reader. */}
+                  {!(m.file_id && m.body === '(file)') && (
+                    <p className="mt-2 text-[15px] leading-relaxed whitespace-pre-wrap">
+                      {m.body}
+                    </p>
+                  )}
+                  {m.file_id && (
+                    <PortalAttachment
+                      fileId={m.file_id}
+                      name={m.file_name}
+                      mime={m.file_mime}
+                      sizeBytes={m.file_size === null ? null : Number(m.file_size)}
+                      durationMs={
+                        m.file_duration_ms === null ? null : Number(m.file_duration_ms)
+                      }
+                    />
+                  )}
+                </>
               )}
               <p className="vix-quiet mt-2 text-[11.5px]">{when(m.created_at)}</p>
             </li>

@@ -49,6 +49,15 @@ describe.skipIf(!HAS_DB)('the client boundary (integration)', () => {
   let staffId = '';
   let generalThread = '';
 
+  /** Attachments, and the one message a client wrote themselves. */
+  const files = { mine: '', theirs: '', onProject: '' };
+  let myOwnMessage = '';
+
+  /** A stored path of the shape the table's CHECK insists on. */
+  function storedPath(ext = 'png'): string {
+    return `2026/09/${crypto.randomUUID()}.${ext}`;
+  }
+
   /** Puts the portal connection in the shoes of one client contact. */
   async function asClient(contactId: string | null) {
     await portal.query(
@@ -84,6 +93,8 @@ describe.skipIf(!HAS_DB)('the client boundary (integration)', () => {
 
   async function purge() {
     await owner.query("SET app.bootstrap = 'on'");
+    await owner.query(
+      `DELETE FROM attachment WHERE original_name LIKE $1`, [`${MARK}%`]);
     await owner.query(`DELETE FROM message WHERE body LIKE $1`, [`${MARK}%`]);
     await owner.query(`DELETE FROM thread WHERE title LIKE $1`, [`${MARK}%`]);
     await owner.query(`DELETE FROM client_account WHERE contact_id IN
@@ -108,6 +119,26 @@ describe.skipIf(!HAS_DB)('the client boundary (integration)', () => {
     mine = await makeClient('mine');
     theirs = await makeClient('theirs');
 
+    // A message the CLIENT wrote. The only thing they may attach a file to.
+    myOwnMessage = (await owner.query<{ id: string }>(
+      `INSERT INTO message (thread_id, author_contact_id, author_name, body)
+       VALUES ($1,$2,'Client',$3) RETURNING id`,
+      [mine.thread, mine.contact, `${MARK} mine wrote this`])).rows[0]!.id;
+
+    const putFile = async (type: string, entity: string, label: string) =>
+      (await owner.query<{ id: string }>(
+        `INSERT INTO attachment
+           (entity_type, entity_id, original_name, stored_path, mime_type, size_bytes,
+            uploaded_by_id)
+         VALUES ($1,$2,$3,$4,'image/png',12,$5) RETURNING id`,
+        [type, entity, `${MARK} ${label}.png`, storedPath(), staffId])).rows[0]!.id;
+
+    files.mine = await putFile('message', mine.message, 'for mine');
+    files.theirs = await putFile('message', theirs.message, 'for theirs');
+    // Their OWN project, but attached to the project rather than to a message:
+    // files on a work record are internal, whoever the work is for.
+    files.onProject = await putFile('project', mine.project, 'on the project');
+
     portal = new Client({ connectionString: CLIENT });
     await portal.connect();
   });
@@ -127,9 +158,20 @@ describe.skipIf(!HAS_DB)('the client boundary (integration)', () => {
     const forbidden = [
       'app_user', 'task', 'activity', 'document', 'document_line', 'interaction',
       'equipment', 'notification', 'deal', 'retainer', 'prep', 'effort_log',
-      'comment', 'attachment', 'schedule_entry', 'private_note', 'client_account',
+      'comment', 'schedule_entry', 'private_note', 'client_account',
       'thread_read', 'login_attempt',
     ];
+    /*
+     * `attachment` was on this list and has been taken off deliberately, in
+     * 0067, so that a client can see a photograph we send them and send one
+     * back. Taking a table off a refusal list is exactly the kind of edit that
+     * should not pass quietly, so the grant it now has is pinned down row by
+     * row in "the file store, one row at a time" below: their own support
+     * thread and nothing else, no internal entity type, and no write except
+     * onto a message they wrote themselves.
+     *
+     * If that describe block is ever deleted, this comment is the trail back.
+     */
 
     const reachable: string[] = [];
     for (const table of forbidden) {
@@ -218,7 +260,13 @@ describe.skipIf(!HAS_DB)('the client boundary (integration)', () => {
   it('reads only the messages in its own support thread', async () => {
     await asClient(mine.contact);
     const { rows } = await portal.query<{ id: string }>(`SELECT id FROM message`);
-    expect(rows.map((r) => r.id)).toEqual([mine.message]);
+    const seen = rows.map((r) => r.id);
+    // Both sides of their own conversation: what we said, and what they said.
+    expect(seen.sort()).toEqual([mine.message, myOwnMessage].sort());
+    // And an exact count, so this stays a statement about EVERYTHING visible
+    // rather than about what happens to be in the list.
+    expect(seen).toHaveLength(2);
+    expect(seen).not.toContain(theirs.message);
   });
 
   it('can write in its own thread, attributed to itself', async () => {
@@ -275,6 +323,155 @@ describe.skipIf(!HAS_DB)('the client boundary (integration)', () => {
     await asClient(theirs.contact);
     const { rows } = await portal.query<{ id: string }>(`SELECT id FROM company`);
     expect(rows.map((r) => r.id)).toEqual([theirs.company]);
+  });
+
+  // --- the door itself --------------------------------------------------------
+
+  /**
+   * The portal signs a client in on the CLIENT ROLE'S connection.
+   *
+   * There is no session yet and the container holds no other credentials, so
+   * `app.lookup_client_login` has to be callable by `vixart_client` — and for a
+   * long time it was, by accident. PostgreSQL grants EXECUTE on a new function
+   * to PUBLIC, and 0064's REVOKE was aimed at the role by name, which does not
+   * touch PUBLIC's grant. Nothing recorded that the portal depended on it.
+   *
+   * 0068 revoked PUBLIC and named both roles instead — and the first draft
+   * named only `vixart_app`, which locked every client out of the portal
+   * entirely. It was caught on a running instance one command before deploying.
+   *
+   * A positive test, unusually for this file, because this is the one thing
+   * about the client role that must NOT be a refusal.
+   */
+  it('can call the sign-in lookup, which is the only way in', async () => {
+    await asClient(null); // Sign-in happens before any contact is established.
+    const { rows } = await portal.query<{ contact_id: string }>(
+      `SELECT contact_id FROM app.lookup_client_login($1)`,
+      [`zzz-mine@example.invalid`]);
+    expect(rows, 'the portal cannot look up its own logins').toHaveLength(1);
+    expect(rows[0]!.contact_id).toBe(mine.contact);
+  });
+
+  it('can count and record its own sign-in attempts', async () => {
+    // The other two the sign-in path calls on that same connection. Same
+    // reasoning: they work through PUBLIC today, and a tidy-up would remove it.
+    await asClient(null);
+    await expect(portal.query(
+      `SELECT app.login_retry_after($1,$2)`, ['zzz-mine@example.invalid', '127.0.0.1'],
+    )).resolves.toBeTruthy();
+    await expect(portal.query(
+      `SELECT app.record_login_attempt($1,$2,false)`, ['zzz-mine@example.invalid', '127.0.0.1'],
+    )).resolves.toBeTruthy();
+  });
+
+  // --- the file store, one row at a time --------------------------------------
+
+  /**
+   * `attachment` is the one table on the client's grant list that is not
+   * wholly theirs.
+   *
+   * Every other grant is a table where every row a client can reach belongs to
+   * their own company. This one holds the team's files too — the photographs
+   * on a task, the scan attached to an invoice — in the same rows, told apart
+   * only by `entity_type` and by which message the id points at. So the policy
+   * is the entire boundary here, and it is checked row by row rather than by
+   * asking whether the table is reachable at all.
+   */
+  describe('the file store, one row at a time', () => {
+    it('sees a file we sent it', async () => {
+      await asClient(mine.contact);
+      const seen = await portal.query(
+        `SELECT id FROM attachment WHERE id = $1`, [files.mine]);
+      expect(seen.rowCount, 'a client cannot see a file sent to them').toBe(1);
+    });
+
+    it('cannot see a file in another client’s conversation', async () => {
+      await asClient(mine.contact);
+      const seen = await portal.query(
+        `SELECT id FROM attachment WHERE id = $1`, [files.theirs]);
+      expect(seen.rowCount).toBe(0);
+    });
+
+    it('cannot see a file attached to its own project', async () => {
+      // The sharpest case on this table: the project IS theirs. What is not
+      // theirs is a file the team put on the work record, which is where an
+      // internal brief or a rough cut would sit.
+      await asClient(mine.contact);
+      const seen = await portal.query(
+        `SELECT id FROM attachment WHERE id = $1`, [files.onProject]);
+      expect(seen.rowCount).toBe(0);
+    });
+
+    it('sees nothing at all with no contact set', async () => {
+      await asClient(null);
+      const seen = await portal.query(`SELECT id FROM attachment`);
+      expect(seen.rowCount).toBe(0);
+    });
+
+    it('can attach a file to a message it wrote', async () => {
+      await asClient(mine.contact);
+      await expect(portal.query(
+        `INSERT INTO attachment
+           (entity_type, entity_id, original_name, stored_path, mime_type, size_bytes)
+         VALUES ('message',$1,$2,$3,'image/png',12)`,
+        [myOwnMessage, `${MARK} sent by the client.png`, storedPath()],
+      )).resolves.toBeTruthy();
+    });
+
+    it('cannot attach a file to a message WE wrote', async () => {
+      // Otherwise a client could bolt a document onto our message and the
+      // conversation would show our name above their file.
+      await asClient(mine.contact);
+      await expect(portal.query(
+        `INSERT INTO attachment
+           (entity_type, entity_id, original_name, stored_path, mime_type, size_bytes)
+         VALUES ('message',$1,$2,$3,'image/png',12)`,
+        [mine.message, `${MARK} forged onto ours.png`, storedPath()],
+      )).rejects.toThrow();
+    });
+
+    it('cannot attach a file to another client’s message', async () => {
+      await asClient(mine.contact);
+      await expect(portal.query(
+        `INSERT INTO attachment
+           (entity_type, entity_id, original_name, stored_path, mime_type, size_bytes)
+         VALUES ('message',$1,$2,$3,'image/png',12)`,
+        [theirs.message, `${MARK} forged onto theirs.png`, storedPath()],
+      )).rejects.toThrow();
+    });
+
+    it('cannot claim a member of staff uploaded it', async () => {
+      await asClient(mine.contact);
+      await expect(portal.query(
+        `INSERT INTO attachment
+           (entity_type, entity_id, original_name, stored_path, mime_type, size_bytes,
+            uploaded_by_id)
+         VALUES ('message',$1,$2,$3,'image/png',12,$4)`,
+        [myOwnMessage, `${MARK} wearing our name.png`, storedPath(), staffId],
+      )).rejects.toThrow();
+    });
+
+    it('cannot attach a file to a work record', async () => {
+      await asClient(mine.contact);
+      await expect(portal.query(
+        `INSERT INTO attachment
+           (entity_type, entity_id, original_name, stored_path, mime_type, size_bytes)
+         VALUES ('project',$1,$2,$3,'image/png',12)`,
+        [mine.project, `${MARK} onto the project.png`, storedPath()],
+      )).rejects.toThrow();
+    });
+
+    it('cannot change or remove a file, its own included', async () => {
+      // No UPDATE and no DELETE grant. A file in a conversation is part of what
+      // was said; taking it back is a withdrawal, and that is a moderator's.
+      await asClient(mine.contact);
+      await expect(portal.query(
+        `UPDATE attachment SET original_name = 'renamed' WHERE id = $1`, [files.mine],
+      )).rejects.toThrow(/permission denied/i);
+      await expect(portal.query(
+        `DELETE FROM attachment WHERE id = $1`, [files.mine],
+      )).rejects.toThrow(/permission denied/i);
+    });
   });
 
   // --- the other side: staff must still see the conversation -----------------

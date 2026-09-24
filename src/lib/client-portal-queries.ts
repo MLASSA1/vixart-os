@@ -25,6 +25,26 @@ export interface PortalProject {
   /** Tasks finished, and tasks in total. The progress, without the detail. */
   done: number;
   total: number;
+  /**
+   * The figure to show, and the only one that should be shown.
+   *
+   * The task count is honest and is often wrong for the reader: a project the
+   * team runs out of a shared document has no tasks, so a client watching a
+   * film being made was shown a bar at zero. `percent` is the hand-set
+   * override when Amin or Mohamed Amine has set one and the task count
+   * otherwise, decided inside `app.project_progress` so this page and the
+   * internal one cannot come to different answers.
+   */
+  percent: number;
+  /**
+   * Whether the figure was set by a person rather than counted.
+   *
+   * Never shown to the client — it decides whether the STEP COUNT is shown
+   * beside the bar. Printing "70%" next to "1 of 2 steps done" invites the
+   * reader to do the arithmetic, get 50, and conclude one of the two numbers is
+   * a lie. One of them is simply not what the bar means.
+   */
+  by_hand: boolean;
 }
 
 /**
@@ -44,7 +64,7 @@ export async function listPortalProjects(tx: Tx): Promise<PortalProject[]> {
     SELECT p.id, p.name, p.status, p.description,
            p.start_date::text AS start_date,
            p.due_date::text   AS due_date,
-           pr.done, pr.total
+           pr.done, pr.total, pr.percent, pr.by_hand
       FROM project p
       -- LATERAL rather than calling the function twice in the select list,
       -- which is two scans of the task table per project for one pair of numbers.
@@ -65,6 +85,19 @@ export interface PortalMessage {
   /** Written by us, or by them. Drives which side of the conversation it is. */
   mine: boolean;
   author_name: string;
+  /**
+   * What was attached, if anything.
+   *
+   * The conversation had none of this: a client could be sent a photograph and
+   * would see a message with no picture in it, which is worse than not being
+   * sent one. The bytes are never here — only the id, which the authenticated
+   * file route resolves under this client's own policies.
+   */
+  file_id: string | null;
+  file_name: string | null;
+  file_size: string | null;
+  file_mime: string | null;
+  file_duration_ms: number | null;
 }
 
 /**
@@ -89,10 +122,19 @@ export async function listPortalMessages(
        ORDER BY m.created_at DESC
        LIMIT ${limit}
     )
-    SELECT id, body, created_at::text, withdrawn_at::text, author_name,
-           coalesce(mine, false) AS mine
-      FROM page
-     ORDER BY created_at
+    SELECT p.id, p.body, p.created_at::text, p.withdrawn_at::text, p.author_name,
+           coalesce(p.mine, false) AS mine,
+           a.id::text         AS file_id,
+           a.original_name    AS file_name,
+           a.size_bytes::text AS file_size,
+           a.mime_type        AS file_mime,
+           a.duration_ms      AS file_duration_ms
+      FROM page p
+      -- One file per message, the same as the team side. LEFT, because most
+      -- messages are words.
+      LEFT JOIN attachment a
+        ON a.entity_type = 'message' AND a.entity_id = p.id
+     ORDER BY p.created_at
   `);
   return result.rows;
 }

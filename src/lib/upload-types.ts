@@ -126,6 +126,27 @@ export function needsSafari(mime: string | null | undefined): boolean {
   return normaliseMime(mime ?? '') === 'image/heic';
 }
 
+/**
+ * Which of four things an attachment is, for whoever has to draw it.
+ *
+ * There are two places that draw one — the team's chat and the client's
+ * support conversation — and they look nothing alike: one is warm paper and
+ * the other is the company's black. What they must NOT differ on is what
+ * counts as a photograph, so the decision lives here and only the appearance
+ * lives in each component. Two copies of this switch is how a client ends up
+ * downloading a picture the team can see.
+ */
+export type AttachmentShape = 'audio' | 'image' | 'video' | 'file';
+
+export function attachmentShape(mime: string | null | undefined): AttachmentShape {
+  if (isAudio(mime)) return 'audio';
+  // HEIC is an image that no browser but Safari will draw, so it is handed
+  // over as a file with an explanation rather than as a broken picture.
+  if (isImage(mime)) return needsSafari(mime) ? 'file' : 'image';
+  if (isVideo(mime)) return 'video';
+  return 'file';
+}
+
 /** 0:07, 1:42, 12:05 — the way a voice note states its length. */
 export function formatDuration(ms: number): string {
   const total = Math.max(0, Math.round(ms / 1000));

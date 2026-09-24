@@ -33,6 +33,16 @@ function allowedInPortal(path: string): boolean {
     path.startsWith('/portal') ||
     // Auth.js's own endpoints: sign-in, callback, session, csrf, sign-out.
     path.startsWith('/api/auth') ||
+    /*
+     * The bytes of an attachment in the support conversation.
+     *
+     * Allowed here, and safe here, for one reason: the route looks the row up
+     * on the CLIENT's own connection when the session is a client's (0067's
+     * policy admits message attachments in their own support thread and
+     * nothing else). A path on this list is not a path without a check — it is
+     * a path whose check lives in the route rather than in this file.
+     */
+    path.startsWith('/api/files/') ||
     path.startsWith('/_next') ||
     // The system hero images, served out of `public/systems`. Files in
     // `public` are NOT covered by the `_next` exclusion below, so without this

@@ -73,6 +73,13 @@ const EXEMPT = new Set([
   // cover is_active and everybody's password_hash.
   'set_own_client_password',
   'record_client_sign_in',
+  // Takes no argument, returns no data, and its only effect is to raise or to
+  // let the write through. A definer because it must see EVERY account to
+  // answer "is this address already used", which is exactly the question a
+  // caller under its own policies cannot answer — a moderator who cannot see
+  // the other client would be told the address is free, and would create the
+  // second account that makes signing in ambiguous.
+  'client_account_one_per_address',
 ]);
 
 describe.skipIf(!HAS_DB)('SECURITY DEFINER functions guard their callers', () => {

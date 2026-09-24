@@ -46,6 +46,14 @@ const NAV: NavItem[] = [
   { href: '/team', label: 'Team', group: 'Agency' },
   { href: '/equipment', label: 'Equipment', group: 'Agency' },
   { href: '/system', label: 'System', group: 'Agency', minRole: 'admin' },
+  /*
+   * Below System, and shown to management only — which is Amin and Mohamed
+   * Amine. Asked for in those words: opening a client's account was possible
+   * before but scattered across a company page, a contact, a project and a
+   * button, and "where do I create an account" is the answer to whether that
+   * arrangement worked.
+   */
+  { href: '/client-portal', label: 'Client portal', group: 'Agency', minRole: 'moderator' },
 ];
 
 /** Nav order, grouped. Modules appear as they are built — nothing dead here. */

@@ -58,6 +58,7 @@ describe.skipIf(!HAS_DB)('a client writes and the team can read it (integration)
 
   async function purge() {
     await owner.query("SET app.bootstrap = 'on'");
+    await owner.query(`DELETE FROM notification WHERE title LIKE $1`, [`${MARK}%`]);
     await owner.query(`DELETE FROM message WHERE body LIKE $1`, [`${MARK}%`]);
     await owner.query(`DELETE FROM thread_read WHERE thread_id IN
                         (SELECT id FROM thread WHERE title LIKE $1)`, [`${MARK}%`]);

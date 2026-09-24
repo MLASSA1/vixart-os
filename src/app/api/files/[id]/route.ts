@@ -4,7 +4,7 @@ import { eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { attachment } from '@/db/schema';
-import { withUser } from '@/db/session';
+import { withClient, withUser, type Tx } from '@/db/session';
 import { resolveInsideRoot } from '@/lib/uploads';
 import { servedInline } from '@/lib/upload-types';
 import { parseRange } from '@/lib/http-range';
@@ -31,14 +31,35 @@ export async function GET(
     return new NextResponse('Not found', { status: 404 });
   }
 
-  const record = await withUser(async (tx) => {
+  /*
+   * One route, two connections.
+   *
+   * A client in the portal needs the photograph we sent them, and the one they
+   * sent us, and neither was reachable: this looked the row up on the staff
+   * connection, which a client session has no business holding. The answer is
+   * NOT to relax that — it is to ask the same question on the client's own
+   * connection, where `attachment_client_select` (0067) admits message
+   * attachments in their own support thread and nothing else in the store.
+   *
+   * So the branch here is which identity asks, and both are then subject to
+   * their own policies. Everything below this point — the 404, the headers,
+   * the cache rule, the range handling — is identical, because it must be:
+   * two copies of "how is a file served" is how one of them ends up without
+   * `nosniff` on it.
+   */
+  const lookup = async (tx: Tx) => {
     const rows = await tx
       .select()
       .from(attachment)
       .where(eq(attachment.id, id))
       .limit(1);
     return rows[0] ?? null;
-  });
+  };
+
+  const record =
+    session.user.kind === 'client'
+      ? await withClient(session.user.id, lookup)
+      : await withUser(lookup);
 
   // Either it does not exist, or RLS hid it. Same answer either way — a
   // different one would tell a member which invoices have attachments.

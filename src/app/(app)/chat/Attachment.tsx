@@ -2,10 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import {
+  attachmentShape,
   formatBytes,
-  isAudio,
-  isImage,
-  isVideo,
   needsSafari,
   servedInline,
 } from '@/lib/upload-types';
@@ -57,16 +55,17 @@ export function Attachment({
   // holding HEVC plays only in Safari, and nothing in the type tells them
   // apart. So we try, and listen.
   const [failed, setFailed] = useState(false);
+  const shape = attachmentShape(mime);
 
-  if (isAudio(mime)) {
+  if (shape === 'audio') {
     return <VoiceNote src={src} durationMs={durationMs} mine={mine} />;
   }
 
-  if (isImage(mime) && !failed && !needsSafari(mime)) {
+  if (shape === 'image' && !failed) {
     return <ImageBubble src={src} label={label} onFail={() => setFailed(true)} />;
   }
 
-  if (isVideo(mime) && !failed) {
+  if (shape === 'video' && !failed) {
     return (
       // eslint-disable-next-line jsx-a11y/media-has-caption
       <video

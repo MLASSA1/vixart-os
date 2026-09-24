@@ -37,9 +37,32 @@ export default async function PortalHome() {
           {projects.map((p) => {
             const total = Number(p.total ?? 0);
             const done = Number(p.done ?? 0);
-            // A project with no steps yet has no honest percentage. Say nothing
-            // rather than show a confident 0%.
-            const pct = total > 0 ? Math.round((done / total) * 100) : null;
+            /*
+             * The figure comes from the database, not from arithmetic here.
+             *
+             * It used to be computed on this line, which meant a project with
+             * no task list had no honest percentage and showed nothing at all —
+             * a client watching a film being made was told nothing was
+             * happening. Amin and Mohamed Amine can now set the number
+             * directly, and `app.project_progress` decides which of the two
+             * applies so that this page and the internal one cannot disagree.
+             *
+             * Still nothing rather than a confident 0% when neither exists:
+             * no tasks and nobody has set a figure means there is genuinely
+             * nothing to report yet.
+             */
+            const pct = Number(p.percent ?? 0);
+            const byHand = Boolean(p.by_hand);
+            const show = total > 0 || pct > 0;
+            /*
+             * The step count, only when the bar IS the step count.
+             *
+             * Caught on the running page: with a hand-set 70% beside "1 of 2
+             * steps done", a client does the division, gets 50, and reasonably
+             * concludes that one of the two numbers is untrue. Neither is — the
+             * count is simply not what the bar means once somebody has set it.
+             */
+            const showSteps = !byHand && total > 0;
 
             return (
               <li key={p.id} className="vix-rule border-t py-9 first:border-t-0 first:pt-0">
@@ -50,7 +73,7 @@ export default async function PortalHome() {
 
                 {p.description && <p className="vix-body mt-3">{p.description}</p>}
 
-                {pct !== null && (
+                {show && (
                   <div className="mt-7 max-w-[560px]">
                     <div className="flex items-baseline justify-between">
                       <span className="vix-meta">Progress</span>
@@ -66,7 +89,9 @@ export default async function PortalHome() {
                     >
                       <span style={{ width: `${pct}%` }} />
                     </div>
-                    <p className="vix-quiet mt-2">{done} of {total} steps done</p>
+                    {showSteps && (
+                      <p className="vix-quiet mt-2">{done} of {total} steps done</p>
+                    )}
                   </div>
                 )}
 
@@ -83,8 +108,15 @@ export default async function PortalHome() {
         </ul>
       )}
 
+      {/*
+        True whichever way the figure was arrived at.
+        
+        This said "progress is counted from the steps we track internally",
+        which stopped being true the moment a figure could be set by hand — and
+        a sentence to a client that is no longer true is worse than no sentence.
+      */}
       <p className="vix-quiet vix-rule mt-14 border-t pt-6">
-        Progress is counted from the steps we track internally. If something
+        Progress is where your producer says the work has got to. If something
         here does not match what you expect, tell us — that is what the
         conversation is for.
       </p>

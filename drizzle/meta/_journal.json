@@ -470,6 +470,20 @@
       "when": 1790032945733,
       "tag": "0066_growth_systems",
       "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1790279078795,
+      "tag": "0067_client_files_and_hand_set_progress",
+      "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1790280574027,
+      "tag": "0068_one_sign_in_per_address",
+      "breakpoints": true
     }
   ]
 }
