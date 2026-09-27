@@ -22,6 +22,15 @@ import {
 } from '../actions';
 import { ContactForm } from './ContactForm';
 import { InteractionForm } from './InteractionForm';
+import {
+  RelationshipSections,
+  type Relationship,
+  type RelatedDeal,
+  type RelatedDocument,
+  type RelatedProject,
+  type RelatedRetainer,
+  type RelatedThread,
+} from './Relationship';
 
 export const dynamic = 'force-dynamic';
 
@@ -69,13 +78,100 @@ export default async function ClientPage({
        WHERE c.company_id = ${id}
     `);
 
-    return { record, contacts, timeline, accounts: accounts.rows };
+    /*
+     * THE RELATIONSHIP, which this page did not assemble.
+     *
+     * It showed who the client is and said nothing about what we are doing for
+     * them or what they owe — so a client with a live project and an unpaid
+     * invoice looked, from their own page, exactly like one we had never worked
+     * for. Staff reconstructed it by going to /projects and scanning, then
+     * /documents and scanning again, which is how work and money get overlooked
+     * by the person best placed to notice.
+     *
+     * Five queries rather than one join: they are independent lists, each
+     * ordered differently, and a single query producing their cross product
+     * would have to be unpicked in TypeScript afterwards.
+     */
+    const projects = await tx.execute<RelatedProject>(sql`
+      SELECT p.id::text, p.name, p.status, p.archived_at::text,
+             p.due_date::text,
+             pr.percent, pr.done, pr.total,
+             u.full_name AS lead
+        FROM project p
+        LEFT JOIN app_user u ON u.id = p.lead_id
+        -- LATERAL rather than calling it twice in the select list, which is two
+        -- scans of the task table per project for one set of numbers.
+        LEFT JOIN LATERAL app.project_progress(p.id) pr ON true
+       WHERE p.company_id = ${id}
+       ORDER BY (p.archived_at IS NOT NULL),
+                CASE p.status WHEN 'active' THEN 0 WHEN 'planned' THEN 1
+                              WHEN 'on_hold' THEN 2 ELSE 3 END,
+                p.due_date NULLS LAST, lower(p.name)
+    `);
+
+    const deals = await tx.execute<RelatedDeal>(sql`
+      SELECT d.id::text, d.title, d.stage, d.value_centimes::text,
+             d.expected_close_date::text, d.closed_at::text,
+             u.full_name AS owner
+        FROM deal d
+        LEFT JOIN app_user u ON u.id = d.owner_id
+       WHERE d.company_id = ${id}
+       ORDER BY (d.closed_at IS NOT NULL), d.created_at DESC
+    `);
+
+    const retainers = await tx.execute<RelatedRetainer>(sql`
+      SELECT r.id::text, r.label, r.monthly_centimes::text, r.status,
+             r.billing_day, r.end_date::text
+        FROM retainer r
+       WHERE r.company_id = ${id}
+       ORDER BY (r.status <> 'active'), lower(r.label)
+    `);
+
+    /*
+     * Only for an administrator, and not merely hidden afterwards.
+     *
+     * `document` is admin-only at the policy layer, so a moderator running this
+     * would get an empty list — and an empty invoices section reads as "this
+     * client has never been invoiced", which is a lie told confidently. Not
+     * asking is the honest version of not being allowed to know.
+     */
+    const documents = isAdmin
+      ? await tx.execute<RelatedDocument>(sql`
+          SELECT d.id::text, d.doc_type, d.status, d.number, d.issue_date::text,
+                 d.total_incl_vat::text, d.net_to_collect::text, d.paid_at::text
+            FROM document d
+           WHERE d.company_id = ${id}
+           ORDER BY d.issue_date DESC NULLS LAST, d.created_at DESC
+        `)
+      : { rows: [] as RelatedDocument[] };
+
+    const threads = await tx.execute<RelatedThread>(sql`
+      SELECT t.id::text, t.kind, t.title,
+             (SELECT count(*)::int FROM message m WHERE m.thread_id = t.id) AS messages,
+             (SELECT max(m.created_at)::text FROM message m WHERE m.thread_id = t.id) AS last_at
+        FROM thread t
+       WHERE t.company_id = ${id}
+         -- The client's own conversation and our channel about them. Nothing
+         -- else is about this company.
+         AND t.kind IN ('company', 'support')
+       ORDER BY t.kind
+    `);
+
+    const relationship: Relationship = {
+      projects: projects.rows,
+      deals: deals.rows,
+      retainers: retainers.rows,
+      documents: documents.rows,
+      threads: threads.rows,
+    };
+
+    return { record, contacts, timeline, accounts: accounts.rows, relationship };
   });
 
   const files = await listAttachments('company', id);
 
   if (!data) notFound();
-  const { record, contacts, timeline, accounts } = data;
+  const { record, contacts, timeline, accounts, relationship } = data;
 
   const addContact = createContactAction.bind(null, record.id);
   const addInteraction = createInteractionAction.bind(null, record.id);
@@ -162,6 +258,16 @@ export default async function ClientPage({
           )}
         </div>
       </div>
+
+      {/*
+        --- The relationship ------------------------------------------------
+
+        Directly under the identity, and above the contacts, because this is
+        what somebody opening a client came for: what we are doing for them,
+        what has been sold, what is owed, and what has been said. Their
+        telephone numbers matter less often than any of it.
+      */}
+      <RelationshipSections relationship={relationship} isAdmin={isAdmin} />
 
       {/* --- Contacts ------------------------------------------------------- */}
       <Section title={`Contacts — ${contacts.length}`}>
