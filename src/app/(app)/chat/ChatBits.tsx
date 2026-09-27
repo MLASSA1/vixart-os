@@ -1,5 +1,7 @@
 'use client';
 
+import { useState } from 'react';
+
 /**
  * The small pieces the chat panes share.
  */
@@ -57,10 +59,31 @@ export function Avatar({
 
   const hash = hueFor(id ?? name);
 
+  /**
+   * The picture, when there is one.
+   *
+   * Amin asked for profile pictures, which reverses the note this component used
+   * to carry — there was no upload flow on the grounds that eight people who know
+   * each other by name do not need faces. They want them.
+   *
+   * INITIALS FIRST, PICTURE OVER THE TOP. The letters render immediately and are
+   * replaced only once an image has actually loaded, so a person with no picture
+   * shows nothing missing, a slow connection shows nothing blank, and a 404
+   * shows nothing broken. The alternative — ask each screen whether this person
+   * has a picture and pass it down — means a dozen queries carrying an extra
+   * column, and the one that forgets shows initials for ever in a way that looks
+   * deliberate.
+   *
+   * `id` is not always an app_user: a client writing in a support thread is
+   * their contact id, and the route simply answers 404. That is the same answer
+   * as "no picture" and needs no special case here.
+   */
+  const [shown, setShown] = useState(false);
+
   return (
     <span
       aria-hidden="true"
-      className="inline-flex shrink-0 items-center justify-center rounded-[10px] font-semibold text-white select-none"
+      className="relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-[10px] font-semibold text-white select-none"
       style={{
         width: size,
         height: size,
@@ -68,7 +91,18 @@ export function Avatar({
         backgroundColor: `hsl(${hash} 42% 42%)`,
       }}
     >
-      {initials || '?'}
+      {!shown && <span>{initials || '?'}</span>}
+      {id && (
+        /* eslint-disable-next-line @next/next/no-img-element */
+        <img
+          src={`/api/avatar/${id}`}
+          alt=""
+          onLoad={() => setShown(true)}
+          onError={() => setShown(false)}
+          className="absolute inset-0 h-full w-full object-cover"
+          style={{ opacity: shown ? 1 : 0 }}
+        />
+      )}
     </span>
   );
 }

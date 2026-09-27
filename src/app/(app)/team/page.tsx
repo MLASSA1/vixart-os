@@ -1,7 +1,9 @@
+import Link from 'next/link';
 import { sql } from 'drizzle-orm';
 import { auth } from '@/auth';
 import { PageHeader, Section } from '@/components/ui';
 import { withUser } from '@/db/session';
+import { Avatar } from '../chat/ChatBits';
 import { formatDate } from '@/lib/format';
 import {
   createMemberAction,
@@ -116,12 +118,20 @@ export default async function TeamPage() {
             return (
               <li key={m.id} className="border-b border-void/10 py-4">
                 <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
-                  <div className="min-w-0">
-                    <span
-                      className={`font-semibold ${m.is_active ? '' : 'opacity-50 line-through'}`}
+                  <div className="flex min-w-0 items-start gap-3">
+                    {/* The face, and the way in. Asked for as "when a member
+                        clicks on some other member they can see their
+                        information" — so the name is the link. */}
+                    <Link href={`/team/${m.id}`} className="mt-0.5 shrink-0">
+                      <Avatar name={m.full_name} id={m.id} size={34} />
+                    </Link>
+                    <div className="min-w-0">
+                    <Link
+                      href={`/team/${m.id}`}
+                      className={`font-semibold underline-offset-2 hover:underline ${m.is_active ? '' : 'opacity-50 line-through'}`}
                     >
                       {m.full_name}
-                    </span>
+                    </Link>
                     {isMe && <span className="hint ml-2">you</span>}
                     {m.must_change_password && m.is_active && (
                       <span className="ml-3 inline-block border border-void px-2 py-0.5 text-[12.5px] font-medium">
@@ -135,6 +145,7 @@ export default async function TeamPage() {
                       {m.open_tasks} open · {m.done_tasks} completed ·{' '}
                       {m.timeline_entries} timeline entries · since {formatDate(m.created_at)}
                     </p>
+                    </div>
                   </div>
 
                   <div className="text-right">

@@ -86,6 +86,11 @@ const EXEMPT = new Set([
   // design. There is no caller to check and nothing to aim it at: its only
   // input is OLD.id, which is the row the database itself just removed.
   'forget_notifications_for',
+  // Fired AFTER DELETE on app_user, and removes that person's picture and
+  // banner. A definer because the delete policy on those rows is written for
+  // the owner removing their own, and by then the owner no longer exists. Its
+  // only input is OLD.id — the row the database itself just removed.
+  'forget_profile_images_for',
 ]);
 
 describe.skipIf(!HAS_DB)('SECURITY DEFINER functions guard their callers', () => {
