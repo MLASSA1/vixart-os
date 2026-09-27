@@ -7,7 +7,7 @@ import {
   blockTaskAction,
   deleteTaskAction,
   setTaskStatusAction,
-} from '@/app/(app)/projects/actions';
+} from '@/app/(app)/tasks/actions';
 
 export interface TaskItem {
   id: string;

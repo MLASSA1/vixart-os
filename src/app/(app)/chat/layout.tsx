@@ -2,7 +2,7 @@ import { sql } from 'drizzle-orm';
 import { auth } from '@/auth';
 import { withUser } from '@/db/session';
 import { listChannels, listDms } from '@/lib/chat-queries';
-import { createChannelAction, openDirectMessageAction } from './actions';
+import { createChannelAction } from './actions';
 import { ChannelList } from './ChannelList';
 import { ChatShell } from './ChatShell';
 
@@ -30,7 +30,7 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
   const me = session!.user;
   const canCreate = me.role === 'admin' || me.role === 'moderator';
 
-  const { channels, targets, dms, people } = await withUser(async (tx, user) => {
+  const { channels, targets, dms } = await withUser(async (tx, user) => {
     const list = await listChannels(tx, user.id);
 
     // Only fetched for someone who can act on it. A member is not offered a
@@ -59,19 +59,7 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
 
     const dms = await listDms(tx, user.id);
 
-    // Everyone you could open a conversation with. Service accounts are
-    // excluded here and refused by a trigger — a DM with something that has no
-    // inbox is a conversation held with nothing.
-    const people = await tx.execute<{ id: string; full_name: string }>(sql`
-      SELECT u.id, u.full_name
-        FROM app.team_directory u
-       WHERE u.is_active
-         AND u.is_person
-         AND u.id <> ${user.id}
-       ORDER BY u.full_name
-    `);
-
-    return { channels: list, targets: rows, dms, people: people.rows };
+    return { channels: list, targets: rows, dms };
   });
 
   return (
@@ -83,8 +71,6 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
           createAction={createChannelAction}
           targets={targets.map((t) => ({ id: t.id, name: t.name, kind: t.kind }))}
           dms={dms}
-          people={people.map((p) => ({ id: String(p.id), fullName: String(p.full_name) }))}
-          openDmAction={openDirectMessageAction}
         />
       }
     >

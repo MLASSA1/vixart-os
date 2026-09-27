@@ -58,6 +58,50 @@ describe.skipIf(!HAS_DB)('hygiene (integration)', () => {
     expect(rows).toEqual([]);
   });
 
+  it('leaves no probe notifications whose title is a real name', async () => {
+    /*
+     * The same leak wearing a different hat, and the reason the test above
+     * stopped being enough.
+     *
+     * A direct-message notification's TITLE is the author's real name — "Amin",
+     * "Aya" — and its body is the message. So every purge written as
+     * `DELETE FROM notification WHERE title LIKE 'ZZZ%'` matched nothing, and
+     * every suite run left a handful more in real people's inboxes. Two dozen
+     * had collected before anybody looked, because the check was reading the
+     * wrong column.
+     */
+    const { rows } = await db.query<{ body: string; n: string }>(
+      `SELECT left(body, 40) AS body, count(*)::text AS n FROM notification
+        WHERE body LIKE 'ZZZ%' GROUP BY 1 ORDER BY 1`);
+    expect(rows).toEqual([]);
+  });
+
+  it('leaves no notification pointing at something that is gone', async () => {
+    /*
+     * An inbox row whose link is a deleted thread is a message addressed to you
+     * personally that 404s when you click it, and nothing but marking it read
+     * makes it go away. 0071 gives thread and task a trigger that clears theirs;
+     * this is the check that the triggers are still attached, and that no new
+     * entity type has arrived without one.
+     */
+    const { rows } = await db.query<{ entity_type: string; n: string }>(
+      `SELECT n.entity_type, count(*)::text AS n
+         FROM notification n
+        WHERE n.entity_type = 'thread'
+          AND NOT EXISTS (SELECT 1 FROM thread t WHERE t.id = n.entity_id)
+        GROUP BY 1
+        UNION ALL
+       SELECT n.entity_type, count(*)::text
+         FROM notification n
+        WHERE n.entity_type = 'task'
+          AND NOT EXISTS (SELECT 1 FROM task t WHERE t.id = n.entity_id)
+        GROUP BY 1`);
+    expect(
+      rows,
+      '\nNotifications point at rows that no longer exist. Their links 404.\n',
+    ).toEqual([]);
+  });
+
   // --- the service accounts ------------------------------------------------
 
   it('marks exactly the NO-LOGIN accounts unassignable', async () => {

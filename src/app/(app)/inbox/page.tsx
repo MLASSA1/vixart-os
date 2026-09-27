@@ -9,11 +9,26 @@ import { markAllReadAction, markNotificationReadAction } from './actions';
 
 export const dynamic = 'force-dynamic';
 
+/**
+ * Every kind of notification, as a person should read it.
+ *
+ * Both maps must cover every value `notification_kind_valid` allows, and neither
+ * did: `task_blocked` arrived in 0063 and was never given a label, so the inbox
+ * had been printing the raw string "task_blocked" at people for weeks. Nothing
+ * failed, which is why it lasted — a page that renders a database identifier
+ * looks like a page, and the reader assumes it means something.
+ *
+ * `notification-kinds.test.ts` now reads the constraint and fails if a kind has
+ * no label, which is the only way this gets caught.
+ */
 const KIND_LABEL: Record<string, string> = {
   task_assigned: 'Assigned to you',
   mentioned: 'Mentioned',
   task_overdue: 'Overdue',
   task_awaiting_signoff: 'Waiting on your sign-off',
+  task_blocked: 'Blocked',
+  message_received: 'Message',
+  client_message: 'From a client',
 };
 
 const KIND_TONE: Record<string, string> = {
@@ -21,6 +36,11 @@ const KIND_TONE: Record<string, string> = {
   mentioned: 'tone-accent',
   task_overdue: 'tone-danger',
   task_awaiting_signoff: 'tone-warn',
+  task_blocked: 'tone-danger',
+  message_received: 'tone-accent',
+  // A client waiting for an answer is the one thing here with somebody outside
+  // the company at the other end of it.
+  client_message: 'tone-warn',
 };
 
 interface Row {

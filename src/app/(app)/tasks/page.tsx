@@ -4,8 +4,8 @@ import { Empty, PageHeader, Section } from '@/components/ui';
 import { TaskRow, type TaskItem } from '@/components/TaskRow';
 import { withUser } from '@/db/session';
 import { capped, DONE_WINDOW, QUERY_CAP } from '@/lib/list-caps';
-import { createTaskAction } from '../projects/actions';
-import { TaskForm } from '../projects/TaskForm';
+import { createTaskAction } from './actions';
+import { TaskForm } from './TaskForm';
 
 export const dynamic = 'force-dynamic';
 

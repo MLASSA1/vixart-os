@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
+import { homeFor } from '@/lib/home';
 import { Field, PageHeader, Section } from '@/components/ui';
 import { getOwnerDb } from '@/db';
 import { withUser } from '@/db/session';
@@ -16,7 +17,7 @@ export const dynamic = 'force-dynamic';
 
 export default async function SystemPage() {
   const session = await auth();
-  if (session?.user.role !== 'admin') redirect('/clients');
+  if (session?.user.role !== 'admin') redirect(homeFor(session!.user.role));
 
   const owner = getOwnerDb();
 

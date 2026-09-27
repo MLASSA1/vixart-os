@@ -9,10 +9,11 @@ import { Attachments } from '@/components/Attachments';
 import { listAttachments, uploadAttachmentAction } from '@/lib/attachment-actions';
 import { PROJECT_STATUS_LABELS, PROJECT_TYPE_LABELS } from '@/lib/labels';
 import { Comments, type CommentItem } from '@/components/Comments';
-import { addCommentAction, deleteCommentAction } from '../../comments-actions';
+import { addCommentAction, deleteCommentAction } from '../../../comments-actions';
 import { formatDate } from '@/lib/format';
-import { TaskForm } from '../TaskForm';
-import { createTaskAction, deleteProjectAction, setProjectArchivedAction } from '../actions';
+import { TaskForm } from '@/app/(app)/tasks/TaskForm';
+import { createTaskAction } from '@/app/(app)/tasks/actions';
+import { deleteProjectAction, setProjectArchivedAction } from '../actions';
 
 export const dynamic = 'force-dynamic';
 

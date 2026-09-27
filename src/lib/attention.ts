@@ -170,10 +170,22 @@ export async function getAttention(): Promise<AttentionItem[]> {
       HAVING count(*) > 0
 
       UNION ALL
-      -- An active client nobody has spoken to in a month.
+      /*
+       * An active client nobody has spoken to in a month.
+       *
+       * THIS WAS THE ONE BRANCH HERE WITHOUT A ROLE GATE, and it returns
+       * min(c.name) -- a client's name -- so "Needs attention" was quietly
+       * showing every member which client had gone quiet. That page is one a
+       * member keeps, which made it the back door out of the team space: the
+       * client list could be closed, the dashboard closed, the projects closed,
+       * and a client's name would still appear on their own home screen.
+       *
+       * Chasing a quiet client is management's job anyway. Gated to the two
+       * people whose job it is.
+       */
       SELECT 'gone_quiet', count(*)::text, NULL, min(c.name)
         FROM company c
-       WHERE c.status = 'client'
+       WHERE ${isModerator} AND c.status = 'client'
          AND NOT EXISTS (SELECT 1 FROM interaction i
                           WHERE i.company_id = c.id
                             AND i.occurred_at > now() - interval '30 days')

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
 import { signOutAction } from './actions';
+import { homeFor } from '@/lib/home';
 
 interface NavItem {
   href: string;
@@ -17,47 +18,72 @@ interface NavItem {
  * no greyed-out entries pointing at screens that are not built.
  */
 const NAV: NavItem[] = [
-  { href: '/dashboard', label: 'Dashboard' },
+  /*
+   * Chat first, for everybody, always. Amin's instruction in those words, and
+   * it is the right one: this is the thing the team opens twenty times a day,
+   * and it was eighteenth in the list behind sections most of them cannot use.
+   */
+  { href: '/chat', label: 'Chat' },
   { href: '/inbox', label: 'Inbox' },
   { href: '/attention', label: 'Needs attention' },
   { href: '/my-work', label: 'My work' },
-  { href: '/clients', label: 'Clients', group: 'Relationships' },
-  { href: '/leads', label: 'Leads', group: 'Relationships' },
-  { href: '/companies', label: 'All clients', group: 'Relationships' },
-  { href: '/deals', label: 'Deals', group: 'Work', minRole: 'moderator' },
-  // The monthly contracts. Beside Deals because it is where a deal goes
-  // when it stops being a one-off.
-  { href: '/retainers', label: 'Retainers', group: 'Work', minRole: 'moderator' },
-  { href: '/projects', label: 'Projects', group: 'Work' },
-  // Everyone. Work that is not a client project lives here too.
-  { href: '/tasks', label: 'Tasks', group: 'Work' },
-  // A person's own week. Moderators can also see the team's, tasks only.
-  { href: '/schedule', label: 'Schedule', group: 'Work' },
-  // Private to each person. No moderator or admin view exists, by design.
-  { href: '/notes', label: 'Notes', group: 'Work' },
-  // Everyone gets this one: it is where the work is thought about before it is
-  // assigned, and it belongs to whoever is doing the thinking.
-  { href: '/prep', label: 'Prep', group: 'Work' },
-  { href: '/services', label: 'Services', group: 'Work' },
-  { href: '/documents', label: 'Quotes & invoices', group: 'Work', minRole: 'admin' },
-  { href: '/finance', label: 'Finance', group: 'Work', minRole: 'admin' },
-  // Everyone. A channel about a client is filtered by who can see that client.
-  { href: '/chat', label: 'Chat', group: 'Agency' },
-  { href: '/team', label: 'Team', group: 'Agency' },
-  { href: '/equipment', label: 'Equipment', group: 'Agency' },
-  { href: '/system', label: 'System', group: 'Agency', minRole: 'admin' },
+
   /*
-   * Below System, and shown to management only — which is Amin and Mohamed
-   * Amine. Asked for in those words: opening a client's account was possible
-   * before but scattered across a company page, a contact, a project and a
-   * button, and "where do I create an account" is the answer to whether that
-   * arrangement worked.
+   * THE TEAM SPACE.
+   *
+   * What everybody has. Asked for as "move all to team space zone that have
+   * tasks schedule prep notes and all features for them" — so this group is the
+   * whole of the application for six of the eight people here, and it holds
+   * their work and nothing about the company's commerce.
    */
+  { href: '/tasks', label: 'Tasks', group: 'Team space' },
+  // A person's own week. Moderators can also see the team's, tasks only.
+  { href: '/schedule', label: 'Schedule', group: 'Team space' },
+  // Where work is thought about before it is assigned. Belongs to whoever is
+  // doing the thinking.
+  { href: '/prep', label: 'Prep', group: 'Team space' },
+  // Private to each person. No moderator or admin view exists, by design.
+  { href: '/notes', label: 'Notes', group: 'Team space' },
+  { href: '/equipment', label: 'Equipment', group: 'Team space' },
+  { href: '/team', label: 'Team', group: 'Team space' },
+
+  /*
+   * MANAGEMENT ONLY — Amin and Mohamed Amine.
+   *
+   * `minRole: 'moderator'` is admin-or-moderator, which is exactly those two
+   * and has been since 0006. Everything below this line is the company's
+   * commercial business: who the clients are, what is being sold, what it costs
+   * and what has been billed.
+   *
+   * The nav is not what closes them. Every one of these pages lives inside the
+   * `(management)` route group, whose layout sends a member to their own work —
+   * so a typed url and a stale bookmark get the same answer as a hidden link.
+   */
+  { href: '/dashboard', label: 'Dashboard', minRole: 'moderator' },
+
+  { href: '/clients', label: 'Clients', group: 'Relationships', minRole: 'moderator' },
+  { href: '/leads', label: 'Leads', group: 'Relationships', minRole: 'moderator' },
+  { href: '/companies', label: 'All clients', group: 'Relationships', minRole: 'moderator' },
+
+  { href: '/projects', label: 'Projects', group: 'Commerce', minRole: 'moderator' },
+  { href: '/deals', label: 'Deals', group: 'Commerce', minRole: 'moderator' },
+  // The monthly contracts. Beside Deals because it is where a deal goes when it
+  // stops being a one-off.
+  { href: '/retainers', label: 'Retainers', group: 'Commerce', minRole: 'moderator' },
+  // The price list. Not on Amin's list, and moved anyway: leaving every
+  // service's price in MAD one click from a member while Finance is closed
+  // would be a boundary that only looks like one.
+  { href: '/services', label: 'Services', group: 'Commerce', minRole: 'moderator' },
+  { href: '/documents', label: 'Quotes & invoices', group: 'Commerce', minRole: 'admin' },
+  { href: '/finance', label: 'Finance', group: 'Commerce', minRole: 'admin' },
+
   { href: '/client-portal', label: 'Client portal', group: 'Agency', minRole: 'moderator' },
+  { href: '/system', label: 'System', group: 'Agency', minRole: 'admin' },
 ];
 
+
 /** Nav order, grouped. Modules appear as they are built — nothing dead here. */
-const GROUPS = [undefined, 'Relationships', 'Work', 'Agency'] as const;
+const GROUPS = [undefined, 'Team space', 'Relationships', 'Commerce', 'Agency'] as const;
 
 function visible(item: NavItem, role: 'admin' | 'moderator' | 'member') {
   if (item.minRole === 'admin') return role === 'admin';
@@ -85,6 +111,14 @@ export function Shell({
 }) {
   const pathname = usePathname();
   const items = NAV.filter((i) => visible(i, user.role));
+  /*
+   * Where the wordmark goes.
+   *
+   * It pointed at /dashboard, which a member can no longer open — so for them
+   * the one thing on every screen that looks like "home" would have bounced
+   * them somewhere else. Their home is their work.
+   */
+  const home = homeFor(user.role);
   /**
    * The mobile menu.
    *
@@ -129,7 +163,7 @@ export function Shell({
       {/* Sidebar — fixed, scrolls independently of the content. */}
       <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col bg-void text-pure md:flex">
         <div className="px-6 pt-7 pb-6">
-          <Link href="/dashboard" className="block">
+          <Link href={home} className="block">
             <span className="display flex items-baseline gap-2 text-xl font-bold tracking-tight">
               VIXART OS
               {/* The brand tick: the accent's first of two appearances. */}
@@ -227,7 +261,7 @@ export function Shell({
 
       {/* --- Phone: a title bar, and a drawer behind it ---------------------- */}
       <div className="fixed inset-x-0 top-0 z-30 flex h-14 items-center justify-between border-b border-pure/10 bg-void px-3 text-pure md:hidden">
-        <Link href="/dashboard" className="display px-1 text-[17px] font-bold whitespace-nowrap">
+        <Link href={home} className="display px-1 text-[17px] font-bold whitespace-nowrap">
           VIXART
           <span aria-hidden="true" className="ml-1 inline-block h-2 w-2 rounded-[2px] bg-accent" />
         </Link>

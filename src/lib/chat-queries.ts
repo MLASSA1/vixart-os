@@ -90,7 +90,16 @@ export async function listChannels(tx: Tx, meId: string): Promise<ChannelRow[]> 
 
 export interface DmRow {
   [k: string]: unknown;
-  id: string;
+  /**
+   * The conversation — NULL until the first message opens it.
+   *
+   * The list used to hold only conversations that existed, behind a "+" button
+   * and a dropdown. Amin asked for every account to be there by default, and he
+   * is right: eight people, and the friction of choosing a name from a select
+   * before you can type is most of the reason a private message never got sent.
+   * A colleague with nothing said yet is a row like any other.
+   */
+  id: string | null;
   /** The other person. A DM has no name of its own. */
   title: string;
   other_id: string;
@@ -98,32 +107,56 @@ export interface DmRow {
   last_at: string | null;
 }
 
-/**
- * The conversations this person is part of.
- *
- * No participant filter is written here. `thread_select` admits a DM only to
- * its two participants, so the query cannot return one belonging to anybody
- * else even if it tried — the rule has one home, and a filter here would be a
- * second copy of it free to drift.
- */
 export async function listDms(tx: Tx, meId: string): Promise<DmRow[]> {
   const result = await tx.execute<DmRow>(sql`
-    SELECT t.id,
-           u.full_name AS title,
-           u.id        AS other_id,
-           (SELECT count(*) FROM message m
-             WHERE m.thread_id = t.id
-               AND m.author_id IS DISTINCT FROM ${meId}
-               AND m.created_at > coalesce(
-                 (SELECT r.last_read_at FROM thread_read r
-                   WHERE r.thread_id = t.id AND r.user_id = ${meId}),
-                 'epoch'::timestamptz))::int AS unread,
+    SELECT u.id::text   AS other_id,
+           u.full_name  AS title,
+           -- NULL when the two of you have never spoken. The row is still shown.
+           t.id::text   AS id,
+           coalesce((
+             SELECT count(*) FROM message m
+              WHERE m.thread_id = t.id
+                -- IS DISTINCT FROM, not <>: a client's message has a NULL
+                -- author and NULL <> uuid is NULL, which is not TRUE.
+                AND m.author_id IS DISTINCT FROM ${meId}
+                AND m.created_at > coalesce(
+                  (SELECT r.last_read_at FROM thread_read r
+                    WHERE r.thread_id = t.id AND r.user_id = ${meId}),
+                  'epoch'::timestamptz)
+           ), 0)::int AS unread,
            (SELECT max(m.created_at)::text FROM message m WHERE m.thread_id = t.id) AS last_at
-      FROM thread t
-      JOIN app_user u
-        ON u.id = CASE WHEN t.participant_a = ${meId}
-                       THEN t.participant_b ELSE t.participant_a END
-     WHERE t.kind = 'dm'
+      FROM app.team_directory u
+      /*
+       * LEFT, and this is the whole change: the directory drives the list and
+       * the thread is what may or may not exist beside each person. It used to
+       * be the other way round, so somebody you had never written to was not in
+       * the list at all.
+       *
+       * No participant filter is needed on the join. thread_select admits a DM
+       * only to its two participants, so a row belonging to two other people
+       * cannot be joined here even by a query that tried — the rule has one home
+       * and this is not a second copy of it.
+       */
+      LEFT JOIN thread t
+        ON t.kind = 'dm'
+       -- The same expression as thread_one_dm_per_pair: a pair is its two ids
+       -- sorted, whichever way round the conversation was opened.
+       AND least(t.participant_a, t.participant_b) = least(${meId}::uuid, u.id)
+       AND greatest(t.participant_a, t.participant_b) = greatest(${meId}::uuid, u.id)
+     WHERE u.is_active
+       -- Service accounts have no inbox. A trigger refuses a DM with one, and
+       -- offering the row would be offering a conversation held with nothing.
+       AND u.is_person
+       AND u.id <> ${meId}
+     /*
+      * Alphabetical, and deliberately not by recency.
+      *
+      * A chat application with five hundred contacts sorts by last activity
+      * because finding a name any other way is hopeless. This is eight people:
+      * alphabetical means the row for Azzedine is in the same place every time
+      * you look, which a list that reorders itself whenever somebody types can
+      * never be. The unread badge is what draws the eye.
+      */
      ORDER BY lower(u.full_name)
   `);
   return result.rows;

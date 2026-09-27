@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { homeFor } from '@/lib/home';
 import { auth } from '@/auth';
 import { SignInForm } from './SignInForm';
 
@@ -10,7 +11,7 @@ export default async function SignInPage({
   searchParams: Promise<{ changed?: string }>;
 }) {
   const session = await auth();
-  if (session?.user) redirect('/clients');
+  if (session?.user) redirect(homeFor(session.user.role));
 
   const { changed } = await searchParams;
 

@@ -42,26 +42,25 @@ export function ChannelList({
   createAction,
   targets,
   dms,
-  people,
-  openDmAction,
 }: {
   initial: ChannelRow[];
   canCreate: boolean;
   createAction: (state: FormState, formData: FormData) => Promise<FormState>;
   targets: ReadonlyArray<{ id: string; name: string; kind: 'company' | 'project' }>;
   /**
-   * Private conversations, in their own section below the channels and never
-   * mixed into them. A DM posted into a client channel by mistake is the
-   * failure this separation exists to prevent.
+   * Everybody, in their own section below the channels and never mixed into
+   * them. A DM posted into a client channel by mistake is the failure this
+   * separation exists to prevent.
+   *
+   * Every colleague is here whether or not anything has been said, so a row may
+   * carry no thread id yet — the link goes through /chat/with/<person>, which
+   * opens the conversation on the way past.
    */
   dms: DmRow[];
-  people: ReadonlyArray<{ id: string; fullName: string }>;
-  openDmAction: (formData: FormData) => Promise<void>;
 }) {
   const [channels, setChannels] = useState(initial);
   const [conversations, setConversations] = useState(dms);
   const [opening, setOpening] = useState(false);
-  const [startingDm, setStartingDm] = useState(false);
   /** Whether announcements are arriving. Decides the fallback interval only. */
   const [streaming, setStreaming] = useState(false);
   const params = useParams<{ id?: string }>();
@@ -182,60 +181,40 @@ export function ChannelList({
           );
         })}
         {/*
-          Below the channels, never among them. The heading says "Direct" and
-          not "People", because this is a list of conversations that exist —
-          starting a new one is the button underneath.
+          Below the channels, never among them — and now everybody, not only the
+          conversations that exist.
+
+          The "+" button and its dropdown are gone. Choosing a name from a select
+          before you could type was most of the reason a private message never
+          got sent, for a team of eight who all know each other. A row per person
+          is the list; the thread is opened by clicking it.
         */}
         <div className="mt-2 border-t border-void/10 pt-3">
-          <div className="flex items-center justify-between gap-2 px-2.5 pb-1">
-            <p className="text-[11px] font-bold tracking-[0.1em] text-void/40 uppercase">
-              Direct
+          <p className="px-2.5 pb-1 text-[11px] font-bold tracking-[0.1em] text-void/40 uppercase">
+            Private
+          </p>
+
+          {shownDms.length === 0 && (
+            <p className="hint px-2.5 pb-2 text-[12.5px]">
+              Nobody else on the team yet.
             </p>
-            <button
-              type="button"
-              onClick={() => setStartingDm((o) => !o)}
-              aria-expanded={startingDm}
-              className="cursor-pointer rounded-md px-1.5 text-[18px] leading-none text-void/45 hover:bg-void/10 hover:text-void"
-              title="Start a conversation"
-            >
-              +
-            </button>
-          </div>
-
-          {startingDm && (
-            <form action={openDmAction} className="mb-2 px-2">
-              <select
-                name="withId"
-                required
-                defaultValue=""
-                className="input mt-0 py-1.5 text-[13.5px]"
-                aria-label="Who to message"
-              >
-                <option value="">Choose someone…</option>
-                {people.map((p) => (
-                  <option key={p.id} value={p.id}>{p.fullName}</option>
-                ))}
-              </select>
-              <button type="submit" className="btn btn-small mt-2 w-full">
-                Start
-              </button>
-              <p className="hint mt-1 text-[12px]">
-                Only the two of you can read it.
-              </p>
-            </form>
-          )}
-
-          {shownDms.length === 0 && !startingDm && (
-            <p className="hint px-2.5 pb-2 text-[12.5px]">No conversations yet.</p>
           )}
 
           {shownDms.map((d) => {
-            const active = d.id === openId;
+            const active = d.id !== null && d.id === openId;
             const unread = Number(d.unread) > 0 && !active;
+            /*
+             * Two destinations, one appearance. A conversation that exists is
+             * linked directly; one that does not goes through the route that
+             * opens it. The row must not look different for the second case —
+             * "you have never written to Adam" is not information worth a
+             * different style, and it is the state every row starts in.
+             */
+            const href = d.id ? `/chat/${d.id}` : `/chat/with/${d.other_id}`;
             return (
               <Link
-                key={d.id}
-                href={`/chat/${d.id}`}
+                key={d.other_id}
+                href={href}
                 aria-current={active ? 'page' : undefined}
                 className={`mb-0.5 flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[14px] ${
                   active

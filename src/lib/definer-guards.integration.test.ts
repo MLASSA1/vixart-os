@@ -80,6 +80,12 @@ const EXEMPT = new Set([
   // the other client would be told the address is free, and would create the
   // second account that makes signing in ambiguous.
   'client_account_one_per_address',
+  // Fired AFTER DELETE on thread and task, and deletes the notifications that
+  // pointed at the row that has just gone. A definer because `notification`
+  // accepts no DELETE from anybody — the table is written through functions by
+  // design. There is no caller to check and nothing to aim it at: its only
+  // input is OLD.id, which is the row the database itself just removed.
+  'forget_notifications_for',
 ]);
 
 describe.skipIf(!HAS_DB)('SECURITY DEFINER functions guard their callers', () => {

@@ -76,6 +76,9 @@ services:
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       MAIL_FROM: ${MAIL_FROM:-}
       PORTAL_URL: ${PORTAL_URL:-https://client.visionxart.cloud}
+      # Where a link in a notification email points. An email has no idea what
+      # host it was sent from, and a relative link in a mailbox is nothing.
+      APP_URL: ${APP_URL:-https://visionxart.cloud}
       UPLOADS_DIR: /app/uploads
     volumes:
       - uploads:/app/uploads
