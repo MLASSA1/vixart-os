@@ -175,6 +175,24 @@ const clientProvider = Credentials({
     await db.execute(sql`SELECT app.record_login_attempt(${email}, ${ip}, ${ok})`);
     if (!row || !ok) return null;
 
+    /*
+     * Record that they actually got in.
+     *
+     * This was never called, and the Client portal page consequently said
+     * "Signs in: never" about accounts that had signed in — so there was no way
+     * to tell a client who had never opened their invitation from one using the
+     * portal weekly, which is the one thing that page exists to show.
+     *
+     * It could not have been called before 0074. The old version read
+     * `app.current_client_contact()`, and sign-in is precisely the moment at
+     * which no session identity exists yet, so it returned without writing
+     * every time. It takes the contact now.
+     *
+     * After the password check, never before: stamping on the attempt would make
+     * a wrong password look like a sign-in.
+     */
+    await db.execute(sql`SELECT app.record_client_sign_in(${row.contact_id})`);
+
     return {
       id: row.contact_id,
       email: row.email,
@@ -278,7 +296,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
   callbacks: {
-    jwt({ token, user, trigger, session }) {
+    jwt({ token, user }) {
       const claims = token as unknown as VixartToken;
       if (user) {
         claims.id = user.id ?? '';
@@ -289,14 +307,26 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         claims.companyId = user.companyId;
         claims.companyName = user.companyName;
       }
-      // After a successful password change the flag clears without needing
-      // to sign in again.
-      if (trigger === 'update' && session && typeof session === 'object') {
-        const update = session as { mustChangePassword?: boolean };
-        if (typeof update.mustChangePassword === 'boolean') {
-          claims.mustChangePassword = update.mustChangePassword;
-        }
-      }
+      /*
+       * NO `trigger === 'update'` BRANCH. It was here and it is deliberately gone.
+       *
+       * It accepted `session.mustChangePassword` from the CALLER and copied the
+       * boolean straight into the token — so somebody signed in on an initial
+       * password could clear the gate that exists to stop them, by calling
+       * `update({ mustChangePassword: false })` from their own browser. No
+       * password change required. And the gate is not decorative: the seeded
+       * accounts shared one password that the whole team knew, and two people are
+       * still on it.
+       *
+       * It was written so the flag would clear without signing in again. That
+       * problem was solved differently and better: changing a password now signs
+       * you out, because the earlier version left the row saying done and the
+       * token saying otherwise, and the two disagreeing is how somebody ends up in
+       * a redirect loop. So nothing calls `update()` any more — the branch was
+       * unreferenced code whose only remaining effect was the hole.
+       *
+       * Security state comes from the database at sign-in, and from nowhere else.
+       */
       return token;
     },
     session({ session, token }) {

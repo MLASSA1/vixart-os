@@ -95,7 +95,8 @@ export default async function DocumentsPage() {
               <th className="th py-2 pr-4">Number</th>
               <th className="th py-2 pr-4">Client</th>
               <th className="th py-2 pr-4">Status</th>
-              <th className="th py-2 pr-4">Issued</th>
+              {/* The document date, which a draft has and has not been issued on. */}
+              <th className="th py-2 pr-4">Document date</th>
               <th className="th py-2 text-right">Total incl. VAT</th>
             </tr>
           </thead>

@@ -195,7 +195,20 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
           <Field label="Address" value={record.client_address ?? record.company_address} />
         </div>
         <div>
-          <Field label="Issued" value={record.issue_date ? formatDate(record.issue_date) : null} />
+          {/*
+            "Issued" on a draft is not true.
+            
+            `issue_date` is the DOCUMENT date — the one printed on the paper, set
+            when the draft is made. Issuance is a separate act that assigns the
+            number and freezes the totals, and a draft has not had it. Labelling
+            the planned date "Issued" let a draft read as a commitment already
+            sent to a client, which is the one thing the draft/issued separation
+            exists to prevent.
+          */}
+          <Field
+            label={isDraft ? 'Document date (not yet issued)' : 'Issued'}
+            value={record.issue_date ? formatDate(record.issue_date) : null}
+          />
           <Field label="Due" value={record.due_date ? formatDate(record.due_date) : null} />
           <Field label="VAT rate" value={`${record.vat_rate_bp / 100} %`} />
           {record.vat_exemption_reason && (

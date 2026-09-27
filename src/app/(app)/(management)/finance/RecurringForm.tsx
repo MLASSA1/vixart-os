@@ -146,9 +146,24 @@ export function RecurringForm({
       <div className="mt-5">
         <Submit />
       </div>
+      {/*
+        THIS SAID THE OPPOSITE OF WHAT HAPPENS, about money.
+        
+        "Posted automatically each night, and again whenever the stack restarts"
+        described behaviour that was deliberately removed: a charge posting itself
+        on its due day is a claim that money left the account, made by a calendar
+        rather than by a bank, so rent paid late or not at all still showed as
+        paid. `scripts/nightly.sh` says so in as many words — fixed charges are
+        not posted there any more.
+        
+        A false sentence about automatic posting is the expensive kind: somebody
+        reads it, does not tick the charge, and the books are short a month.
+      */}
       <p className="hint mt-3">
-        Posted automatically each night, and again whenever the stack restarts. A
-        period can only ever be posted once, so nothing is double-counted.
+        Nothing is posted automatically. This records what is <em>due</em> each
+        month; the money only enters the books when you tick that month as paid on
+        the Finance page, and the ledger line carries the date and amount that
+        actually moved. A month can only be ticked once.
       </p>
     </form>
   );

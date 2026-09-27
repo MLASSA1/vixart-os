@@ -132,8 +132,29 @@ services:
       AUTH_SECRET: ${PORTAL_AUTH_SECRET}
       AUTH_TRUST_HOST: "true"
       PORTAL_URL: ${PORTAL_URL:-https://client.visionxart.cloud}
+      # The SAME storage root as the application, on the SAME volume below.
+      UPLOADS_DIR: /app/uploads
     # Starts straight into the server: no migrations, no grants, no seed.
     entrypoint: ["node", "server.js"]
+    # THE UPLOADS VOLUME, and it was missing.
+    #
+    # The portal had no volume at all, so /app/uploads was the container's own
+    # writable layer — created by the Dockerfile, writable, and completely
+    # invisible from anywhere else. A client sending a photograph in their
+    # support conversation would have written it THERE: unreadable by the staff
+    # container serving the same attachment id, outside the file archive the
+    # backup takes, and destroyed by the next deploy, because deploy.sh
+    # force-recreates this container every time. The database row would have
+    # survived with nothing behind it.
+    #
+    # Found in a code audit rather than in use, and the timing was luck: client
+    # attachments shipped the same morning and nobody had sent one yet. Zero
+    # files were lost.
+    #
+    # One volume, both containers. An attachment id means the same bytes on
+    # whichever side asks.
+    volumes:
+      - uploads:/app/uploads
     ports:
       - "${PORTAL_PORT:-4200}:3000"
 

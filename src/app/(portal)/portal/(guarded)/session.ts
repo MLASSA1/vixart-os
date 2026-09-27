@@ -1,6 +1,7 @@
 import 'server-only';
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
+import { clientAccountIsLive } from '@/db/session';
 
 /**
  * The signed-in client, for a PAGE.
@@ -25,6 +26,25 @@ export async function requireClientPage() {
   const session = await auth();
 
   if (!session?.user || session.user.kind !== 'client' || !session.user.companyId) {
+    redirect('/portal/sign-in');
+  }
+
+  /*
+   * And the account as it stands NOW, not as it stood when the token was signed.
+   *
+   * A token lasts twelve hours and carries the company in it, so turning a
+   * client's account off — or archiving the company, which is a relationship
+   * that has ended — left them reading that company's work until it expired.
+   * 0073 closed the data off in `app.current_client_company()`, which is what
+   * every client policy is written in terms of.
+   *
+   * That alone produced a 500 on every page: `withClient` throws when the
+   * account is gone, which is correct for a server action and is Next's error
+   * screen for a visitor. The access decision was right and what the client saw
+   * was "something went wrong" — the same mistake, in the same file's history,
+   * as the one the comment above describes.
+   */
+  if (!(await clientAccountIsLive(session.user.id))) {
     redirect('/portal/sign-in');
   }
 

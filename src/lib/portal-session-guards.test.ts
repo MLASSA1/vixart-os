@@ -78,6 +78,32 @@ describe('portal pages redirect rather than throw', () => {
     expect(source).toContain('companyId');
   });
 
+  it('checks the account is still live, and redirects rather than erroring', () => {
+    /*
+     * The same mistake twice, in the same file.
+     *
+     * A token lasts twelve hours and carries the company in it, so turning a
+     * client's account off left them reading that company's work until it
+     * expired. Closing the data off (0073) was correct and produced a 500 on
+     * every portal page, because `withClient` throws — which is right for a
+     * server action and is Next's error screen for a person. Verified on a
+     * running portal: deactivate mid-session, get 500 on /portal.
+     *
+     * Redirecting is the truth about what happened. Checked here because the
+     * difference between the two is invisible until somebody is actually
+     * turned off.
+     */
+    const source = readFileSync(join(GUARDED, 'session.ts'), 'utf8');
+    expect(source, 'the guard does not re-check the account').toContain('clientAccountIsLive');
+
+    // One definition of "live", shared with the policies rather than copied.
+    const db = readFileSync(join(process.cwd(), 'src/db/session.ts'), 'utf8');
+    expect(db).toContain('export async function clientAccountIsLive');
+    expect(db).toContain('app.current_client_company() IS NOT NULL');
+    // A database that cannot answer must not be a way in.
+    expect(db).toMatch(/catch \{\s*\n[^}]*return false;/);
+  });
+
   it('the portal has an error screen of its own', () => {
     // Belt and braces for whatever throws next: the default is "Application
     // error: a client-side exception has occurred", which reads to a client as

@@ -89,10 +89,20 @@ export default async function InboxPage() {
         }
       />
 
+      {/*
+        This used to say "nothing here is sent anywhere — no email, no message,
+        no notification off this machine", which was true when it was written and
+        stopped being true the day the mailer shipped. A sentence telling people
+        they will NOT be emailed, on the page listing the things they are emailed
+        about, is worse than no sentence: it is the reason somebody stops checking
+        their mail for work.
+      */}
       <p className="prose-vixart" style={{ opacity: 0.7 }}>
         Work handed to you, your name in a conversation, your own work past its
-        date, and anything waiting on your sign-off. Nothing here is sent
-        anywhere — no email, no message, no notification off this machine.
+        date, and anything waiting on your sign-off. Three of these also reach
+        you by email — a task assigned to you, a message from a colleague, and a
+        client writing in — so you do not have to be looking at this page.
+        Everything else waits here.
       </p>
 
       <Section title={unread.length > 0 ? `Unread — ${unread.length}` : 'Nothing unread'}>
