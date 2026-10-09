@@ -68,6 +68,69 @@ describe('the attention query scopes every branch', () => {
     ).toEqual([]);
   });
 
+  it('shows every branch it bothers to compute', () => {
+    /*
+     * A kind counted in the query and never pushed is invisible — the work is
+     * done on every page load and nobody ever sees the answer. It is the same
+     * failure as the inbox having no label for `task_blocked`: nothing breaks,
+     * nothing is reported, and a thing somebody asked for simply is not there.
+     *
+     * Checked in both directions, because the other way round is worse: a
+     * `push()` for a kind the query no longer produces silently never fires, so
+     * a queue that used to work quietly stops.
+     */
+    const computed = [...query.matchAll(/SELECT\s+'([a-z_]+)'/g)].map((m) => m[1]!);
+    const shown = [...SOURCE.matchAll(/push\('([a-z_]+)'/g)].map((m) => m[1]!);
+
+    const neverShown = computed.filter((k) => !shown.includes(k));
+    expect(
+      neverShown,
+      `\nThese are counted on every page load and never displayed:\n  ${neverShown.join(', ')}\n`,
+    ).toEqual([]);
+
+    const neverComputed = shown.filter((k) => !computed.includes(k));
+    expect(
+      neverComputed,
+      `\nThese are pushed but the query no longer produces them, so they never fire:\n` +
+        `  ${neverComputed.join(', ')}\n`,
+    ).toEqual([]);
+  });
+
+  it('includes the delivery queue, which it had none of', () => {
+    /*
+     * The page knew about invoices, retainers, quiet clients and unpriced
+     * services — and nothing about the work. So the dashboard would report an
+     * overdue task, /projects an active project a fortnight late, and this page
+     * listed aged drafts and account setup. Management could sit on it,
+     * trusting it, while delivery slipped.
+     */
+    const computed = [...query.matchAll(/SELECT\s+'([a-z_]+)'/g)].map((m) => m[1]!);
+    for (const kind of [
+      'team_overdue',
+      'overdue_projects',
+      'blocked_tasks',
+      'unassigned_tasks',
+      'projects_no_lead',
+    ]) {
+      expect(computed, `the ${kind} queue is gone`).toContain(kind);
+    }
+  });
+
+  it('sends each queue to a page the reader can open', () => {
+    // Every delivery item is management's, and /tasks and /projects are both
+    // reachable by a moderator. A link to a page that redirects reads as the
+    // application being broken.
+    const pushes = [...SOURCE.matchAll(/push\('([a-z_]+)'[\s\S]*?'(\/[a-z-]+)'\);/g)]
+      .map((m) => ({ kind: m[1]!, href: m[2]! }));
+    const delivery = pushes.filter((p) =>
+      ['team_overdue', 'overdue_projects', 'blocked_tasks', 'unassigned_tasks', 'projects_no_lead']
+        .includes(p.kind));
+    expect(delivery.length).toBe(5);
+    for (const p of delivery) {
+      expect(['/tasks', '/projects'], `${p.kind} links to ${p.href}`).toContain(p.href);
+    }
+  });
+
   it('keeps the detail column honest about which branches carry a name', () => {
     // Any branch selecting a company name must be management's. This is the
     // narrower version of the rule above, aimed at the specific leak.

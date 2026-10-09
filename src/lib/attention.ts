@@ -75,6 +75,84 @@ export async function getAttention(): Promise<AttentionItem[]> {
        WHERE ${canSignOff} AND t.status = 'submitted'
       HAVING count(*) > 0
 
+      /*
+       * ---- THE DELIVERY QUEUE ---------------------------------------------
+       *
+       * This page knew about invoices, retainers, quiet clients, unpriced
+       * services and the reader's own tasks — and nothing whatsoever about the
+       * work itself. So the dashboard would say one task was overdue, /tasks
+       * would show an urgent one past its date and /projects an active project
+       * a fortnight late, and "Needs attention" listed aged drafts and account
+       * setup. Management could sit on this page, trusting it, while delivery
+       * slipped.
+       *
+       * Everything below is management's: a member already sees their own work
+       * in the four arms above, and the whole point of these is the view ACROSS
+       * people that nobody else has.
+       */
+      UNION ALL
+      -- Somebody else's work, past its date. Named by WHO, because that is the
+      -- next action: a count of overdue tasks is a worry, a person is a
+      -- conversation.
+      SELECT 'team_overdue', count(*)::text,
+             min(t.due_date)::text, min(u.full_name)
+        FROM task t
+        JOIN app_user u ON u.id = t.assignee_id
+       WHERE ${isModerator}
+         AND t.status <> 'completed'
+         AND t.due_date IS NOT NULL AND t.due_date < current_date
+         -- Theirs, not mine: my_overdue has already said so, and saying it
+         -- twice in different words on one page is how a page stops being read.
+         AND t.assignee_id <> ${user.id}
+      HAVING count(*) > 0
+
+      UNION ALL
+      /*
+       * Work that belongs to nobody.
+       *
+       * Aged deliberately — min(created_at) rather than a count alone. A task
+       * raised this morning with no assignee is a normal five minutes of life;
+       * one raised three weeks ago is a decision nobody has made, and the two
+       * must not read the same.
+       */
+      SELECT 'unassigned_tasks', count(*)::text,
+             min(t.created_at)::date::text, min(t.title)
+        FROM task t
+       WHERE ${isModerator}
+         AND t.status <> 'completed'
+         AND t.assignee_id IS NULL
+      HAVING count(*) > 0
+
+      UNION ALL
+      -- Somebody has stopped and said why. Until a moderator reads it, the
+      -- person who raised the flag is the only one who knows.
+      SELECT 'blocked_tasks', count(*)::text, NULL, min(t.title)
+        FROM task t
+       WHERE ${isModerator} AND t.status = 'blocked'
+      HAVING count(*) > 0
+
+      UNION ALL
+      -- A project past its date. Not archived and not delivered, so this is work
+      -- that is genuinely still owed to a client.
+      SELECT 'overdue_projects', count(*)::text,
+             min(p.due_date)::text, min(p.name)
+        FROM project p
+       WHERE ${isModerator}
+         AND p.archived_at IS NULL
+         AND p.status NOT IN ('delivered')
+         AND p.due_date IS NOT NULL AND p.due_date < current_date
+      HAVING count(*) > 0
+
+      UNION ALL
+      -- Live work nobody is accountable for.
+      SELECT 'projects_no_lead', count(*)::text, NULL, min(p.name)
+        FROM project p
+       WHERE ${isModerator}
+         AND p.archived_at IS NULL
+         AND p.lead_id IS NULL
+         AND p.status IN ('active', 'planned')
+      HAVING count(*) > 0
+
       UNION ALL
       -- Issued, past due, unpaid.
       SELECT 'overdue_invoices', count(*)::text,
@@ -230,6 +308,52 @@ export async function getAttention(): Promise<AttentionItem[]> {
       (n) => `${n} of your ${plural(n, 'task is', 'tasks are')} waiting to be signed off`,
       () => 'Nothing for you to do — Mohamed Amine or Amin has to confirm it.',
       '/my-work');
+
+    /*
+     * The delivery queue, above the money.
+     *
+     * Deliberate: an invoice can be chased tomorrow, and work that is late or
+     * belongs to nobody gets worse every day it is not looked at.
+     */
+    push('team_overdue', 'now',
+      (n) => `${n} ${plural(n, 'task is', 'tasks are')} overdue across the team`,
+      (n, row) =>
+        row?.ref
+          ? `${row.ref}${n > 1 ? ' among them' : ''}${row.detail ? `, oldest due ${row.detail}` : ''}.`
+          : 'Assigned, past the due date, not finished.',
+      '/tasks');
+
+    push('overdue_projects', 'now',
+      (n) => `${n} ${plural(n, 'project is', 'projects are')} past the delivery date`,
+      (n, row) =>
+        row?.ref
+          ? `${row.ref}${n > 1 ? ' among them' : ''}${row.detail ? `, due ${row.detail}` : ''}.`
+          : 'Still active and past its date.',
+      '/projects');
+
+    push('blocked_tasks', 'now',
+      (n) => `${n} ${plural(n, 'task is', 'tasks are')} blocked`,
+      (n, row) =>
+        row?.ref
+          ? `Somebody has stopped and said why — ${row.ref}${n > 1 ? ' among them' : ''}.`
+          : 'Somebody has stopped and said why.',
+      '/tasks');
+
+    push('unassigned_tasks', 'soon',
+      (n) => `${n} ${plural(n, 'task belongs', 'tasks belong')} to nobody`,
+      (n, row) =>
+        row?.detail
+          ? `Nothing will happen until somebody is named. Oldest raised ${row.detail}.`
+          : 'Nothing will happen until somebody is named.',
+      '/tasks');
+
+    push('projects_no_lead', 'soon',
+      (n) => `${n} live ${plural(n, 'project has', 'projects have')} no lead`,
+      (n, row) =>
+        row?.ref
+          ? `Nobody is accountable for it — ${row.ref}${n > 1 ? ' among them' : ''}.`
+          : 'Nobody is accountable for it.',
+      '/projects');
 
     push('overdue_invoices', 'now',
       (n) => `${n} ${plural(n, 'invoice is', 'invoices are')} overdue`,
