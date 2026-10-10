@@ -73,46 +73,65 @@ export default async function TasksPage() {
     return { rows: result.rows as TaskItem[], team: people.rows, projects: open.rows };
   });
 
-  const mine = rows.filter(
-    (t) => t.assignee_id === me.id && t.status !== 'completed' && t.status !== 'submitted',
-  );
-  const raised = rows.filter(
-    (t) => t.created_by_id === me.id && t.assignee_id !== me.id && t.status !== 'completed',
-  );
-  const blocked = rows.filter((t) => t.status === 'blocked');
-  const waiting = rows.filter((t) => t.status === 'submitted');
-  /* Work with no client engagement behind it. */
-  const internal = rows.filter((t) => !t.project_id && t.status !== 'completed');
-  const history = rows.filter((t) => t.status === 'completed');
+  /*
+   * EVERY TASK APPEARS EXACTLY ONCE.
+   *
+   * This is the reorganisation, and the reason it was needed is arithmetic.
+   * There are 130 open tasks, 126 of them with no project, and Amin raised 127
+   * — so the old sections "Raised by me", "Internal" and "The team's work" were
+   * each showing him the SAME 126 tasks, every one truncated at 25 with "101
+   * more not shown". Three near-identical lists, none of them complete, and the
+   * same task met three times on the way down the page. That is what "so messy"
+   * was.
+   *
+   * The sections below partition the work: a task is either finished, or
+   * nobody's, or yours, or one particular person's. No task is in two of them,
+   * so the page is as long as the work is and no longer.
+   *
+   * "Internal" is gone as a section. With 126 of 130 tasks having no project it
+   * is not a category, it is the norm — and a section for the norm is a second
+   * copy of the page. The project is shown on the row when there is one.
+   */
+  const open = rows.filter((t) => t.status !== 'completed');
+  const done = rows.filter((t) => t.status === 'completed');
+
+  const mine = open.filter((t) => t.assignee_id === me.id);
+  const unowned = open.filter((t) => t.assignee_id === null);
 
   /*
-   * Everybody else's open work — management only.
+   * Somebody else's open work.
    *
-   * This page had no section for it, because it was built when the whole team
-   * shared one board: `mine`, `raised`, blocked, submitted, internal, history.
-   * A task assigned to Aya and raised by Adam appeared in NONE of Amin's
-   * sections, so the one person who is supposed to see the board could not.
-   * Found by opening the page as all three people rather than by reading it.
+   * For a MEMBER this is exactly what they asked a colleague for — 0075 lets
+   * them see their own work and what they raised, so anything here assigned to
+   * another person is by definition a request of theirs. No filter on
+   * `created_by_id` is needed and none is written: the policy already said it.
    *
-   * It matters more now that 0075 scopes a member to their own work: for six of
-   * the eight people here the personal sections are the whole truth, and for the
-   * two who manage, this is the rest of it.
+   * For MANAGEMENT it is the board, and it is grouped by person below rather
+   * than piled into one list of 128.
    */
-  const teams = canModerate
-    ? rows.filter(
-        (t) =>
-          t.assignee_id !== null &&
-          t.assignee_id !== me.id &&
-          t.created_by_id !== me.id &&
-          t.status !== 'completed' &&
-          t.status !== 'submitted' &&
-          t.status !== 'blocked',
-      )
-    : [];
-  /* Open work nobody is doing. Named separately because it is nobody's until
-     somebody is. */
-  const nobodys = canModerate
-    ? rows.filter((t) => t.assignee_id === null && t.status !== 'completed')
+  const others = open.filter((t) => t.assignee_id !== null && t.assignee_id !== me.id);
+
+  /*
+   * One block per person, busiest first.
+   *
+   * By person because that is the question a manager has in front of 130 tasks
+   * — not "what is outstanding" but "who is carrying what". Busiest first
+   * because the answer is usually at that end: Adam has 46 and Mohamed Amine
+   * has 2, and a page that opened alphabetically would bury that.
+   */
+  const today = new Date().toISOString().slice(0, 10);
+  const byPerson = canModerate
+    ? [...new Map(others.map((t) => [t.assignee_id!, t.assignee_name ?? 'Unknown'])).entries()]
+        .map(([id, name]) => {
+          const theirs = others.filter((t) => t.assignee_id === id);
+          return {
+            id,
+            name,
+            tasks: theirs,
+            overdue: theirs.filter((t) => t.due_date !== null && t.due_date < today).length,
+          };
+        })
+        .sort((a, b) => b.tasks.length - a.tasks.length || a.name.localeCompare(b.name))
     : [];
 
   return (
@@ -120,161 +139,156 @@ export default async function TasksPage() {
       <PageHeader eyebrow="Work" title="Tasks" />
 
       <p className="prose-vixart" style={{ opacity: 0.7 }}>
-        Anyone can raise a task — for themselves, or for someone else. A task
-        does not need a project: internal work belongs here too. Whoever it is
-        assigned to moves it along and says when it is finished; Amin and Mohamed
-        Amine are told when that happens. You see your own work and anything you
-        have asked somebody else for.
+        {canModerate
+          ? 'Everybody\u2019s work, grouped by who is carrying it. Whoever a task is assigned to moves it along and says when it is finished — you and Mohamed Amine are told when that happens.'
+          : 'Your work, and anything you have asked somebody else for. You move your own tasks along and say when they are finished; Amin and Mohamed Amine are told.'}
       </p>
 
+      {/*
+        The form, closed.
+        
+        It was an open section at the top, so the page began with a form and the
+        work started below the fold. Raising a task is the occasional act; the
+        reason to open this page is to look at what is already here.
+      */}
       <Section title="Raise a task">
-        <TaskForm
-          action={createTaskAction.bind(null, null)}
-          team={team}
-          meId={me.id}
-          projects={projects}
-        />
+        <details>
+          <summary className="cursor-pointer text-[14px] font-medium select-none">
+            New task
+          </summary>
+          <div className="mt-4">
+            <TaskForm
+              action={createTaskAction.bind(null, null)}
+              team={team}
+              meId={me.id}
+              projects={projects}
+            />
+          </div>
+        </details>
       </Section>
 
-      <Section title={`Assigned to me — ${mine.length}`}>
-        {mine.length === 0 ? (
-          <Empty message="Nothing assigned to you." />
-        ) : (
-          <ul className="border-t border-void/10">
-            {capped(mine).shown.map((t) => (
-              <TaskRow key={t.id} task={t} isMine canModerate={canModerate} showProject />
-            ))}
-          </ul>
-        )}
-        {capped(mine).hidden > 0 && (
-          <p className="hint mt-3">{capped(mine).hidden} more not shown.</p>
-        )}
-      </Section>
-
-      {raised.length > 0 && (
-        <Section title={`Raised by me — ${raised.length}`}>
+      {/* ---- nobody's, and therefore first ------------------------------- */}
+      {unowned.length > 0 && (
+        <Section title={`Nobody is doing these — ${unowned.length}`}>
           <p className="hint mb-3">
-            Work you asked somebody else for. You are told here when one of them
-            says it is blocked.
+            Raised and never given to anybody. Nothing happens until somebody is
+            named.
           </p>
           <ul className="border-t border-void/10">
-            {capped(raised).shown.map((t) => (
+            {capped(unowned).shown.map((t) => (
               <TaskRow key={t.id} task={t} canModerate={canModerate} showProject />
             ))}
           </ul>
-          {capped(raised).hidden > 0 && (
-            <p className="hint mt-3">{capped(raised).hidden} more not shown.</p>
+          {capped(unowned).hidden > 0 && (
+            <p className="hint mt-3">{capped(unowned).hidden} more not shown.</p>
           )}
         </Section>
       )}
 
-      {blocked.length > 0 && (
-        <Section title={`Blocked — ${blocked.length}`}>
+      {/* ---- yours ------------------------------------------------------- */}
+      <Section title={`Your work — ${mine.length}`}>
+        {mine.length === 0 ? (
+          <Empty message="Nothing assigned to you." />
+        ) : (
+          <>
+            <ul className="border-t border-void/10">
+              {capped(mine).shown.map((t) => (
+                <TaskRow key={t.id} task={t} isMine canModerate={canModerate} showProject />
+              ))}
+            </ul>
+            {capped(mine).hidden > 0 && (
+              <p className="hint mt-3">{capped(mine).hidden} more not shown.</p>
+            )}
+          </>
+        )}
+      </Section>
+
+      {/* ---- what a member asked somebody else for ----------------------- */}
+      {!canModerate && others.length > 0 && (
+        <Section title={`You asked for — ${others.length}`}>
+          <p className="hint mb-3">
+            Work you raised for somebody else. You cannot move it — they do — and
+            you are told when it is finished.
+          </p>
           <ul className="border-t border-void/10">
-            {capped(blocked).shown.map((t) => (
-              <li key={t.id}>
+            {capped(others).shown.map((t) => (
+              <TaskRow key={t.id} task={t} canModerate={canModerate} showProject />
+            ))}
+          </ul>
+          {capped(others).hidden > 0 && (
+            <p className="hint mt-3">{capped(others).hidden} more not shown.</p>
+          )}
+        </Section>
+      )}
+
+      {/* ---- the board, by person ---------------------------------------- */}
+      {byPerson.length > 0 && (
+        <Section title={`The team\u2019s work — ${others.length}`}>
+          <p className="hint mb-4">
+            One block each, busiest first. Collapse anybody you are not looking
+            at. Only you and Mohamed Amine see this.
+          </p>
+          <div className="grid gap-2">
+            {byPerson.map((person) => (
+              <details key={person.id} open className="border-t border-void/10 pt-2">
+                <summary className="flex cursor-pointer flex-wrap items-baseline gap-x-3 py-1 select-none">
+                  <span className="font-semibold">{person.name}</span>
+                  <span className="hint">
+                    {person.tasks.length} open
+                    {person.overdue > 0 && (
+                      <span className="tone-danger ml-2 rounded-[6px] px-1.5 py-0.5 font-semibold">
+                        {person.overdue} overdue
+                      </span>
+                    )}
+                  </span>
+                </summary>
+                <ul className="mt-1 border-t border-void/10">
+                  {capped(person.tasks).shown.map((t) => (
+                    <TaskRow
+                      key={t.id}
+                      task={t}
+                      canModerate={canModerate}
+                      showProject
+                    />
+                  ))}
+                </ul>
+                {capped(person.tasks).hidden > 0 && (
+                  <p className="hint mt-2 mb-3">
+                    {capped(person.tasks).hidden} more not shown.
+                  </p>
+                )}
+              </details>
+            ))}
+          </div>
+        </Section>
+      )}
+
+      {/* ---- finished, closed, at the bottom ----------------------------- */}
+      {done.length > 0 && (
+        <Section title={`Finished — ${done.length}`}>
+          <details>
+            <summary className="cursor-pointer text-[14px] font-medium select-none">
+              Show finished work
+            </summary>
+            <p className="hint mt-3 mb-3">
+              All of it, not the last thirty days — Amin asked for every completed
+              task to be reachable.
+            </p>
+            <ul className="border-t border-void/10">
+              {capped(done).shown.map((t) => (
                 <TaskRow
+                  key={t.id}
                   task={t}
                   isMine={t.assignee_id === me.id}
                   canModerate={canModerate}
                   showProject
                 />
-                {t.blocked_reason && (
-                  <p className="tone-warn mb-2 ml-1 inline-block rounded-[8px] px-2.5 py-1 text-[13px]">
-                    {t.blocked_reason}
-                  </p>
-                )}
-              </li>
-            ))}
-          </ul>
-          {capped(blocked).hidden > 0 && (
-            <p className="hint mt-3">{capped(blocked).hidden} more not shown.</p>
-          )}
-        </Section>
-      )}
-
-      {internal.length > 0 && (
-        <Section title={`Internal — ${internal.length}`}>
-          <p className="hint mb-3">
-            Work that belongs to the agency rather than to a client project.
-          </p>
-          <ul className="border-t border-void/10">
-            {capped(internal).shown.map((t) => (
-              <TaskRow
-                key={t.id}
-                task={t}
-                isMine={t.assignee_id === me.id}
-                canModerate={canModerate}
-              />
-            ))}
-          </ul>
-          {capped(internal).hidden > 0 && (
-            <p className="hint mt-3">{capped(internal).hidden} more not shown.</p>
-          )}
-        </Section>
-      )}
-
-      {nobodys.length > 0 && (
-        <Section title={`Nobody is doing these — ${nobodys.length}`}>
-          <p className="hint mb-3">
-            Raised, and never given to anybody. Nothing will happen until somebody
-            is named.
-          </p>
-          <ul className="border-t border-void/10">
-            {capped(nobodys).shown.map((t) => (
-              <TaskRow key={t.id} task={t} canModerate={canModerate} showProject />
-            ))}
-          </ul>
-          {capped(nobodys).hidden > 0 && (
-            <p className="hint mt-3">{capped(nobodys).hidden} more not shown.</p>
-          )}
-        </Section>
-      )}
-
-      {teams.length > 0 && (
-        <Section title={`The team's work — ${teams.length}`}>
-          <p className="hint mb-3">
-            Everybody else's open tasks. Only you and Mohamed Amine see this —
-            everyone else sees their own work and what they have asked for.
-          </p>
-          <ul className="border-t border-void/10">
-            {capped(teams).shown.map((t) => (
-              <TaskRow key={t.id} task={t} canModerate={canModerate} showProject />
-            ))}
-          </ul>
-          {capped(teams).hidden > 0 && (
-            <p className="hint mt-3">{capped(teams).hidden} more not shown.</p>
-          )}
-        </Section>
-      )}
-
-      {canModerate && waiting.length > 0 && (
-        <Section title={`Awaiting sign-off — ${waiting.length}`}>
-          <p className="hint mb-3">
-            Submitted under the old rule, before the three buttons. Nothing enters this state any more — move them along and the section goes.
-          </p>
-          <ul className="border-t border-void/10">
-            {capped(waiting).shown.map((t) => (
-              <TaskRow key={t.id} task={t} canModerate={canModerate} showProject />
-            ))}
-          </ul>
-          {capped(waiting).hidden > 0 && (
-            <p className="hint mt-3">{capped(waiting).hidden} more not shown.</p>
-          )}
-        </Section>
-      )}
-
-      {history.length > 0 && (
-        <Section title={`Completed — ${history.length}`}>
-          <p className="hint mb-3">
-            Signed off in the last thirty days. Kept as the record of what was
-            actually delivered.
-          </p>
-          <ul className="border-t border-void/10">
-            {capped(history).shown.map((t) => (
-              <TaskRow key={t.id} task={t} canModerate={canModerate} showProject />
-            ))}
-          </ul>
+              ))}
+            </ul>
+            {capped(done).hidden > 0 && (
+              <p className="hint mt-3">{capped(done).hidden} more not shown.</p>
+            )}
+          </details>
         </Section>
       )}
     </>
