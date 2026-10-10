@@ -213,8 +213,8 @@ describe.skipIf(!HAS_DB)('a whole engagement, end to end', () => {
     ).rejects.toThrow(/cannot be modified/i);
   });
 
-  // -- 7. the work: a task is signed off by two different people -----------
-  it('needs a member to submit and a moderator to complete', async () => {
+  // -- 7. the work: the person who did it says it is done -------------------
+  it('lets the assignee finish their own work, and records who did', async () => {
     const p = await db.query<{ id: string }>(
       `INSERT INTO project (name, company_id, status, project_type)
        VALUES ($1,$2,'active','branding') RETURNING id`, [MARK, companyId]);
@@ -228,22 +228,28 @@ describe.skipIf(!HAS_DB)('a whole engagement, end to end', () => {
       taskId = t.rows[0]!.id;
     });
 
-    // The member may submit, but never complete.
+    /*
+     * THIS STEP USED TO BE TWO PEOPLE, and the change is Amin's.
+     *
+     * It read "needs a member to submit and a moderator to complete" and
+     * asserted the refusal. 0075 removed the submit step — three buttons:
+     * accepted, in progress, completed — and replaced the moderator's
+     * permission with a notification to whoever raised the task and to
+     * management.
+     *
+     * So the member finishes it, and what this now checks is the thing that did
+     * not change: the row records who and when.
+     */
     await as(memberId, 'member', async () => {
-      await db.query(`UPDATE task SET status='submitted' WHERE id=$1`, [taskId]);
-      await expect(
-        db.query(`UPDATE task SET status='completed' WHERE id=$1`, [taskId]),
-      ).rejects.toThrow(/moderator/i);
-    });
-
-    // The moderator signs it off, and the row records who.
-    await as(moderatorId, 'moderator', async () => {
+      await db.query(`UPDATE task SET status='in_progress' WHERE id=$1`, [taskId]);
       await db.query(`UPDATE task SET status='completed' WHERE id=$1`, [taskId]);
     });
     const done = await db.query<{ status: string; by: string | null; at: string | null }>(
       `SELECT status, completed_by_id AS by, completed_at::text AS at FROM task WHERE id=$1`, [taskId]);
     expect(done.rows[0]!.status).toBe('completed');
-    expect(done.rows[0]!.by).toBe(moderatorId);
+    // The assignee's own id, not a moderator's: the permission moved and the
+    // record followed it to the person who actually did the work.
+    expect(done.rows[0]!.by).toBe(memberId);
     expect(done.rows[0]!.at).not.toBeNull();
   });
 

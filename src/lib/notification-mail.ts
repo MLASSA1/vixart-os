@@ -40,6 +40,18 @@ import { sendMail, mailerConfigured } from './mailer';
  */
 export const EMAILABLE_KINDS = [
   'task_assigned',
+  /*
+   * The notification that replaced the sign-off gate (0075).
+   *
+   * A member marks their own work finished now, and Amin asked to be told. It
+   * has to be email and not only an inbox row for the same reason as an
+   * assignment: the person who needs to know is somewhere else.
+   *
+   * Deduplicated in the database — `notification_one_per_state` covers
+   * task_completed — so a task completed, reopened and completed again is one
+   * email rather than three.
+   */
+  'task_completed',
   'message_received',
   'client_message',
 ] as const;
@@ -110,6 +122,10 @@ export function composeNotificationMail(n: {
       opening = n.actor_name
         ? `${n.actor_name} has assigned you a task.`
         : 'You have been assigned a task.';
+      break;
+    case 'task_completed':
+      subject = `Finished: ${n.title}`;
+      opening = n.body ?? 'A task has been marked finished.';
       break;
     case 'message_received':
       subject = `${n.title} sent you a message`;

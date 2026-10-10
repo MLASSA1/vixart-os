@@ -27,6 +27,7 @@ const KIND_LABEL: Record<string, string> = {
   task_overdue: 'Overdue',
   task_awaiting_signoff: 'Waiting on your sign-off',
   task_blocked: 'Blocked',
+  task_completed: 'Finished',
   message_received: 'Message',
   client_message: 'From a client',
 };
@@ -37,6 +38,8 @@ const KIND_TONE: Record<string, string> = {
   task_overdue: 'tone-danger',
   task_awaiting_signoff: 'tone-warn',
   task_blocked: 'tone-danger',
+  // Good news, and the only good news on this page. Not a warning tone.
+  task_completed: 'tone-accent',
   message_received: 'tone-accent',
   // A client waiting for an answer is the one thing here with somebody outside
   // the company at the other end of it.

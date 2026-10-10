@@ -526,6 +526,13 @@
       "when": 1790525108054,
       "tag": "0074_dates_a_calendar_can_hold",
       "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "7",
+      "when": 1791656096770,
+      "tag": "0075_your_own_work_and_you_sign_it_off",
+      "breakpoints": true
     }
   ]
 }

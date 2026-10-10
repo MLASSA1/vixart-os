@@ -111,44 +111,17 @@ export async function setTaskStatusAction(formData: FormData): Promise<void> {
   revalidatePath('/');
 }
 
-/**
- * Say a task is stuck, and on what.
+/*
+ * `blockTaskAction` was here and is gone with the button.
  *
- * Separate from setTaskStatusAction because this one can fail in a way worth
- * showing: the database refuses `blocked` without a reason, and a silent
- * no-op would leave somebody believing they had raised a flag.
+ * Amin's three buttons are accepted, in progress and completed, and blocking
+ * carried a written reason so it never was one of them. An exported server
+ * action is a live endpoint whether or not anything calls it, and a mutation
+ * nothing can reach is worth removing rather than leaving for somebody to find.
  *
- * Who may do it is not decided here. `app.enforce_task_signoff` allows only
- * the assignee to move their own task, and that is the check that counts.
+ * `blocked` is still a valid status and the attention queue that counts it
+ * stays, so putting this back is one revert.
  */
-export async function blockTaskAction(
-  _previous: FormState,
-  formData: FormData,
-): Promise<FormState> {
-  const id = String(formData.get('taskId') ?? '');
-  const reason = String(formData.get('blockedReason') ?? '').trim();
-  if (!id) return { error: 'Which task?' };
-  if (reason.length < 3) {
-    return { error: 'Say what it is waiting on — one line is enough.' };
-  }
-
-  try {
-    await withUser(async (tx) => {
-      await tx
-        .update(task)
-        .set({ status: 'blocked', blockedReason: reason })
-        .where(eq(task.id, id));
-    });
-  } catch (error) {
-    return { error: describeDbError(error, WORK_ERRORS) };
-  }
-
-  revalidatePath('/my-work');
-  revalidatePath('/projects');
-  revalidatePath('/');
-  return EMPTY_STATE;
-}
-
 export async function deleteTaskAction(formData: FormData): Promise<void> {
   const id = String(formData.get('taskId') ?? '');
   const projectId = String(formData.get('projectId') ?? '');

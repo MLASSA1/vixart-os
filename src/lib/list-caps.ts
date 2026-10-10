@@ -29,8 +29,21 @@ export const SECTION_CAP = 25;
 /** The most rows a work list will ask the database for. */
 export const QUERY_CAP = 300;
 
-/** Completed work older than this is history, not a working list. */
-export const DONE_WINDOW = '30 days';
+/*
+ * THERE IS NO LONGER A WINDOW ON COMPLETED WORK.
+ *
+ * `DONE_WINDOW = '30 days'` was here, and the reasoning was that the completed
+ * pile grows for ever and none of it is actionable. Amin asked for the opposite
+ * — "completed tasks need to be shown, all of them" — and he is right about
+ * what it is for: a month is long enough to lose the thing you wanted to look
+ * up, and a list that quietly stops at thirty days does not tell you it has.
+ *
+ * What keeps the page honest instead is the pair above. Both work lists sort
+ * open work first and completed last, so `QUERY_CAP` bites the finished tail
+ * before it ever touches anything live, and `capped()` says how many were held
+ * back rather than silently dropping them. All of it is reachable; the page
+ * stays a page.
+ */
 
 /** The first `SECTION_CAP` items, and how many were held back. */
 export function capped<T>(items: readonly T[]): { shown: T[]; hidden: number } {

@@ -3,7 +3,7 @@ import { auth } from '@/auth';
 import { Empty, PageHeader, Section } from '@/components/ui';
 import { TaskRow, type TaskItem } from '@/components/TaskRow';
 import { withUser } from '@/db/session';
-import { capped, DONE_WINDOW, QUERY_CAP } from '@/lib/list-caps';
+import { capped, QUERY_CAP } from '@/lib/list-caps';
 import { createTaskAction } from './actions';
 import { TaskForm } from './TaskForm';
 
@@ -44,11 +44,10 @@ export default async function TasksPage() {
         LEFT JOIN app_user a ON a.id = t.assignee_id
         LEFT JOIN app_user r ON r.id = t.created_by_id
         LEFT JOIN app_user s ON s.id = t.completed_by_id
-       -- Open work in full, and only the tail of what is finished. The
-       -- completed pile grows for ever and none of it is actionable; without
-       -- this the page carried every task the agency has ever signed off.
-       WHERE t.status <> 'completed'
-          OR t.completed_at > now() - ${DONE_WINDOW}::interval
+       -- No WHERE on status: all of it, finished included, because Amin asked
+       -- for every completed task to be reachable. The ORDER BY below puts
+       -- finished work last, so the LIMIT trims that tail first and never
+       -- crowds out anything still live.
        ORDER BY CASE t.status WHEN 'blocked' THEN 0 WHEN 'in_progress' THEN 1
                               WHEN 'accepted' THEN 2 WHEN 'todo' THEN 3
                               WHEN 'submitted' THEN 4 ELSE 5 END,
@@ -86,6 +85,36 @@ export default async function TasksPage() {
   const internal = rows.filter((t) => !t.project_id && t.status !== 'completed');
   const history = rows.filter((t) => t.status === 'completed');
 
+  /*
+   * Everybody else's open work — management only.
+   *
+   * This page had no section for it, because it was built when the whole team
+   * shared one board: `mine`, `raised`, blocked, submitted, internal, history.
+   * A task assigned to Aya and raised by Adam appeared in NONE of Amin's
+   * sections, so the one person who is supposed to see the board could not.
+   * Found by opening the page as all three people rather than by reading it.
+   *
+   * It matters more now that 0075 scopes a member to their own work: for six of
+   * the eight people here the personal sections are the whole truth, and for the
+   * two who manage, this is the rest of it.
+   */
+  const teams = canModerate
+    ? rows.filter(
+        (t) =>
+          t.assignee_id !== null &&
+          t.assignee_id !== me.id &&
+          t.created_by_id !== me.id &&
+          t.status !== 'completed' &&
+          t.status !== 'submitted' &&
+          t.status !== 'blocked',
+      )
+    : [];
+  /* Open work nobody is doing. Named separately because it is nobody's until
+     somebody is. */
+  const nobodys = canModerate
+    ? rows.filter((t) => t.assignee_id === null && t.status !== 'completed')
+    : [];
+
   return (
     <>
       <PageHeader eyebrow="Work" title="Tasks" />
@@ -93,7 +122,9 @@ export default async function TasksPage() {
       <p className="prose-vixart" style={{ opacity: 0.7 }}>
         Anyone can raise a task — for themselves, or for someone else. A task
         does not need a project: internal work belongs here too. Whoever it is
-        assigned to says where it stands; a moderator signs it off.
+        assigned to moves it along and says when it is finished; Amin and Mohamed
+        Amine are told when that happens. You see your own work and anything you
+        have asked somebody else for.
       </p>
 
       <Section title="Raise a task">
@@ -183,10 +214,44 @@ export default async function TasksPage() {
         </Section>
       )}
 
+      {nobodys.length > 0 && (
+        <Section title={`Nobody is doing these — ${nobodys.length}`}>
+          <p className="hint mb-3">
+            Raised, and never given to anybody. Nothing will happen until somebody
+            is named.
+          </p>
+          <ul className="border-t border-void/10">
+            {capped(nobodys).shown.map((t) => (
+              <TaskRow key={t.id} task={t} canModerate={canModerate} showProject />
+            ))}
+          </ul>
+          {capped(nobodys).hidden > 0 && (
+            <p className="hint mt-3">{capped(nobodys).hidden} more not shown.</p>
+          )}
+        </Section>
+      )}
+
+      {teams.length > 0 && (
+        <Section title={`The team's work — ${teams.length}`}>
+          <p className="hint mb-3">
+            Everybody else's open tasks. Only you and Mohamed Amine see this —
+            everyone else sees their own work and what they have asked for.
+          </p>
+          <ul className="border-t border-void/10">
+            {capped(teams).shown.map((t) => (
+              <TaskRow key={t.id} task={t} canModerate={canModerate} showProject />
+            ))}
+          </ul>
+          {capped(teams).hidden > 0 && (
+            <p className="hint mt-3">{capped(teams).hidden} more not shown.</p>
+          )}
+        </Section>
+      )}
+
       {canModerate && waiting.length > 0 && (
         <Section title={`Awaiting sign-off — ${waiting.length}`}>
           <p className="hint mb-3">
-            Submitted as finished. Nobody signs off their own work, so these need you.
+            Submitted under the old rule, before the three buttons. Nothing enters this state any more — move them along and the section goes.
           </p>
           <ul className="border-t border-void/10">
             {capped(waiting).shown.map((t) => (

@@ -1,13 +1,8 @@
 import Link from 'next/link';
-import { BlockTaskControl } from './BlockTaskControl';
 import { CloseParentButton } from './CloseParentButton';
 import { TASK_PRIORITY_LABELS, TASK_STATUS_LABELS } from '@/lib/labels';
 import { formatDate } from '@/lib/format';
-import {
-  blockTaskAction,
-  deleteTaskAction,
-  setTaskStatusAction,
-} from '@/app/(app)/tasks/actions';
+import { deleteTaskAction, setTaskStatusAction } from '@/app/(app)/tasks/actions';
 
 export interface TaskItem {
   id: string;
@@ -52,25 +47,38 @@ const STATUS_STYLE: Record<string, string> = {
 
 /** Which moves this viewer may make. The database enforces the same rule. */
 /**
- * Where a task can go from here.
+ * Where a task can go from here: three buttons, and only ever three.
  *
- * `blocked` is never in this list: it carries a written reason, so it has its
- * own control rather than a one-click button. Everything else is a plain
- * transition the database will accept or refuse on its own.
+ * Amin asked for exactly accepted, in progress and completed. What that removed
+ * was the submit-for-sign-off step — a member used to be able to reach
+ * `submitted` and only a moderator could reach `completed` — and the reason it
+ * could go is that 0075 replaced the permission with a notification: the person
+ * who did the work says it is done, and whoever raised it plus management are
+ * told.
+ *
+ * A ladder was the old shape (todo → accepted → in progress → submitted), one
+ * button at a time. Three is not a ladder, because the real sequence is not one:
+ * work gets picked up, put down, picked up again, and a member who had moved a
+ * task to "in progress" had no way back to "accepted" without asking somebody.
+ * Any of the three, from any state, including back out of completed — with three
+ * buttons that is the only way to undo a mis-click, and the database clears the
+ * sign-off stamp when they do.
+ *
+ * NOT IN THIS LIST, and both are still valid states in the database:
+ *
+ *   `submitted` — two tasks are in it in production, and the three buttons reach
+ *     them. Nothing enters it any more.
+ *   `blocked` — it carries a written reason, so it never was a one-click button;
+ *     its own control is gone with the rest. The attention queue that counts
+ *     blocked work stays, because putting the button back is one line and a
+ *     queue that cannot fire is cheaper than one that is missing.
  */
+const THREE = ['accepted', 'in_progress', 'completed'] as const;
+
 function nextStatuses(status: string, isMine: boolean, canModerate: boolean): string[] {
-  if (canModerate) {
-    if (status === 'completed') return ['in_progress'];
-    if (status === 'submitted') return ['completed', 'in_progress'];
-    return ['accepted', 'in_progress', 'submitted', 'completed'].filter((s) => s !== status);
-  }
-  if (!isMine || status === 'completed') return [];
-  if (status === 'todo') return ['accepted', 'in_progress'];
-  if (status === 'accepted') return ['in_progress'];
-  if (status === 'in_progress') return ['submitted'];
-  if (status === 'blocked') return ['in_progress'];
-  if (status === 'submitted') return ['in_progress'];
-  return [];
+  // Somebody else's task, and not management: nothing to press.
+  if (!isMine && !canModerate) return [];
+  return THREE.filter((s) => s !== status);
 }
 
 export function TaskRow({
@@ -124,7 +132,14 @@ export function TaskRow({
                 {overdue && <strong className="ml-1 font-semibold">— overdue</strong>}
               </>
             )}
-            {task.completed_by_name && ` · signed off by ${task.completed_by_name}`}
+            {/*
+              "finished by", not "signed off by". It said the latter when
+              completion was a moderator confirming somebody else's word; the
+              person named here is now usually the person who did the work, and
+              "signed off by Adam" on Adam's own task reads like a formality
+              rather than a fact.
+            */}
+            {task.completed_by_name && ` · finished by ${task.completed_by_name}`}
           </p>
         </div>
 
@@ -137,17 +152,20 @@ export function TaskRow({
             {TASK_STATUS_LABELS[task.status]}
           </span>
           {moves.map((s) => {
-            const label =
-              s === 'submitted'
-                ? 'Submit for sign-off'
-                : s === 'completed'
-                  ? 'Sign off'
-                  : (TASK_STATUS_LABELS[s] ?? s);
+            /*
+             * "Completed", not "Sign off".
+             *
+             * It said "Sign off" because a moderator was confirming somebody
+             * else's word. The person pressing it is now the person who did the
+             * work, and what they are saying is "this is finished" — so the
+             * button says that.
+             */
+            const label = TASK_STATUS_LABELS[s] ?? s;
 
             // Closing a parent that still has open sub-tasks asks first. Any
             // other transition is a plain button — a task moving to
             // 'in progress' has nothing to warn about.
-            const closes = s === 'submitted' || s === 'completed';
+            const closes = s === 'completed';
             const openChildren = task.open_children ?? 0;
 
             if (closes && openChildren > 0) {
@@ -174,9 +192,6 @@ export function TaskRow({
               </form>
             );
           })}
-          {isMine && task.status !== 'blocked' && task.status !== 'completed' && (
-            <BlockTaskControl action={blockTaskAction} taskId={task.id} />
-          )}
           {canModerate && (
             <form action={deleteTaskAction}>
               <input type="hidden" name="taskId" value={task.id} />

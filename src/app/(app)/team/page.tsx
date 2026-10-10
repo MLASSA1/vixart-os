@@ -22,7 +22,8 @@ interface Row {
   id: string; full_name: string; email: string; job_title: string | null;
   role: string; is_active: boolean; must_change_password: boolean;
   created_at: string;
-  open_tasks: string; done_tasks: string; timeline_entries: string;
+  /** Null for a member: workload is management's view (0075). */
+  open_tasks: string | null; done_tasks: string | null; timeline_entries: string;
   /** Anything they have touched — a record with history is never deleted. */
   has_history: boolean;
 }
@@ -49,16 +50,34 @@ const ROLE_EXPLAINS: Record<string, string> = {
 export default async function TeamPage() {
   const session = await auth();
   const isAdmin = session?.user.role === 'admin';
+  /*
+   * Who may see how much work somebody has.
+   *
+   * 0075 made a task visible only to its assignee, whoever raised it, and
+   * management — so for a member these counts would come back ZERO for every
+   * colleague, and the page would state, confidently, that nobody on the team
+   * has anything to do. A count that is zero because of permissions is
+   * indistinguishable from one that is zero because of reality, and this is the
+   * page where that reads as a judgement about people.
+   *
+   * So a member gets the directory and management gets the workload.
+   */
+  const canSeeWorkload = isAdmin || session?.user.role === 'moderator';
   const me = session?.user.id;
 
   const members = await withUser(async (tx) => {
     const result = await tx.execute<Row>(sql`
       SELECT u.id, u.full_name, u.email, u.job_title, u.role, u.is_active,
              u.must_change_password, u.created_at::text,
-             (SELECT count(*)::text FROM task t
-               WHERE t.assignee_id = u.id AND t.status <> 'completed') AS open_tasks,
-             (SELECT count(*)::text FROM task t
-               WHERE t.assignee_id = u.id AND t.status = 'completed')  AS done_tasks,
+             -- Asked for only when it can be answered truthfully.
+             CASE WHEN ${canSeeWorkload} THEN
+               (SELECT count(*)::text FROM task t
+                 WHERE t.assignee_id = u.id AND t.status <> 'completed')
+             END AS open_tasks,
+             CASE WHEN ${canSeeWorkload} THEN
+               (SELECT count(*)::text FROM task t
+                 WHERE t.assignee_id = u.id AND t.status = 'completed')
+             END AS done_tasks,
              (SELECT count(*)::text FROM interaction i WHERE i.author_id = u.id) AS timeline_entries,
              (EXISTS (SELECT 1 FROM task t WHERE t.assignee_id = u.id)
               OR EXISTS (SELECT 1 FROM interaction i WHERE i.author_id = u.id)
@@ -142,8 +161,13 @@ export default async function TeamPage() {
                       {m.job_title ?? '—'} · {m.email}
                     </p>
                     <p className="hint">
-                      {m.open_tasks} open · {m.done_tasks} completed ·{' '}
-                      {m.timeline_entries} timeline entries · since {formatDate(m.created_at)}
+                      {canSeeWorkload && (
+                        <>
+                          {m.open_tasks} open · {m.done_tasks} completed ·{' '}
+                          {m.timeline_entries} timeline entries ·{' '}
+                        </>
+                      )}
+                      since {formatDate(m.created_at)}
                     </p>
                     </div>
                   </div>

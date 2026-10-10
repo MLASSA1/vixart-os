@@ -112,14 +112,32 @@ describe.skipIf(!HAS_DB)('tasks the team drives (9A)', () => {
     expect(rows[0]!.created_by_id).toBe(editor);
   });
 
-  // --- sign-off is untouched -----------------------------------------------
+  // --- sign-off moved, and the record did not -------------------------------
 
-  it('still refuses a member signing off their own work', async () => {
+  it('lets a member sign off their own work, stamped with their own name', async () => {
+    /*
+     * THIS TEST USED TO ASSERT THE OPPOSITE, and the reversal is Amin's.
+     *
+     * It read "still refuses a member signing off their own work" and expected
+     * /only a moderator/. That rule existed to make completion somebody else's
+     * decision, and 0075 replaced the permission with a notification: three
+     * buttons — accepted, in progress, completed — and whoever raised the task
+     * plus management are told when it is pressed.
+     *
+     * The assertion that replaces it is the part that did NOT change. The row
+     * still records who finished it and when, and it records the member's own
+     * id, so accountability is where it was; only the gate moved.
+     */
     const id = await raise(designer, `${MARK} my own work`, designer);
     await actAs(designer, 'member');
     await expect(
       app.query(`UPDATE task SET status='completed' WHERE id=$1`, [id]),
-    ).rejects.toThrow(/only a moderator/i);
+    ).resolves.toBeTruthy();
+
+    const { rows } = await owner.query<{ by: string | null; at: string | null }>(
+      `SELECT completed_by_id AS by, completed_at::text AS at FROM task WHERE id=$1`, [id]);
+    expect(rows[0]!.by, 'finished work no longer records who finished it').toBe(designer);
+    expect(rows[0]!.at).not.toBeNull();
   });
 
   it('still refuses a member touching somebody else\'s task', async () => {

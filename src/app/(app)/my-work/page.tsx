@@ -3,7 +3,7 @@ import { auth } from '@/auth';
 import { Empty, PageHeader, Section } from '@/components/ui';
 import { TaskRow, type TaskItem } from '@/components/TaskRow';
 import { withUser } from '@/db/session';
-import { capped, DONE_WINDOW, QUERY_CAP } from '@/lib/list-caps';
+import { capped, QUERY_CAP } from '@/lib/list-caps';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,7 +11,8 @@ export const dynamic = 'force-dynamic';
  * My work — what this person owes, and nothing else.
  *
  * The landing page for a team member: their open tasks, the projects they are
- * on, and what is waiting on someone else's sign-off.
+ * on, and anything they have asked somebody else for. Since 0075 it is also the
+ * whole of what they can see — a member's task list is their own.
  */
 export default async function MyWorkPage() {
   const session = await auth();
@@ -43,9 +44,8 @@ export default async function MyWorkPage() {
           -- section is hidden for everyone else.
           OR (t.status = 'submitted' AND ${canModerate})
        )
-       -- Open work in full, and only the tail of what is finished. The
-       -- completed pile grows for ever and none of it is actionable.
-       AND (t.status <> 'completed' OR t.completed_at > now() - ${DONE_WINDOW}::interval)
+       -- Finished work is kept, all of it: the ORDER BY puts it last so the
+       -- LIMIT trims that tail before anything still live.
        ORDER BY CASE t.status WHEN 'blocked' THEN 0 WHEN 'in_progress' THEN 1
                               WHEN 'accepted' THEN 2 WHEN 'todo' THEN 3
                               WHEN 'submitted' THEN 4 ELSE 5 END,
@@ -97,7 +97,7 @@ export default async function MyWorkPage() {
           <p className="kpi mt-1">{waiting.length}</p>
         </div>
         <div>
-          <p className="label">Signed off</p>
+          <p className="label">Finished</p>
           <p className="kpi mt-1">{done.length}</p>
         </div>
       </div>
@@ -173,7 +173,7 @@ export default async function MyWorkPage() {
         >
           <p className="hint mb-3">
             {canModerate
-              ? 'Submitted as finished. Nobody signs off their own work, so these need you.'
+              ? 'Submitted under the old rule, before the three buttons. Nothing enters this state any more — move them along and the section goes.'
               : 'You marked these done. A moderator confirms them before they count as completed.'}
           </p>
           <ul className="border-t border-void/10">
