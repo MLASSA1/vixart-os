@@ -3,7 +3,7 @@ import { auth } from '@/auth';
 import { Empty, PageHeader, Section } from '@/components/ui';
 import { TaskRow, type TaskItem } from '@/components/TaskRow';
 import { withUser } from '@/db/session';
-import { capped, QUERY_CAP } from '@/lib/list-caps';
+import { QUERY_CAP } from '@/lib/list-caps';
 import { createTaskAction } from './actions';
 import { TaskForm } from './TaskForm';
 
@@ -48,12 +48,24 @@ export default async function TasksPage() {
        -- for every completed task to be reachable. The ORDER BY below puts
        -- finished work last, so the LIMIT trims that tail first and never
        -- crowds out anything still live.
-       ORDER BY CASE t.status WHEN 'blocked' THEN 0 WHEN 'in_progress' THEN 1
-                              WHEN 'accepted' THEN 2 WHEN 'todo' THEN 3
-                              WHEN 'submitted' THEN 4 ELSE 5 END,
-                CASE t.priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1
-                                WHEN 'normal' THEN 2 ELSE 3 END,
-                t.due_date NULLS LAST, t.created_at DESC
+       /*
+        * NUMERIC ORDER, because the titles are a numbered plan.
+        *
+        * This ordered by status, then priority, then due date, then
+        * created_at DESC — and for a numbered plan that is close to the worst
+        * order there is. created_at DESC reverses it (01, 02, 03 is read back
+        * 20, 19, 18), priority cuts it into bands so Task 05 falls below Task
+        * 20, and the title tie-break was lexicographic, which puts "TASK 10"
+        * before "TASK 2".
+        *
+        * app.task_sort_key (0076) is the one definition of task order: the
+        * prefix as written, then the first number padded so text order IS
+        * numeric order, then the title as a stable tie-break. Three pages order
+        * tasks and a copied regex is three chances to differ.
+        *
+        * Completed last so the LIMIT trims finished work before anything live.
+        */
+       ORDER BY (t.status = 'completed'), app.task_sort_key(t.title)
        LIMIT ${QUERY_CAP}
     `);
 
@@ -74,65 +86,123 @@ export default async function TasksPage() {
   });
 
   /*
-   * EVERY TASK APPEARS EXACTLY ONCE.
+   * EVERY TASK APPEARS EXACTLY ONCE, AND NOTHING IS HIDDEN.
    *
-   * This is the reorganisation, and the reason it was needed is arithmetic.
-   * There are 130 open tasks, 126 of them with no project, and Amin raised 127
-   * — so the old sections "Raised by me", "Internal" and "The team's work" were
-   * each showing him the SAME 126 tasks, every one truncated at 25 with "101
-   * more not shown". Three near-identical lists, none of them complete, and the
-   * same task met three times on the way down the page. That is what "so messy"
-   * was.
+   * Two complaints, one shape. The first was that three sections each showed the
+   * same 126 tasks truncated at 25 — fixed by partitioning the work so a task is
+   * finished, or nobody's, or yours, or one particular person's, never two of
+   * those.
    *
-   * The sections below partition the work: a task is either finished, or
-   * nobody's, or yours, or one particular person's. No task is in two of them,
-   * so the page is as long as the work is and no longer.
+   * The second: "there some task are hiden tell a memebre complte one then
+   * anotheres aprears". That is SECTION_CAP. Adam has 46 open tasks and saw 25;
+   * finishing one revealed the 26th. From the inside that does not look like a
+   * cap, it looks like the system is drip-feeding work — and there is no way to
+   * plan a week you cannot see.
    *
-   * "Internal" is gone as a section. With 126 of 130 tasks having no project it
-   * is not a category, it is the norm — and a section for the norm is a second
-   * copy of the page. The project is shown on the row when there is one.
+   * So nothing on this page is capped per section any more. The rail is the
+   * query's own LIMIT, which is the honest place for it, and if that ever bites
+   * the page says so out loud rather than quietly showing less.
    */
   const open = rows.filter((t) => t.status !== 'completed');
-  const done = rows.filter((t) => t.status === 'completed');
 
-  const mine = open.filter((t) => t.assignee_id === me.id);
+  /*
+   * NEW, IN PROGRESS, FINISHED — asked for in those words.
+   *
+   * "We need a place where user can see his completed tasks and where are not
+   * completed and are the new ones."
+   *
+   * `todo` is work nobody has picked up — that is "new". Everything between
+   * being picked up and being finished is "in progress", and that includes the
+   * two legacy `submitted` rows and any `blocked` one: from the reader's side
+   * they are all the same thing, work under way, and the status chip on the row
+   * says which. Three groups, not six, because the question is which pile a task
+   * is in.
+   */
+  const isNew = (t: TaskItem) => t.status === 'todo';
+  const groupOf = (list: TaskItem[]) => ({
+    fresh: list.filter(isNew),
+    doing: list.filter((t) => !isNew(t)),
+  });
+
+  const mineAll = rows.filter((t) => t.assignee_id === me.id);
+  const mine = groupOf(mineAll.filter((t) => t.status !== 'completed'));
+  const mineDone = mineAll.filter((t) => t.status === 'completed');
+
   const unowned = open.filter((t) => t.assignee_id === null);
 
   /*
-   * Somebody else's open work.
+   * Somebody else's work.
    *
    * For a MEMBER this is exactly what they asked a colleague for — 0075 lets
    * them see their own work and what they raised, so anything here assigned to
    * another person is by definition a request of theirs. No filter on
-   * `created_by_id` is needed and none is written: the policy already said it.
+   * created_by_id is needed and none is written: the policy already said it.
    *
-   * For MANAGEMENT it is the board, and it is grouped by person below rather
-   * than piled into one list of 128.
+   * For MANAGEMENT it is the board, grouped by person below.
    */
   const others = open.filter((t) => t.assignee_id !== null && t.assignee_id !== me.id);
+  const othersDone = rows.filter(
+    (t) => t.status === 'completed' && t.assignee_id !== null && t.assignee_id !== me.id,
+  );
 
   /*
    * One block per person, busiest first.
    *
-   * By person because that is the question a manager has in front of 130 tasks
-   * — not "what is outstanding" but "who is carrying what". Busiest first
-   * because the answer is usually at that end: Adam has 46 and Mohamed Amine
-   * has 2, and a page that opened alphabetically would bury that.
+   * By person because that is the question a manager has in front of 130 tasks —
+   * not "what is outstanding" but "who is carrying what". Busiest first because
+   * the answer is usually at that end: alphabetical would open with Abdelkbir's
+   * 7 and bury Azzedine's 18 overdue.
+   *
+   * The summary line carries the new/in-progress split so a manager gets it
+   * without three sub-lists per person.
    */
   const today = new Date().toISOString().slice(0, 10);
   const byPerson = canModerate
-    ? [...new Map(others.map((t) => [t.assignee_id!, t.assignee_name ?? 'Unknown'])).entries()]
+    ? [...new Map(others.map((t) => [t.assignee_id, t.assignee_name ?? 'Unknown'])).entries()]
         .map(([id, name]) => {
           const theirs = others.filter((t) => t.assignee_id === id);
           return {
             id,
             name,
             tasks: theirs,
+            fresh: theirs.filter(isNew).length,
+            doing: theirs.filter((t) => !isNew(t)).length,
             overdue: theirs.filter((t) => t.due_date !== null && t.due_date < today).length,
           };
         })
         .sort((a, b) => b.tasks.length - a.tasks.length || a.name.localeCompare(b.name))
     : [];
+
+  /*
+   * Said out loud when the LIMIT bit.
+   *
+   * The counts on this page are computed from the rows that came back, so a
+   * truncated query would make every heading understate by an unknown amount —
+   * a page confidently reporting "34 in progress" when it is 60. 141 tasks
+   * against a 300 limit leaves headroom today; the day it does not, the reader
+   * is told rather than misled.
+   */
+  const truncated = rows.length >= QUERY_CAP;
+
+  const Rows = ({
+    list,
+    isMineList = false,
+  }: {
+    list: TaskItem[];
+    isMineList?: boolean;
+  }) => (
+    <ul className="border-t border-void/10">
+      {list.map((t) => (
+        <TaskRow
+          key={t.id}
+          task={t}
+          isMine={isMineList || t.assignee_id === me.id}
+          canModerate={canModerate}
+          showProject
+        />
+      ))}
+    </ul>
+  );
 
   return (
     <>
@@ -144,12 +214,17 @@ export default async function TasksPage() {
           : 'Your work, and anything you have asked somebody else for. You move your own tasks along and say when they are finished; Amin and Mohamed Amine are told.'}
       </p>
 
+      {truncated && (
+        <p className="tone-warn mt-4 rounded-[10px] px-4 py-3 text-[14px]">
+          This page is showing the first {QUERY_CAP} tasks and there are more. The
+          counts below are of what is shown, not of everything — tell me and I
+          will add paging.
+        </p>
+      )}
+
       {/*
-        The form, closed.
-        
-        It was an open section at the top, so the page began with a form and the
-        work started below the fold. Raising a task is the occasional act; the
-        reason to open this page is to look at what is already here.
+        The form, closed. The page used to open with it, so the work started
+        below the fold, and raising a task is the occasional act.
       */}
       <Section title="Raise a task">
         <details>
@@ -174,30 +249,47 @@ export default async function TasksPage() {
             Raised and never given to anybody. Nothing happens until somebody is
             named.
           </p>
-          <ul className="border-t border-void/10">
-            {capped(unowned).shown.map((t) => (
-              <TaskRow key={t.id} task={t} canModerate={canModerate} showProject />
-            ))}
-          </ul>
-          {capped(unowned).hidden > 0 && (
-            <p className="hint mt-3">{capped(unowned).hidden} more not shown.</p>
-          )}
+          <Rows list={unowned} />
         </Section>
       )}
 
-      {/* ---- yours ------------------------------------------------------- */}
-      <Section title={`Your work — ${mine.length}`}>
-        {mine.length === 0 ? (
+      {/* ---- your own work, in three piles -------------------------------- */}
+      <Section title={`Your work — ${mine.fresh.length + mine.doing.length} open`}>
+        {mine.fresh.length === 0 && mine.doing.length === 0 && mineDone.length === 0 ? (
           <Empty message="Nothing assigned to you." />
         ) : (
           <>
-            <ul className="border-t border-void/10">
-              {capped(mine).shown.map((t) => (
-                <TaskRow key={t.id} task={t} isMine canModerate={canModerate} showProject />
-              ))}
-            </ul>
-            {capped(mine).hidden > 0 && (
-              <p className="hint mt-3">{capped(mine).hidden} more not shown.</p>
+            <h3 className="label mt-1">New — {mine.fresh.length}</h3>
+            {mine.fresh.length === 0 ? (
+              <p className="hint mt-1 mb-4">Nothing new. Everything you have has been started.</p>
+            ) : (
+              <>
+                <p className="hint mt-1 mb-2">
+                  Not picked up yet. Press Accepted when you take one on.
+                </p>
+                <Rows list={mine.fresh} isMineList />
+              </>
+            )}
+
+            <h3 className="label mt-7">In progress — {mine.doing.length}</h3>
+            {mine.doing.length === 0 ? (
+              <p className="hint mt-1 mb-4">Nothing under way.</p>
+            ) : (
+              <div className="mt-2">
+                <Rows list={mine.doing} isMineList />
+              </div>
+            )}
+
+            {mineDone.length > 0 && (
+              <details className="mt-7">
+                <summary className="label cursor-pointer select-none">
+                  Finished — {mineDone.length}
+                </summary>
+                <p className="hint mt-2 mb-2">
+                  All of it, not the last thirty days.
+                </p>
+                <Rows list={mineDone} isMineList />
+              </details>
             )}
           </>
         )}
@@ -210,20 +302,13 @@ export default async function TasksPage() {
             Work you raised for somebody else. You cannot move it — they do — and
             you are told when it is finished.
           </p>
-          <ul className="border-t border-void/10">
-            {capped(others).shown.map((t) => (
-              <TaskRow key={t.id} task={t} canModerate={canModerate} showProject />
-            ))}
-          </ul>
-          {capped(others).hidden > 0 && (
-            <p className="hint mt-3">{capped(others).hidden} more not shown.</p>
-          )}
+          <Rows list={others} />
         </Section>
       )}
 
       {/* ---- the board, by person ---------------------------------------- */}
       {byPerson.length > 0 && (
-        <Section title={`The team\u2019s work — ${others.length}`}>
+        <Section title={`The team\u2019s work — ${others.length} open`}>
           <p className="hint mb-4">
             One block each, busiest first. Collapse anybody you are not looking
             at. Only you and Mohamed Amine see this.
@@ -234,7 +319,7 @@ export default async function TasksPage() {
                 <summary className="flex cursor-pointer flex-wrap items-baseline gap-x-3 py-1 select-none">
                   <span className="font-semibold">{person.name}</span>
                   <span className="hint">
-                    {person.tasks.length} open
+                    {person.fresh} new · {person.doing} in progress
                     {person.overdue > 0 && (
                       <span className="tone-danger ml-2 rounded-[6px] px-1.5 py-0.5 font-semibold">
                         {person.overdue} overdue
@@ -242,52 +327,25 @@ export default async function TasksPage() {
                     )}
                   </span>
                 </summary>
-                <ul className="mt-1 border-t border-void/10">
-                  {capped(person.tasks).shown.map((t) => (
-                    <TaskRow
-                      key={t.id}
-                      task={t}
-                      canModerate={canModerate}
-                      showProject
-                    />
-                  ))}
-                </ul>
-                {capped(person.tasks).hidden > 0 && (
-                  <p className="hint mt-2 mb-3">
-                    {capped(person.tasks).hidden} more not shown.
-                  </p>
-                )}
+                <div className="mt-1">
+                  <Rows list={person.tasks} />
+                </div>
               </details>
             ))}
           </div>
         </Section>
       )}
 
-      {/* ---- finished, closed, at the bottom ----------------------------- */}
-      {done.length > 0 && (
-        <Section title={`Finished — ${done.length}`}>
+      {/* ---- the team's finished work, closed ---------------------------- */}
+      {canModerate && othersDone.length > 0 && (
+        <Section title={`Finished by the team — ${othersDone.length}`}>
           <details>
             <summary className="cursor-pointer text-[14px] font-medium select-none">
               Show finished work
             </summary>
-            <p className="hint mt-3 mb-3">
-              All of it, not the last thirty days — Amin asked for every completed
-              task to be reachable.
-            </p>
-            <ul className="border-t border-void/10">
-              {capped(done).shown.map((t) => (
-                <TaskRow
-                  key={t.id}
-                  task={t}
-                  isMine={t.assignee_id === me.id}
-                  canModerate={canModerate}
-                  showProject
-                />
-              ))}
-            </ul>
-            {capped(done).hidden > 0 && (
-              <p className="hint mt-3">{capped(done).hidden} more not shown.</p>
-            )}
+            <div className="mt-3">
+              <Rows list={othersDone} />
+            </div>
           </details>
         </Section>
       )}

@@ -81,7 +81,9 @@ export default async function SchedulePage({
        WHERE t.due_date BETWEEN ${from}::date AND ${to}::date
          AND t.status <> 'completed'
          AND (${teamView} OR t.assignee_id = ${me.id})
-       ORDER BY t.due_date, t.title
+       -- Due date first (this is a calendar), then the numbered sequence
+       -- rather than title, which put "TASK 10" above "TASK 2" (0076).
+       ORDER BY t.due_date, app.task_sort_key(t.title)
     `);
 
     const u = teamView

@@ -3,7 +3,7 @@ import { auth } from '@/auth';
 import { Empty, PageHeader, Section } from '@/components/ui';
 import { TaskRow, type TaskItem } from '@/components/TaskRow';
 import { withUser } from '@/db/session';
-import { capped, QUERY_CAP } from '@/lib/list-caps';
+import { QUERY_CAP } from '@/lib/list-caps';
 
 export const dynamic = 'force-dynamic';
 
@@ -46,12 +46,24 @@ export default async function MyWorkPage() {
        )
        -- Finished work is kept, all of it: the ORDER BY puts it last so the
        -- LIMIT trims that tail before anything still live.
-       ORDER BY CASE t.status WHEN 'blocked' THEN 0 WHEN 'in_progress' THEN 1
-                              WHEN 'accepted' THEN 2 WHEN 'todo' THEN 3
-                              WHEN 'submitted' THEN 4 ELSE 5 END,
-                CASE t.priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1
-                                WHEN 'normal' THEN 2 ELSE 3 END,
-                t.due_date NULLS LAST
+       /*
+        * NUMERIC ORDER, because the titles are a numbered plan.
+        *
+        * This ordered by status, then priority, then due date, then
+        * created_at DESC — and for a numbered plan that is close to the worst
+        * order there is. created_at DESC reverses it (01, 02, 03 is read back
+        * 20, 19, 18), priority cuts it into bands so Task 05 falls below Task
+        * 20, and the title tie-break was lexicographic, which puts "TASK 10"
+        * before "TASK 2".
+        *
+        * app.task_sort_key (0076) is the one definition of task order: the
+        * prefix as written, then the first number padded so text order IS
+        * numeric order, then the title as a stable tie-break. Three pages order
+        * tasks and a copied regex is three chances to differ.
+        *
+        * Completed last so the LIMIT trims finished work before anything live.
+        */
+       ORDER BY (t.status = 'completed'), app.task_sort_key(t.title)
        LIMIT ${QUERY_CAP}
     `);
     return result.rows as TaskItem[];
@@ -72,6 +84,16 @@ export default async function MyWorkPage() {
   const raised = rows.filter(
     (t) => t.created_by_id === me.id && t.assignee_id !== me.id && t.status !== 'completed',
   );
+  /*
+   * The same two piles as /tasks, from the same definition of "new".
+   *
+   * `todo` is work nobody has picked up. Everything else that is not finished is
+   * under way — including a legacy `blocked` or `submitted` row, because from the
+   * reader's side those are all the same thing and the chip on the row says
+   * which. Two piles, not six.
+   */
+  const fresh = mine.filter((t) => t.status === 'todo');
+  const doing = mine.filter((t) => t.status !== 'todo');
   const blocked = rows.filter((t) => t.status === 'blocked');
   const waiting = rows.filter((t) => t.status === 'submitted');
   const done = rows.filter((t) => t.status === 'completed' && t.assignee_id === me.id);
@@ -102,18 +124,55 @@ export default async function MyWorkPage() {
         </div>
       </div>
 
-      <Section title={`Assigned to me — ${mine.length}`}>
+      {/*
+        NEW AND IN PROGRESS, SEPARATELY, AND NOTHING HELD BACK.
+        
+        Two complaints met here. "There some task are hiden tell a memebre
+        complte one then anotheres aprears" was SECTION_CAP: Adam has 46 and saw
+        25, and finishing one revealed the 26th — which from the inside looks
+        like the system drip-feeding work rather than a cap, and you cannot plan
+        a week you cannot see. Nothing on this page is capped per section now;
+        the query's LIMIT is the rail and it says so when it bites.
+        
+        And "we need palce where user can see his complted taska and where are
+        not completd and are the new ones" — so: not picked up, under way,
+        finished. `todo` is new; everything between being picked up and being
+        finished is in progress, and the chip on the row says which.
+      */}
+      <Section title={`Your work — ${mine.length}`}>
         {mine.length === 0 ? (
           <Empty message="Nothing assigned. Anyone can raise a task — including you, for yourself." />
         ) : (
-          <ul className="border-t border-void/10">
-            {capped(mine).shown.map((t) => (
-              <TaskRow key={t.id} task={t} isMine canModerate={canModerate} showProject />
-            ))}
-          </ul>
-        )}
-        {capped(mine).hidden > 0 && (
-          <p className="hint mt-3">{capped(mine).hidden} more not shown.</p>
+          <>
+            <h3 className="label mt-1">New — {fresh.length}</h3>
+            {fresh.length === 0 ? (
+              <p className="hint mt-1 mb-4">
+                Nothing new — everything you have has been started.
+              </p>
+            ) : (
+              <>
+                <p className="hint mt-1 mb-2">
+                  Not picked up yet. Press Accepted when you take one on.
+                </p>
+                <ul className="border-t border-void/10">
+                  {fresh.map((t) => (
+                    <TaskRow key={t.id} task={t} isMine canModerate={canModerate} showProject />
+                  ))}
+                </ul>
+              </>
+            )}
+
+            <h3 className="label mt-7">In progress — {doing.length}</h3>
+            {doing.length === 0 ? (
+              <p className="hint mt-1 mb-4">Nothing under way.</p>
+            ) : (
+              <ul className="mt-2 border-t border-void/10">
+                {doing.map((t) => (
+                  <TaskRow key={t.id} task={t} isMine canModerate={canModerate} showProject />
+                ))}
+              </ul>
+            )}
+          </>
         )}
       </Section>
 
@@ -124,13 +183,10 @@ export default async function MyWorkPage() {
             says it is blocked.
           </p>
           <ul className="border-t border-void/10">
-            {capped(raised).shown.map((t) => (
+            {raised.map((t) => (
               <TaskRow key={t.id} task={t} canModerate={canModerate} showProject />
             ))}
           </ul>
-          {capped(raised).hidden > 0 && (
-            <p className="hint mt-3">{capped(raised).hidden} more not shown.</p>
-          )}
         </Section>
       )}
 
@@ -141,7 +197,7 @@ export default async function MyWorkPage() {
             block with no reason is just a task nobody is moving.
           </p>
           <ul className="border-t border-void/10">
-            {capped(blocked).shown.map((t) => (
+            {blocked.map((t) => (
               <li key={t.id} className="border-b border-void/10 py-1">
                 <TaskRow
                   task={t}
@@ -157,9 +213,6 @@ export default async function MyWorkPage() {
               </li>
             ))}
           </ul>
-          {capped(blocked).hidden > 0 && (
-            <p className="hint mt-3">{capped(blocked).hidden} more not shown.</p>
-          )}
         </Section>
       )}
 
@@ -177,26 +230,26 @@ export default async function MyWorkPage() {
               : 'You marked these done. A moderator confirms them before they count as completed.'}
           </p>
           <ul className="border-t border-void/10">
-            {capped(waiting).shown.map((t) => (
+            {waiting.map((t) => (
               <TaskRow key={t.id} task={t} isMine canModerate={canModerate} showProject />
             ))}
           </ul>
-          {capped(waiting).hidden > 0 && (
-            <p className="hint mt-3">{capped(waiting).hidden} more not shown.</p>
-          )}
         </Section>
       )}
 
       {done.length > 0 && (
-        <Section title={`Signed off — ${done.length}`}>
-          <ul className="border-t border-void/10">
-            {capped(done).shown.map((t) => (
-              <TaskRow key={t.id} task={t} isMine canModerate={canModerate} showProject />
-            ))}
-          </ul>
-          {capped(done).hidden > 0 && (
-            <p className="hint mt-3">{capped(done).hidden} more not shown.</p>
-          )}
+        <Section title={`Finished — ${done.length}`}>
+          <details>
+            <summary className="cursor-pointer text-[14px] font-medium select-none">
+              Show finished work
+            </summary>
+            <p className="hint mt-2 mb-2">All of it, not the last thirty days.</p>
+            <ul className="border-t border-void/10">
+              {done.map((t) => (
+                <TaskRow key={t.id} task={t} isMine canModerate={canModerate} showProject />
+              ))}
+            </ul>
+          </details>
         </Section>
       )}
     </>

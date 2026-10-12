@@ -73,11 +73,9 @@ export default async function ProjectPage({
         LEFT JOIN app_user a ON a.id = t.assignee_id
         LEFT JOIN app_user s ON s.id = t.completed_by_id
        WHERE t.project_id = ${id}
-       ORDER BY CASE t.status WHEN 'submitted' THEN 0 WHEN 'in_progress' THEN 1
-                              WHEN 'todo' THEN 2 ELSE 3 END,
-                CASE t.priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1
-                                WHEN 'normal' THEN 2 ELSE 3 END,
-                t.due_date NULLS LAST
+       -- The same order as every other task list (0076): finished last, then
+       -- the numbered sequence. A project's steps are numbered too.
+       ORDER BY (t.status = 'completed'), app.task_sort_key(t.title)
     `);
     const members = await tx.execute<{ id: string; full_name: string }>(
       sql`SELECT id, full_name FROM app.team_directory

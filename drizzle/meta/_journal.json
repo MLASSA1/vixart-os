@@ -533,6 +533,13 @@
       "when": 1791656096770,
       "tag": "0075_your_own_work_and_you_sign_it_off",
       "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "7",
+      "when": 1791818731811,
+      "tag": "0076_tasks_in_the_order_somebody_numbered_them",
+      "breakpoints": true
     }
   ]
 }
