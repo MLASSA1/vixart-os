@@ -75,7 +75,7 @@ export default async function ProjectPage({
        WHERE t.project_id = ${id}
        -- The same order as every other task list (0076): finished last, then
        -- the numbered sequence. A project's steps are numbered too.
-       ORDER BY (t.status = 'completed'), app.task_sort_key(t.title)
+       ORDER BY (t.status = 'completed'), app.task_sort_key(t.title), t.id
     `);
     const members = await tx.execute<{ id: string; full_name: string }>(
       sql`SELECT id, full_name FROM app.team_directory
@@ -102,9 +102,22 @@ export default async function ProjectPage({
   if (!data) notFound();
   const { record, tasks, team, comments } = data;
 
+  /*
+   * BY EXCLUSION, so no status can ever fall through again.
+   *
+   * This read `t.status === 'todo' || t.status === 'in_progress'`, which named
+   * the states it wanted and silently dropped the two it did not: `accepted`
+   * and `blocked` belonged to no section, so a task in either rendered nowhere
+   * on its own project's page. Amin's three buttons made that reachable in one
+   * click — pressing Accepted removed the task from the project.
+   *
+   * An allow-list of statuses in a view is a list that has to be edited every
+   * time the column grows, and the failure is invisible: the task is simply
+   * gone, and the heading above it counts down as if that were correct.
+   */
   const awaiting = tasks.filter((t) => t.status === 'submitted');
-  const openTasks = tasks.filter((t) => t.status === 'todo' || t.status === 'in_progress');
   const completed = tasks.filter((t) => t.status === 'completed');
+  const openTasks = tasks.filter((t) => t.status !== 'submitted' && t.status !== 'completed');
 
   return (
     <>

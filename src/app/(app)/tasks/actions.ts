@@ -88,10 +88,10 @@ export async function createTaskAction(
 }
 
 /**
- * Move a task along. The database decides what is allowed: a member can reach
- * `submitted`, only a moderator can reach `completed`, and the trigger raises
- * if either rule is broken. Nothing here is a security check — it is only a
- * route to a readable message.
+ * Move a task along. The database decides what is allowed: `enforce_task_signoff`
+ * (0075) lets the assignee complete their own work and stamps their id, and
+ * refuses to stamp anybody else's. Nothing here is a security check — it is only
+ * a route to a readable message.
  */
 export async function setTaskStatusAction(formData: FormData): Promise<void> {
   const id = String(formData.get('taskId') ?? '');
@@ -99,15 +99,35 @@ export async function setTaskStatusAction(formData: FormData): Promise<void> {
   const allowed = ['todo', 'accepted', 'in_progress', 'submitted', 'completed'] as const;
   if (!id || !allowed.includes(status as (typeof allowed)[number])) return;
 
-  await withUser(async (tx) => {
-    await tx
+  /*
+   * The project comes back from the write rather than the form, because the
+   * form is rendered in half a dozen places and the one that forgot to carry a
+   * hidden field would be the one whose page went stale.
+   */
+  const changed = await withUser(async (tx) => {
+    const rows = await tx
       .update(task)
       .set({ status: status as (typeof allowed)[number] })
-      .where(eq(task.id, id));
+      .where(eq(task.id, id))
+      .returning({ projectId: task.projectId });
+    return rows[0] ?? null;
   });
 
+  /*
+   * `/tasks` WAS MISSING, and it is the page the three buttons are on.
+   *
+   * Next caches a server component's render, so pressing Accepted ran the
+   * update, revalidated three other routes and sent you back to the same cached
+   * HTML — the task sat in its old section with its old pill and the button
+   * read as broken. The write had happened every time.
+   *
+   * The project's own page was missing for the same reason: `/projects` is the
+   * list, and `/projects/[id]` is a different cache entry.
+   */
+  revalidatePath('/tasks');
   revalidatePath('/my-work');
   revalidatePath('/projects');
+  if (changed?.projectId) revalidatePath(`/projects/${changed.projectId}`);
   revalidatePath('/');
 }
 

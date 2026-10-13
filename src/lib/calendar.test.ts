@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  addDays, addMonths, endOfMonth, isWeekend, monthGrid, startOfMonth, startOfWeek, weekDays,
+  addDays, addMonths, endOfMonth, isWeekend, isYmd, monthGrid, startOfMonth, startOfWeek,
+  weekDays,
 } from './calendar';
 
 describe('calendar arithmetic', () => {
@@ -53,5 +54,36 @@ describe('calendar arithmetic', () => {
     // UTC, which in Agadir's offset can render as the 18th.
     expect(addDays('2026-09-19', 0)).toBe('2026-09-19');
     expect(startOfWeek(addDays('2026-09-19', 7))).toBe('2026-09-21');
+  });
+});
+
+describe('isYmd', () => {
+  it('accepts a real date', () => {
+    expect(isYmd('2026-10-13')).toBe(true);
+    expect(isYmd('2024-02-29')).toBe(true);   // a leap day that exists
+  });
+
+  it('refuses a date no calendar has, which the shape test admitted', () => {
+    // Each of these matches /^\d{4}-\d{2}-\d{2}$/ and is not a date. The
+    // schedule took its anchor from the query string on that test alone, and
+    // handed the result to monthGrid.
+    expect(isYmd('2026-02-31')).toBe(false);
+    expect(isYmd('2026-99-99')).toBe(false);
+    expect(isYmd('2026-13-01')).toBe(false);
+    expect(isYmd('2026-00-10')).toBe(false);
+    expect(isYmd('2025-02-29')).toBe(false);  // 2025 is not a leap year
+  });
+
+  it('refuses anything that is not the shape at all', () => {
+    expect(isYmd('')).toBe(false);
+    expect(isYmd(null)).toBe(false);
+    expect(isYmd(undefined)).toBe(false);
+    expect(isYmd('13/10/2026')).toBe(false);
+    expect(isYmd('2026-10-13T00:00:00Z')).toBe(false);
+  });
+
+  it('is safe to hand to monthGrid, which is why it exists', () => {
+    const anchor = isYmd('2026-02-31') ? '2026-02-31' : '2026-02-01';
+    expect(monthGrid(anchor)).toContain('2026-02-28');
   });
 });

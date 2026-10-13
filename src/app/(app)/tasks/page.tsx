@@ -3,6 +3,7 @@ import { auth } from '@/auth';
 import { Empty, PageHeader, Section } from '@/components/ui';
 import { TaskRow, type TaskItem } from '@/components/TaskRow';
 import { withUser } from '@/db/session';
+import { today } from '@/lib/calendar';
 import { QUERY_CAP } from '@/lib/list-caps';
 import { createTaskAction } from './actions';
 import { TaskForm } from './TaskForm';
@@ -65,7 +66,7 @@ export default async function TasksPage() {
         *
         * Completed last so the LIMIT trims finished work before anything live.
         */
-       ORDER BY (t.status = 'completed'), app.task_sort_key(t.title)
+       ORDER BY (t.status = 'completed'), app.task_sort_key(t.title), t.id
        LIMIT ${QUERY_CAP}
     `);
 
@@ -156,7 +157,15 @@ export default async function TasksPage() {
    * The summary line carries the new/in-progress split so a manager gets it
    * without three sub-lists per person.
    */
-  const today = new Date().toISOString().slice(0, 10);
+  /*
+   * The LOCAL day, from the one helper that knows what that means.
+   *
+   * This was `new Date().toISOString().slice(0, 10)` — the UTC date. Morocco is
+   * UTC+1 all year, so for the first hour of every day this returned yesterday
+   * and the per-person "N overdue" counts disagreed with Needs attention, which
+   * asks Postgres for `current_date`, and with the row's own "— overdue".
+   */
+  const todayYmd = today();
   const byPerson = canModerate
     ? [...new Map(others.map((t) => [t.assignee_id, t.assignee_name ?? 'Unknown'])).entries()]
         .map(([id, name]) => {
@@ -167,7 +176,7 @@ export default async function TasksPage() {
             tasks: theirs,
             fresh: theirs.filter(isNew).length,
             doing: theirs.filter((t) => !isNew(t)).length,
-            overdue: theirs.filter((t) => t.due_date !== null && t.due_date < today).length,
+            overdue: theirs.filter((t) => t.due_date !== null && t.due_date < todayYmd).length,
           };
         })
         .sort((a, b) => b.tasks.length - a.tasks.length || a.name.localeCompare(b.name))
@@ -336,9 +345,31 @@ export default async function TasksPage() {
         </Section>
       )}
 
-      {/* ---- the team's finished work, closed ---------------------------- */}
-      {canModerate && othersDone.length > 0 && (
-        <Section title={`Finished by the team — ${othersDone.length}`}>
+      {/*
+        ---- finished work that somebody else did -------------------------
+
+        NOT GATED ON canModerate ANY MORE, and the gate was losing work.
+
+        Amin asked that "complted tast need to be showen all of them". A member
+        raises a task for a colleague; the colleague finishes it; it left "You
+        asked for" (which is open work only) and this section was the only other
+        place it could appear — closed to members. So the one person who most
+        wanted to know it was done was the one person who could not see it, on
+        the page built to answer exactly that.
+
+        The rows are the same rows for everybody: `task_select` (0075) returns a
+        member only what they are assigned or raised, so a member sees the work
+        they asked for and a moderator sees the team's. Only the heading has to
+        say which, because only the heading knows.
+      */}
+      {othersDone.length > 0 && (
+        <Section
+          title={
+            canModerate
+              ? `Finished by the team — ${othersDone.length}`
+              : `Finished, that you asked for — ${othersDone.length}`
+          }
+        >
           <details>
             <summary className="cursor-pointer text-[14px] font-medium select-none">
               Show finished work

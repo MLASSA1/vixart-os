@@ -43,7 +43,7 @@ export default async function ProjectsPage() {
       SELECT p.id, p.name, p.status, p.project_type, p.company_id, c.name AS company_name,
              u.full_name AS lead_name, p.due_date::text AS due_date,
              (SELECT count(*)::text FROM task t
-               WHERE t.project_id = p.id AND t.status IN ('todo','in_progress')) AS open_tasks,
+               WHERE t.project_id = p.id AND t.status NOT IN ('submitted','completed')) AS open_tasks,
              (SELECT count(*)::text FROM task t
                WHERE t.project_id = p.id AND t.status = 'submitted') AS awaiting,
              (SELECT count(*)::text FROM task t WHERE t.project_id = p.id) AS total_tasks

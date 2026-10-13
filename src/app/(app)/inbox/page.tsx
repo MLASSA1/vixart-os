@@ -75,6 +75,7 @@ export default async function InboxPage() {
   });
 
   const unread = rows.filter((r) => !r.read_at);
+  const read = rows.filter((r) => r.read_at);
 
   return (
     <>
@@ -102,10 +103,10 @@ export default async function InboxPage() {
       */}
       <p className="prose-vixart" style={{ opacity: 0.7 }}>
         Work handed to you, your name in a conversation, your own work past its
-        date, and anything waiting on your sign-off. Three of these also reach
-        you by email — a task assigned to you, a message from a colleague, and a
-        client writing in — so you do not have to be looking at this page.
-        Everything else waits here.
+        date, and anything waiting on your sign-off. Four of these also reach you
+        by email — a task assigned to you, a task you raised being finished, a
+        message from a colleague, and a client writing in — so you do not have to
+        be looking at this page. Everything else waits here.
       </p>
 
       <Section title={unread.length > 0 ? `Unread — ${unread.length}` : 'Nothing unread'}>
@@ -151,9 +152,9 @@ export default async function InboxPage() {
       </Section>
 
       {rows.length > unread.length && (
-        <Section title="Earlier">
+        <Section title={`Earlier — ${read.length}`}>
           <ul className="divide-y divide-void/10">
-            {capped(rows.filter((r) => r.read_at)).shown.map((n) => (
+            {capped(read).shown.map((n) => (
               <li key={n.id} className="flex flex-wrap items-baseline justify-between gap-x-4 py-2.5">
                 <span className="min-w-0">
                   <span className="hint">{KIND_LABEL[n.kind] ?? n.kind} · </span>
@@ -165,6 +166,19 @@ export default async function InboxPage() {
               </li>
             ))}
           </ul>
+          {/*
+            * The unread list above has said "N more unread not shown" since it
+            * was written; this one was capped at the same 25 and said nothing,
+            * so an inbox with 200 read notifications looked like an inbox with
+            * 25. The heading carries the real count and the line below says
+            * what is missing — the same bargain as every other capped list.
+            */}
+          {capped(read).hidden > 0 && (
+            <p className="hint mt-3">
+              {capped(read).hidden} older {capped(read).hidden === 1 ? 'one' : 'ones'} not
+              shown.
+            </p>
+          )}
         </Section>
       )}
     </>

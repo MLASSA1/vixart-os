@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { CloseParentButton } from './CloseParentButton';
 import { TASK_PRIORITY_LABELS, TASK_STATUS_LABELS } from '@/lib/labels';
 import { formatDate } from '@/lib/format';
+import { today } from '@/lib/calendar';
 import { deleteTaskAction, setTaskStatusAction } from '@/app/(app)/tasks/actions';
 
 export interface TaskItem {
@@ -38,9 +39,20 @@ const PRIORITY_STYLE: Record<string, string> = {
   low: 'tone-quiet opacity-70',
 };
 
+/*
+ * Every status in `TASK_STATUSES`, because the lookup below is unguarded.
+ *
+ * `accepted` and `blocked` were missing, and the template reads
+ * `STATUS_STYLE[task.status]` — so the pill for an accepted task carried the
+ * literal class "undefined" and lost its tone. Amin's three buttons put
+ * `accepted` one click away, which turned a gap nobody reached into the state
+ * most tasks sit in.
+ */
 const STATUS_STYLE: Record<string, string> = {
   todo: 'tone-quiet',
+  accepted: 'tone-accent',
   in_progress: 'tone-accent',
+  blocked: 'tone-danger',
   submitted: 'tone-warn border-dashed',
   completed: 'tone-ok',
 };
@@ -92,8 +104,20 @@ export function TaskRow({
   canModerate: boolean;
   showProject?: boolean;
 }) {
+  /*
+   * A DAY against a DAY, not a timestamp against a clock.
+   *
+   * This was `new Date(task.due_date) < new Date()`. `due_date` is a DATE and
+   * arrives as "2026-10-12", which `new Date` reads as UTC midnight — so from
+   * 01:00 Morocco time onwards a task due TODAY compared as already past and
+   * rendered "— overdue". Every task was overdue on the morning of the day it
+   * was due, which is the one day the word must not appear.
+   *
+   * `today()` is the local calendar day as a string, and two "YYYY-MM-DD"
+   * strings compare correctly as text, so there is no timezone in this line.
+   */
   const overdue =
-    task.due_date && task.status !== 'completed' && new Date(task.due_date) < new Date();
+    task.due_date !== null && task.status !== 'completed' && task.due_date < today();
   const moves = nextStatuses(task.status, isMine ?? false, canModerate);
 
   return (
@@ -203,6 +227,26 @@ export function TaskRow({
           )}
         </div>
       </div>
+
+      {/*
+        THE REASON, INSIDE THE ROW.
+
+        My work drew this itself, by wrapping this component in a second <li>
+        to have somewhere to put it — and this component's root IS an <li>, so
+        the result was `<ul><li><li>`, which no parser accepts: the browser
+        closed the outer item early, React hydrated against a tree that did not
+        match, and the whole list was re-rendered on the client (React #418).
+
+        It only appeared when somebody was actually blocked, which is why it sat
+        there unnoticed. Rendering the reason here means there is one <li>, and
+        every page that shows a blocked task shows why — the tasks page and the
+        project page never did.
+      */}
+      {task.status === 'blocked' && task.blocked_reason && (
+        <p className="tone-warn mt-1 mb-1 ml-1 inline-block rounded-[8px] px-2.5 py-1 text-[13px]">
+          {task.blocked_reason}
+        </p>
+      )}
     </li>
   );
 }

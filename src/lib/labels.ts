@@ -72,9 +72,10 @@ export const TASK_STATUSES = [
   { value: 'accepted', label: 'Accepted' },
   { value: 'in_progress', label: 'In progress' },
   { value: 'blocked', label: 'Blocked' },
-  // The assignee's "done". It is submitted, not completed: nobody signs off
-  // their own work, so a separate "done" state would be a second name for
-  // this one and the first step towards blurring that.
+  // A state nothing enters any more. It was the assignee's "done", back when
+  // only a moderator could reach `completed`; 0075 replaced that gate with a
+  // notification, so the assignee now completes their own work and whoever
+  // raised it is told. The value stays for the rows already in it.
   { value: 'submitted', label: 'Awaiting sign-off' },
   { value: 'completed', label: 'Completed' },
 ] as const;
@@ -103,6 +104,28 @@ export const DEAL_STAGE_LABELS = toMap(DEAL_STAGES);
 export const PROJECT_TYPE_LABELS = toMap(PROJECT_TYPES);
 export const PROJECT_STATUS_LABELS = toMap(PROJECT_STATUSES);
 export const TASK_STATUS_LABELS = toMap(TASK_STATUSES);
+
+/**
+ * Finished, for every page that asks.
+ *
+ * DEFINED BY EXCLUSION, ON PURPOSE. The question everywhere is "is this task
+ * still being worked on", and it was asked five different times as
+ * `status IN ('todo','in_progress')` — an allow-list that silently dropped
+ * `accepted` and `blocked` from every count and section it governed. Pressing
+ * Accepted removed a task from its own project page.
+ *
+ * Naming the two CLOSED states instead means a status added later is open until
+ * somebody says otherwise, which fails towards showing a row rather than hiding
+ * one. In SQL the same predicate is written
+ * `status NOT IN ('submitted','completed')` — there is no way to share a literal
+ * across both, so it is written out and pointed back here.
+ */
+export const CLOSED_TASK_STATUSES = ['submitted', 'completed'] as const;
+
+/** Still being worked on — see `CLOSED_TASK_STATUSES`. */
+export function isOpenTask(status: string): boolean {
+  return !(CLOSED_TASK_STATUSES as readonly string[]).includes(status);
+}
 export const TASK_PRIORITY_LABELS = toMap(TASK_PRIORITIES);
 
 export const PILLARS = [

@@ -67,12 +67,19 @@ export const DEAL_STAGES = ['proposal', 'negotiation', 'won', 'lost'] as const;
 
 export const PROJECT_STATUSES = ['planned', 'active', 'on_hold', 'delivered'] as const;
 
-/**
- * Task lifecycle. `submitted` is the member saying "I am done"; only a
- * moderator or admin can move it to `completed`. That two-step is enforced by
- * a trigger, not by hiding a button.
+/*
+ * TASK_STATUSES WAS HERE AND IS GONE, because it was a second copy and it was
+ * the wrong one.
+ *
+ * It read ['todo', 'in_progress', 'submitted', 'completed'] — missing both
+ * `accepted` and `blocked`, which `task_status_valid` has admitted since 0054.
+ * Nothing imported it, so it was never wrong in a way anything caught; it was
+ * wrong in a way people read, and `status IN ('todo','in_progress')` appears in
+ * five queries that were written next to it.
+ *
+ * The list lives in `src/lib/labels.ts` now, once, with the labels beside it,
+ * and `isOpenTask` there is the one answer to "is this still being worked on".
  */
-export const TASK_STATUSES = ['todo', 'in_progress', 'submitted', 'completed'] as const;
 
 export const TASK_PRIORITIES = ['low', 'normal', 'high', 'urgent'] as const;
 

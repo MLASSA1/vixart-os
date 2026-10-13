@@ -5,7 +5,7 @@ import { PageHeader, Section } from '@/components/ui';
 import { withUser } from '@/db/session';
 import {
   addDays, addMonths, dayLabel, dayNumber, isWeekend, monthGrid, monthLabel,
-  startOfMonth, startOfWeek, today, weekDays, type Ymd,
+  isYmd, startOfMonth, startOfWeek, today, weekDays, type Ymd,
 } from '@/lib/calendar';
 import { addScheduleEntryAction, deleteScheduleEntryAction } from './actions';
 import { ScheduleForm } from './ScheduleForm';
@@ -53,13 +53,28 @@ export default async function SchedulePage({
 
   const params = await searchParams;
   const view = params.view === 'month' || params.view === 'day' ? params.view : 'week';
-  const anchor: Ymd = /^\d{4}-\d{2}-\d{2}$/.test(params.date ?? '') ? params.date! : today();
+  // isYmd rejects a date no calendar has, which the shape test above admitted.
+  const anchor: Ymd = isYmd(params.date) ? params.date : today();
   const teamView = canModerate && params.team === '1';
 
   const days: Ymd[] =
     view === 'day' ? [anchor] : view === 'month' ? monthGrid(anchor) : weekDays(anchor);
-  const from = days[0]!;
-  const to = days[days.length - 1]!;
+
+  /*
+   * WHAT THE QUERY COVERS IS NOT ALWAYS WHAT THE PAGE DRAWS.
+   *
+   * The capacity table draws `weekDays(anchor)` — seven columns, always, that
+   * being what "Team week" means. The range below followed `view` instead, so
+   * in Day view it fetched one day and the table still drew seven: six columns
+   * showed "·" for everybody, no matter how much work was in them.
+   *
+   * That is the one view where an empty cell is acted on. The section says it
+   * exists "so nobody is given a fifth job on a day they already have four",
+   * and it was answering for six of the seven days with silence.
+   */
+  const span: Ymd[] = teamView ? weekDays(anchor) : days;
+  const from = span[0]!;
+  const to = span[span.length - 1]!;
 
   const { entries, tasks, people } = await withUser(async (tx) => {
     // RLS returns only this person's rows; no user filter is written here,
@@ -69,7 +84,7 @@ export default async function SchedulePage({
         FROM schedule_entry
        WHERE starts_on <= ${to}::date
          AND coalesce(ends_on, starts_on) >= ${from}::date
-       ORDER BY starts_on, title
+       ORDER BY starts_on, app.task_sort_key(title), id
     `);
 
     const t = await tx.execute<DueTask>(sql`
@@ -83,7 +98,7 @@ export default async function SchedulePage({
          AND (${teamView} OR t.assignee_id = ${me.id})
        -- Due date first (this is a calendar), then the numbered sequence
        -- rather than title, which put "TASK 10" above "TASK 2" (0076).
-       ORDER BY t.due_date, app.task_sort_key(t.title)
+       ORDER BY t.due_date, app.task_sort_key(t.title), t.id
     `);
 
     const u = teamView
@@ -105,27 +120,44 @@ export default async function SchedulePage({
   const tasksOn = (d: Ymd, who?: string) =>
     tasks.filter((x) => x.due_date === d && (!who || x.assignee_id === who));
 
-  const step = view === 'month' ? addMonths(anchor, 1) : addDays(anchor, view === 'day' ? 1 : 7);
-  const back = view === 'month' ? addMonths(anchor, -1) : addDays(anchor, view === 'day' ? -1 : -7);
+  /*
+   * In team view a week is the unit of everything.
+   *
+   * The table draws seven columns whatever `view` says, so Day and Month had
+   * nothing to change — and the controls still answered: the heading read a
+   * single date above a seven-day table, and "→" moved that table by one day,
+   * which looks like a week that has slipped. Travel is a week at a time here,
+   * and the three view buttons are not drawn, because the one thing they could
+   * honestly do is nothing.
+   */
+  const step = teamView
+    ? addDays(anchor, 7)
+    : view === 'month' ? addMonths(anchor, 1) : addDays(anchor, view === 'day' ? 1 : 7);
+  const back = teamView
+    ? addDays(anchor, -7)
+    : view === 'month' ? addMonths(anchor, -1) : addDays(anchor, view === 'day' ? -1 : -7);
   const href = (d: Ymd, v = view, t = teamView) =>
     `/schedule?view=${v}&date=${d}${t ? '&team=1' : ''}`;
 
+  const weekRange = `${dayLabel(span[0]!)} — ${dayLabel(span[span.length - 1]!)}`;
   const title =
-    view === 'month' ? monthLabel(anchor)
+    teamView ? weekRange
+    : view === 'month' ? monthLabel(anchor)
     : view === 'day' ? dayLabel(anchor)
-    : `${dayLabel(days[0]!)} — ${dayLabel(days[6]!)}`;
+    : weekRange;
 
   return (
     <>
       <PageHeader eyebrow={teamView ? 'Capacity' : (me.name ?? 'Me')} title="Schedule" />
 
       <div className="flex flex-wrap items-center gap-2 border-b border-void/15 pb-4">
-        {(['day', 'week', 'month'] as const).map((v) => (
-          <Link key={v} href={href(anchor, v)}
-                className={`btn btn-small ${view === v ? '' : 'btn-inverse'}`}>
-            {v[0]!.toUpperCase() + v.slice(1)}
-          </Link>
-        ))}
+        {!teamView &&
+          (['day', 'week', 'month'] as const).map((v) => (
+            <Link key={v} href={href(anchor, v)}
+                  className={`btn btn-small ${view === v ? '' : 'btn-inverse'}`}>
+              {v[0]!.toUpperCase() + v.slice(1)}
+            </Link>
+          ))}
         <span className="mx-2 font-semibold">{title}</span>
         <Link href={href(back)} className="btn btn-inverse btn-small">←</Link>
         <Link href={href(today())} className="btn btn-inverse btn-small">Today</Link>
@@ -208,23 +240,60 @@ export default async function SchedulePage({
                       </p>
                     ))}
 
-                    {dayEntries.map((e) => (
-                      <p key={e.id} className="mt-1 flex items-center gap-1.5 text-[12.5px]">
-                        <span className={`chip ${KIND_TONE[e.kind] ?? 'tone-quiet'}`}>
-                          {KIND_LABEL[e.kind] ?? e.kind}
-                        </span>
-                        <span className="min-w-0 truncate">{e.title}</span>
-                        {view !== 'month' && (
-                          <form action={deleteScheduleEntryAction} className="ml-auto">
-                            <input type="hidden" name="entryId" value={e.id} />
-                            <button type="submit"
-                                    className="cursor-pointer text-[11.5px] text-void/40 hover:text-void hover:underline">
-                              Remove
-                            </button>
-                          </form>
-                        )}
-                      </p>
-                    ))}
+                    {/*
+                      * A DIV, and the reason is the <form> inside it.
+                      *
+                      * This row was a <p>. A <form> is flow content and may not
+                      * sit inside a paragraph, so the browser closed the <p>
+                      * before it and reopened one after — a tree that does not
+                      * match what React rendered, which is a hydration mismatch
+                      * and, before that, a row whose Remove sat on its own line.
+                      */}
+                    {dayEntries.map((e) => {
+                      const last = e.ends_on ?? e.starts_on;
+                      const spans = last !== e.starts_on;
+                      return (
+                        <div key={e.id} className="mt-1 text-[12.5px]">
+                          <div className="flex items-center gap-1.5">
+                            <span className={`chip ${KIND_TONE[e.kind] ?? 'tone-quiet'}`}>
+                              {KIND_LABEL[e.kind] ?? e.kind}
+                            </span>
+                            <span className="min-w-0 truncate">{e.title}</span>
+                            {view !== 'month' && (
+                              <form action={deleteScheduleEntryAction} className="ml-auto">
+                                <input type="hidden" name="entryId" value={e.id} />
+                                {/*
+                                  * An entry that spans days is drawn on each of
+                                  * them, so the same Remove appears more than
+                                  * once and every copy deletes the whole range.
+                                  * That is the right behaviour and the wrong
+                                  * label, so the label says which it is.
+                                  */}
+                                <button
+                                  type="submit"
+                                  title={
+                                    spans
+                                      ? `Removes the whole entry, ${dayLabel(e.starts_on)} to ${dayLabel(last)}`
+                                      : 'Removes this entry'
+                                  }
+                                  className="cursor-pointer text-[11.5px] text-void/40 hover:text-void hover:underline">
+                                  {spans ? 'Remove all' : 'Remove'}
+                                </button>
+                              </form>
+                            )}
+                          </div>
+                          {/*
+                            * The note was selected by the query, carried in the
+                            * type and never drawn. Somebody wrote "back on the
+                            * 14th, reachable on WhatsApp" and the schedule kept
+                            * it where nobody could read it.
+                            */}
+                          {e.note && (
+                            <p className="hint mt-0.5 whitespace-pre-wrap text-[12px]">{e.note}</p>
+                          )}
+                        </div>
+                      );
+                    })}
 
                     {view !== 'month' && dayTasks.length === 0 && dayEntries.length === 0 && (
                       <p className="hint mt-1 text-[12.5px]">Nothing.</p>

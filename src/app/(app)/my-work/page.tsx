@@ -3,6 +3,7 @@ import { auth } from '@/auth';
 import { Empty, PageHeader, Section } from '@/components/ui';
 import { TaskRow, type TaskItem } from '@/components/TaskRow';
 import { withUser } from '@/db/session';
+import { today } from '@/lib/calendar';
 import { QUERY_CAP } from '@/lib/list-caps';
 
 export const dynamic = 'force-dynamic';
@@ -63,7 +64,7 @@ export default async function MyWorkPage() {
         *
         * Completed last so the LIMIT trims finished work before anything live.
         */
-       ORDER BY (t.status = 'completed'), app.task_sort_key(t.title)
+       ORDER BY (t.status = 'completed'), app.task_sort_key(t.title), t.id
        LIMIT ${QUERY_CAP}
     `);
     return result.rows as TaskItem[];
@@ -81,25 +82,47 @@ export default async function MyWorkPage() {
   const mine = rows.filter(
     (t) => t.assignee_id === me.id && t.status !== 'completed' && t.status !== 'submitted',
   );
-  const raised = rows.filter(
-    (t) => t.created_by_id === me.id && t.assignee_id !== me.id && t.status !== 'completed',
-  );
+  /*
+   * Split rather than filtered away.
+   *
+   * This was one list with `status !== 'completed'` on the end, and "Finished"
+   * below counts only work assigned to ME — so a task you raised for a
+   * colleague left this section the moment they finished it and appeared on no
+   * other. The one event you raised it to find out about was the one that made
+   * it disappear.
+   */
+  const raisedAll = rows.filter((t) => t.created_by_id === me.id && t.assignee_id !== me.id);
+  const raised = raisedAll.filter((t) => t.status !== 'completed');
+  const raisedDone = raisedAll.filter((t) => t.status === 'completed');
   /*
    * The same two piles as /tasks, from the same definition of "new".
    *
-   * `todo` is work nobody has picked up. Everything else that is not finished is
-   * under way — including a legacy `blocked` or `submitted` row, because from the
-   * reader's side those are all the same thing and the chip on the row says
-   * which. Two piles, not six.
+   * `todo` is work nobody has picked up; `accepted`, `in_progress` and a legacy
+   * `blocked` are all under way, because from the reader's side those are the
+   * same thing and the chip on the row says which. Two piles, not six.
+   *
+   * `submitted` is not among them: `mine` excludes it above, and those rows are
+   * drawn in "Waiting on a sign-off" instead.
    */
   const fresh = mine.filter((t) => t.status === 'todo');
   const doing = mine.filter((t) => t.status !== 'todo');
   const blocked = rows.filter((t) => t.status === 'blocked');
   const waiting = rows.filter((t) => t.status === 'submitted');
   const done = rows.filter((t) => t.status === 'completed' && t.assignee_id === me.id);
-  const overdue = mine.filter(
-    (t) => t.due_date && new Date(t.due_date) < new Date(),
-  ).length;
+  /*
+   * Due TODAY is not overdue. `due_date` is a DATE and `new Date("2026-10-12")`
+   * is UTC midnight, so comparing it to the clock made every task overdue from
+   * one in the morning on the day it was due. Two "YYYY-MM-DD" strings compare
+   * as text, which is the whole comparison and has no timezone in it.
+   */
+  const overdue = mine.filter((t) => t.due_date !== null && t.due_date < today()).length;
+
+  /*
+   * The LIMIT, said out loud. The comment below this used to claim the query
+   * "says so when it bites" and there was nothing that said it, so a member
+   * with more than QUERY_CAP tasks would read understated headings as fact.
+   */
+  const truncated = rows.length >= QUERY_CAP;
 
   return (
     <>
@@ -123,6 +146,14 @@ export default async function MyWorkPage() {
           <p className="kpi mt-1">{done.length}</p>
         </div>
       </div>
+
+      {truncated && (
+        <p className="tone-warn mt-4 rounded-[10px] px-4 py-3 text-[14px]">
+          This page is showing the first {QUERY_CAP} tasks and there are more. The
+          counts above are of what is shown, not of everything — tell me and I
+          will add paging.
+        </p>
+      )}
 
       {/*
         NEW AND IN PROGRESS, SEPARATELY, AND NOTHING HELD BACK.
@@ -176,17 +207,34 @@ export default async function MyWorkPage() {
         )}
       </Section>
 
-      {raised.length > 0 && (
+      {raisedAll.length > 0 && (
         <Section title={`Raised by me — ${raised.length}`}>
           <p className="hint mb-3">
             Work you asked somebody else for. You are told here when one of them
             says it is blocked.
           </p>
-          <ul className="border-t border-void/10">
-            {raised.map((t) => (
-              <TaskRow key={t.id} task={t} canModerate={canModerate} showProject />
-            ))}
-          </ul>
+          {raised.length === 0 ? (
+            <p className="hint">Nothing outstanding — all of it has come back.</p>
+          ) : (
+            <ul className="border-t border-void/10">
+              {raised.map((t) => (
+                <TaskRow key={t.id} task={t} canModerate={canModerate} showProject />
+              ))}
+            </ul>
+          )}
+
+          {raisedDone.length > 0 && (
+            <details className="mt-4">
+              <summary className="cursor-pointer text-[14px] font-medium select-none">
+                Finished, that you asked for — {raisedDone.length}
+              </summary>
+              <ul className="mt-2 border-t border-void/10">
+                {raisedDone.map((t) => (
+                  <TaskRow key={t.id} task={t} canModerate={canModerate} showProject />
+                ))}
+              </ul>
+            </details>
+          )}
         </Section>
       )}
 
@@ -196,21 +244,22 @@ export default async function MyWorkPage() {
             Stuck on somebody or something else. The reason is the point — a
             block with no reason is just a task nobody is moving.
           </p>
+          {/*
+            No wrapper. TaskRow is itself the <li>, and wrapping it in another
+            one to hold the blocked reason produced `<ul><li><li>` — invalid,
+            and a hydration mismatch that re-rendered this list on the client.
+            TaskRow draws the reason now, so every page that shows a blocked
+            task shows why.
+          */}
           <ul className="border-t border-void/10">
             {blocked.map((t) => (
-              <li key={t.id} className="border-b border-void/10 py-1">
-                <TaskRow
-                  task={t}
-                  isMine={t.assignee_id === me.id}
-                  canModerate={canModerate}
-                  showProject
-                />
-                {t.blocked_reason ? (
-                  <p className="tone-warn mb-2 ml-1 inline-block rounded-[8px] px-2.5 py-1 text-[13px]">
-                    {t.blocked_reason}
-                  </p>
-                ) : null}
-              </li>
+              <TaskRow
+                key={t.id}
+                task={t}
+                isMine={t.assignee_id === me.id}
+                canModerate={canModerate}
+                showProject
+              />
             ))}
           </ul>
         </Section>

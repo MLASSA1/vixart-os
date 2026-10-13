@@ -45,10 +45,10 @@ export default async function DashboardPage() {
                WHERE relationship='client' AND status IN ('lead','prospect'))       AS leads,
              (SELECT count(*)::text FROM contact)                                   AS contacts,
              (SELECT count(*)::text FROM project WHERE status='active')             AS active_projects,
-             (SELECT count(*)::text FROM task WHERE status IN ('todo','in_progress')) AS open_tasks,
+             (SELECT count(*)::text FROM task WHERE status NOT IN ('submitted','completed')) AS open_tasks,
              (SELECT count(*)::text FROM task WHERE status='submitted')             AS awaiting_signoff,
              (SELECT count(*)::text FROM task
-               WHERE status IN ('todo','in_progress')
+               WHERE status NOT IN ('submitted','completed')
                  AND due_date IS NOT NULL AND due_date < current_date)              AS overdue_tasks
     `);
 
@@ -61,7 +61,7 @@ export default async function DashboardPage() {
              (SELECT max(i.occurred_at) FROM interaction i WHERE i.company_id=c.id) AS last_contact,
              (SELECT count(*)::text FROM task t
                 LEFT JOIN project p ON p.id=t.project_id
-               WHERE p.company_id=c.id AND t.status IN ('todo','in_progress')) AS open_tasks
+               WHERE p.company_id=c.id AND t.status NOT IN ('submitted','completed')) AS open_tasks
         FROM company c
        WHERE c.relationship='client' AND c.status='client'
        ORDER BY lower(c.name)
@@ -75,8 +75,8 @@ export default async function DashboardPage() {
       SELECT t.id, t.title, t.status, t.due_date::text AS due_date,
              t.project_id, p.name AS project_name
         FROM task t LEFT JOIN project p ON p.id=t.project_id
-       WHERE t.assignee_id = ${me.id} AND t.status IN ('todo','in_progress')
-       ORDER BY t.due_date NULLS LAST LIMIT 6
+       WHERE t.assignee_id = ${me.id} AND t.status NOT IN ('submitted','completed')
+       ORDER BY t.due_date NULLS LAST, app.task_sort_key(t.title), t.id LIMIT 6
     `);
 
     let money = { open_value: 0n, weighted: 0n, won_value: 0n, open_deals: 0 };

@@ -31,6 +31,25 @@ function fromUtc(d: Date): Ymd {
   return d.toISOString().slice(0, 10);
 }
 
+/**
+ * A date a calendar can actually hold.
+ *
+ * The shape test `/^\d{4}-\d{2}-\d{2}$/` admits 2026-02-31 and 2026-99-99, and
+ * a page that trusted it handed those to `monthGrid`, which produced a grid
+ * belonging to no month — every cell greyed out as "another month" and the
+ * add-entry form defaulted to a date the database would refuse. The round trip
+ * is the whole check: JavaScript normalises 2026-02-31 to 2026-03-03, so a date
+ * that comes back as itself is a date that exists.
+ *
+ * 0074 put the same rule in the database. This is the same question asked before
+ * a query rather than after it.
+ */
+export function isYmd(s: string | null | undefined): s is Ymd {
+  if (!s || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const parsed = new Date(`${s}T00:00:00Z`);
+  return !Number.isNaN(parsed.getTime()) && fromUtc(parsed) === s;
+}
+
 export function addDays(d: Ymd, n: number): Ymd {
   const x = toUtc(d);
   x.setUTCDate(x.getUTCDate() + n);

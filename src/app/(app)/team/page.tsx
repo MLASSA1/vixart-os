@@ -41,10 +41,18 @@ const ROLE_STYLE: Record<string, string> = {
   member: 'tone-quiet',
 };
 
+/*
+ * What each role actually reaches, as it stands today.
+ *
+ * `member` said "Own tasks, clients and projects" and had done since before the
+ * team space: a member is now bounced off /companies and /projects, so the line
+ * described a system that no longer exists, on the page people read to find out
+ * who can see what.
+ */
 const ROLE_EXPLAINS: Record<string, string> = {
   admin: 'Finance, invoices, prices, accounts.',
   moderator: 'Assigns work and signs off completion.',
-  member: 'Own tasks, clients and projects.',
+  member: 'Their own tasks, the schedule and the team space.',
 };
 
 export default async function TeamPage() {
@@ -114,12 +122,24 @@ export default async function TeamPage() {
             </p>
           )}
         </div>
-        <div>
-          <p className="label">Open tasks</p>
-          <p className="kpi mt-1">
-            {active.reduce((a, m) => a + Number(m.open_tasks), 0)}
-          </p>
-        </div>
+        {/*
+          * Not shown rather than shown as nought.
+          *
+          * `open_tasks` is NULL for anybody who may not see the workload, and
+          * `Number(null)` is 0 — so the sum rendered "Open tasks  0" for the
+          * whole agency to every member, which is a figure, confidently wrong,
+          * in the largest type on the page. The same reasoning as the empty
+          * "Invoices" section on a client: a number nobody may see is not a
+          * number to print as zero.
+          */}
+        {canSeeWorkload && (
+          <div>
+            <p className="label">Open tasks</p>
+            <p className="kpi mt-1">
+              {active.reduce((a, m) => a + Number(m.open_tasks ?? 0), 0)}
+            </p>
+          </div>
+        )}
         <div>
           <p className="label">Still on the initial password</p>
           <p className="kpi mt-1">
@@ -312,10 +332,11 @@ export default async function TeamPage() {
       )}
 
       <p className="prose-vixart mt-10 text-[15px]" style={{ opacity: 0.55 }}>
-        Administrators see Finance, invoices and service prices. Moderators assign
-        work and sign off completed tasks. The team sees clients, projects and
-        their own work. The boundary is enforced by PostgreSQL row level security,
-        not by hiding menu entries.
+        Administrators see Finance, invoices and service prices. Moderators see
+        the clients, the projects and the whole board, and are told when work is
+        finished. The team sees their own work, the schedule and the team space —
+        not clients, projects, leads or anything with a price on it. The boundary
+        is enforced by PostgreSQL row level security, not by hiding menu entries.
       </p>
     </>
   );

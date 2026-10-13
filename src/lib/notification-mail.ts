@@ -35,8 +35,9 @@ import { sendMail, mailerConfigured } from './mailer';
  * fires nightly and would become a daily reminder nobody reads, and
  * `task_awaiting_signoff` goes to whoever is already looking at the board.
  *
- * These three are the ones where the person is somewhere else and the thing is
- * waiting: work handed to you, a colleague writing to you, a client writing in.
+ * These four are the ones where the person is somewhere else and the thing is
+ * waiting: work handed to you, work you were waiting on being finished, a
+ * colleague writing to you, a client writing in.
  */
 export const EMAILABLE_KINDS = [
   'task_assigned',
@@ -47,9 +48,17 @@ export const EMAILABLE_KINDS = [
    * has to be email and not only an inbox row for the same reason as an
    * assignment: the person who needs to know is somewhere else.
    *
-   * Deduplicated in the database — `notification_one_per_state` covers
-   * task_completed — so a task completed, reopened and completed again is one
-   * email rather than three.
+   * One email per completion that actually happened.
+   *
+   * `notification_one_per_state` covers task_completed, so the same completion
+   * cannot be mailed twice. It used to do more than that by accident: because
+   * `app.notify` inserts ON CONFLICT DO NOTHING, a task reopened and finished
+   * again produced NO new row at all, and the inbox kept the first notice —
+   * naming the wrong person. 0077 retracts the notice when a task leaves
+   * `completed`, so a genuine second completion is told, once.
+   *
+   * Still outstanding, and Amin's call: twenty tasks finished in an afternoon
+   * is twenty emails to each manager. A daily digest is the alternative.
    */
   'task_completed',
   'message_received',

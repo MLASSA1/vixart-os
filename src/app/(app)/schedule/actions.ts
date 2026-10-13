@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { scheduleEntry } from '@/db/schema';
 import { withUser } from '@/db/session';
+import { isYmd } from '@/lib/calendar';
 import { describeDbError } from '@/lib/db-errors';
 import { EMPTY_STATE, type FormState } from '@/lib/form-state';
 
@@ -26,13 +27,15 @@ const SCHEDULE_ERRORS = {
 const entrySchema = z.object({
   title: z.string().trim().min(1, 'Give it a name.'),
   kind: z.enum(['shoot', 'meeting', 'off', 'block']),
-  startsOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Pick a date.'),
+  // isYmd, not a shape test: 2026-02-31 matched the regex and reached a CHECK
+  // constraint (0074), which came back as a database error instead of a sentence.
+  startsOn: z.string().refine(isYmd, 'Pick a date that exists.'),
   endsOn: z
     .string()
     .trim()
     .transform((v) => (v === '' ? null : v))
     .nullable()
-    .refine((v) => v === null || /^\d{4}-\d{2}-\d{2}$/.test(v), 'That end date is not a date.'),
+    .refine((v) => v === null || isYmd(v), 'That end date is not a date.'),
   note: z
     .string()
     .trim()
