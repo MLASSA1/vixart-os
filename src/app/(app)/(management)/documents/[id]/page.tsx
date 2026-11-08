@@ -7,8 +7,8 @@ import { withUser } from '@/db/session';
 import { Attachments } from '@/components/Attachments';
 import { listAttachments, uploadAttachmentAction } from '@/lib/attachment-actions';
 import {
-  DOCUMENT_STATUS_LABELS, DOCUMENT_TYPE_LABELS, INVOICE_PAYMENT_METHOD_FR,
-  SERVICE_UNIT_LABELS,
+  DOCUMENT_STATUS_LABELS, DOCUMENT_TYPE_LABELS, INVOICE_PAYMENT_METHODS,
+  INVOICE_PAYMENT_METHOD_FR, SERVICE_UNIT_LABELS,
 } from '@/lib/labels';
 import { formatMAD, fromCentimes, fromMillis } from '@/lib/money';
 import { computeDealTotals } from '@/lib/deal-totals';
@@ -24,6 +24,7 @@ import {
   recordPaymentAction,
   removeDocumentLineAction,
   setDocumentStatusAction,
+  setPaymentMethodAction,
   updateDraftAction,
 } from '../actions';
 import { IssueForm } from './IssueForm';
@@ -450,8 +451,12 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
       ) : (
         <Section title="Status">
           <p className="prose-vixart" style={{ opacity: 0.7 }}>
-            {record.number} is issued and read-only. The database refuses any change
-            to its figures — correcting it means issuing a credit note.
+            {record.number} is issued. The database refuses any change to its
+            figures — the totals, the client&apos;s ICE, the account it asks to be
+            paid into — and correcting one of those means issuing a credit note.
+            How it is settled is not a figure: a client who said transfer can turn
+            up with a cheque, so that one stays changeable, and every change is
+            recorded against the document.
           </p>
           {record.status === 'emis' && record.doc_type === 'facture' && (
             <div className="mt-4 flex flex-wrap gap-3">
@@ -475,6 +480,39 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
                 </button>
               </form>
             </div>
+          )}
+
+          {/*
+            Changing how it is settled, after the fact.
+            
+            Sits with the other things you can still do to an issued invoice
+            rather than up among the fields, because that block is for reading
+            and this is an action. Cancelled is excluded: there is nothing left
+            to settle.
+          */}
+          {record.status !== 'annule' && record.doc_type !== 'devis' && (
+            <form action={setPaymentMethodAction} className="mt-5 flex flex-wrap items-end gap-3">
+              <input type="hidden" name="documentId" value={record.id} />
+              <label className="block" htmlFor="changeMethod">
+                <span className="label block">Mode de règlement</span>
+                <select
+                  id="changeMethod"
+                  name="paymentMethod"
+                  className="input w-56"
+                  defaultValue={record.payment_method ?? ''}
+                >
+                  <option value="">Choose…</option>
+                  {INVOICE_PAYMENT_METHODS.map((m) => (
+                    <option key={m.value} value={m.value}>
+                      {m.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button type="submit" className="btn btn-inverse">
+                Change it
+              </button>
+            </form>
           )}
         </Section>
       )}

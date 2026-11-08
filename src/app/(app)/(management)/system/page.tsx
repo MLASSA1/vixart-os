@@ -147,8 +147,11 @@ export default async function SystemPage() {
       */}
       <Section title="Where a client pays">
         <p className="prose-vixart" style={{ opacity: 0.68 }}>
-          Printed at the bottom of every invoice, under “Coordonnées bancaires”.
-          A quote never carries them — it is not a demand for payment.
+          Printed near the bottom of every quote and invoice, under “Coordonnées
+          bancaires”, so a client who has just agreed a quote can pay the deposit
+          from it. Change them here and every document issued from then on
+          carries the new account; anything already issued keeps the one it was
+          issued with.
         </p>
         {!payment?.rib && !payment?.iban && (
           <p className="tone-warn mt-3 rounded-[10px] px-4 py-3 text-[14px]">

@@ -8,6 +8,7 @@ import { withUser } from '@/db/session';
 import { toCentimes, toMillis } from '@/lib/money';
 import { describeDbError } from '@/lib/db-errors';
 import { EMPTY_STATE, type FormState } from '@/lib/form-state';
+import { INVOICE_PAYMENT_METHOD_FR as FR } from '@/lib/labels';
 
 const DOC_ERRORS = {
   document_zero_vat_needs_reason:
@@ -292,6 +293,55 @@ export async function setDocumentStatusAction(formData: FormData): Promise<void>
   revalidatePath('/documents');
   revalidatePath(`/documents/${id}`);
   revalidatePath('/dashboard');
+}
+
+/**
+ * Correcting the mode de règlement on an invoice already issued.
+ *
+ * Everything else about an issued document is frozen — the totals, the client's
+ * ICE, the bank account it asks to be paid into — and correcting one of those
+ * means a credit note. This is deliberately not one of them, because it is not
+ * a figure: it records how the client is settling, and clients change their
+ * mind after the invoice is sent. Amin: "i need to be changble cus this can't
+ * be fixed".
+ *
+ * RECORDED, THOUGH. `activity` is append-only, and a change to a document that
+ * has already gone out is exactly the kind of thing somebody will ask about a
+ * year later — who changed it, when, and from what. The row says all three, and
+ * is written in the same transaction as the change, so there cannot be one
+ * without the other.
+ */
+export async function setPaymentMethodAction(formData: FormData): Promise<void> {
+  const id = String(formData.get('documentId') ?? '');
+  const method = String(formData.get('paymentMethod') ?? '');
+  // The same three the database allows (document_payment_method_valid, 0049).
+  if (!id || !['virement', 'cheque', 'especes'].includes(method)) return;
+
+  await withUser(async (tx) => {
+    // Read the old value first: once it is overwritten there is nothing to say
+    // what it was, and "changed it to Chèque" is half a sentence.
+    const before = await tx.execute<{ was: string | null; number: string | null; kind: string }>(sql`
+      SELECT payment_method AS was, number, doc_type AS kind
+        FROM document WHERE id = ${id}
+    `);
+    const row = before.rows[0];
+    if (!row || row.kind === 'devis' || row.was === method) return;
+
+    await tx.execute(sql`
+      UPDATE document SET payment_method = ${method} WHERE id = ${id}
+    `);
+
+    await tx.execute(sql`
+      INSERT INTO activity
+        (actor_id, actor_name, entity_type, entity_id, entity_label, action, detail)
+      VALUES (app.current_user_id(), app.actor_name(), 'document', ${id},
+              ${row.number ?? 'draft'}, 'changed the mode de règlement',
+              ${`${FR[row.was ?? ''] ?? row.was ?? 'unset'} → ${FR[method] ?? method}`})
+    `);
+  });
+
+  revalidatePath('/documents');
+  revalidatePath(`/documents/${id}`);
 }
 
 export async function deleteDraftAction(formData: FormData): Promise<void> {
