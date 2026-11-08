@@ -37,25 +37,17 @@ export const VIXART = {
   /**
    * Where a client pays.
    *
-   * Empty on purpose, and — unlike the identifiers above — NOT omitted when
-   * empty. An invoice with no payment block looks finished; an invoice whose
-   * payment block says the details are missing does not, and gets fixed before
-   * it is sent. Nothing here is guessed: a plausible-looking RIB on an issued
-   * invoice sends a client's money to a number nobody checked.
+   * MOVED TO THE DATABASE (0081).
    *
-   * Invoices only. A quote is not a demand for payment and carries no bank
-   * details at all.
+   * It lived here, empty, because a plausible-looking RIB on an issued invoice
+   * sends a client's money to a number nobody checked — and it stayed empty,
+   * which is why every invoice printed "— non renseigné —" in its payment
+   * block. Amin asked for it to be editable without a deploy, so it is now one
+   * admin-only row in `payment_detail`, a form on /system, and four columns
+   * copied onto each document at issue so an invoice keeps the account it was
+   * issued with.
+   *
+   * Nothing replaces it here. A constant would be a second answer to "where
+   * does a client pay", and the whole point of the table is that there is one.
    */
-  bank: {
-    name: '',
-    rib: '',
-    iban: '',
-    swift: '',
-  },
 } as const;
-
-/** True once every field a client needs in order to pay has a value. */
-export function bankDetailsComplete(): boolean {
-  const { name, rib, iban, swift } = VIXART.bank;
-  return [name, rib, iban, swift].every((v) => v.trim().length > 0);
-}

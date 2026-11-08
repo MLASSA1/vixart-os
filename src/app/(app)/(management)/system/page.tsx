@@ -5,6 +5,8 @@ import { homeFor } from '@/lib/home';
 import { Field, PageHeader, Section } from '@/components/ui';
 import { getOwnerDb } from '@/db';
 import { withUser } from '@/db/session';
+import { PaymentDetailForm } from './PaymentDetailForm';
+import { savePaymentDetailAction } from './actions';
 
 /**
  * Engine status. Management only.
@@ -20,6 +22,29 @@ export default async function SystemPage() {
   if (session?.user.role !== 'admin') redirect(homeFor(session!.user.role));
 
   const owner = getOwnerDb();
+
+  /*
+   * Read through the SIGNED-IN session, not the owner connection the rest of
+   * this page uses. Everything else here is a diagnostic of the database and
+   * is read as owner on purpose; the bank account is business data, and
+   * `payment_detail_admin` (0081) is what decides who sees it. Reading it as
+   * owner would bypass the only policy protecting it.
+   */
+  const payment = await withUser(async (tx) => {
+    const result = await tx.execute<{
+      bank_name: string | null; rib: string | null;
+      iban: string | null; swift: string | null;
+      updated_at: string | null; updated_by: string | null;
+    }>(sql`
+      SELECT p.bank_name, p.rib, p.iban, p.swift,
+             p.updated_at::text AS updated_at,
+             u.full_name AS updated_by
+        FROM payment_detail p
+        LEFT JOIN app_user u ON u.id = p.updated_by_id
+       LIMIT 1
+    `);
+    return result.rows[0] ?? null;
+  });
 
   const [engine] = (
     await owner.execute<{
@@ -114,6 +139,41 @@ export default async function SystemPage() {
   return (
     <>
       <PageHeader eyebrow="Management only" title="System" />
+
+      {/*
+        First, because it is the only thing on this page you can change, and
+        because an invoice with no payment block is the thing most likely to be
+        waiting on it.
+      */}
+      <Section title="Where a client pays">
+        <p className="prose-vixart" style={{ opacity: 0.68 }}>
+          Printed at the bottom of every invoice, under “Coordonnées bancaires”.
+          A quote never carries them — it is not a demand for payment.
+        </p>
+        {!payment?.rib && !payment?.iban && (
+          <p className="tone-warn mt-3 rounded-[10px] px-4 py-3 text-[14px]">
+            No account is set, so every invoice currently prints
+            “— non renseigné —” where a client would look for how to pay.
+            Nothing is guessed: a plausible RIB sends money to a number nobody
+            checked.
+          </p>
+        )}
+        <PaymentDetailForm
+          action={savePaymentDetailAction}
+          current={{
+            bankName: payment?.bank_name ?? '',
+            rib: payment?.rib ?? '',
+            iban: payment?.iban ?? '',
+            swift: payment?.swift ?? '',
+          }}
+        />
+        {payment?.updated_at && (
+          <p className="hint mt-3">
+            Last changed {payment.updated_at.slice(0, 10)}
+            {payment.updated_by ? ` by ${payment.updated_by}` : ''}.
+          </p>
+        )}
+      </Section>
 
       <div className="grid grid-cols-1 gap-x-10 md:grid-cols-2">
         <div>

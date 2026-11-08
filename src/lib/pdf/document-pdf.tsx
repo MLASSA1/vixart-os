@@ -92,6 +92,30 @@ const s = StyleSheet.create({
   meta: { fontSize: 8, opacity: 0.55 },
   docTitle: { fontSize: 22, fontWeight: 700, letterSpacing: -0.5, textAlign: 'right' },
   docNumber: { fontSize: 11, fontWeight: 600, textAlign: 'right', marginTop: 2 },
+
+  /*
+   * The draft watermark.
+   *
+   * Diagonal, across the middle of every page, in grey rather than a tint that
+   * might vanish on a cheap printer or a greyscale scan. A draft that can be
+   * mistaken for an invoice is the only real risk of printing one at all, so
+   * this is deliberately hard to miss and deliberately not subtle.
+   */
+  watermark: {
+    position: 'absolute',
+    // Spanning the full page width with the text centred inside it. The first
+    // attempt used left/right: -40 to "give it room", which moved the box
+    // rather than the text and pushed the B off the left edge once rotated.
+    top: 300,
+    left: 0,
+    right: 0,
+    textAlign: 'center',
+    fontSize: 64,
+    fontWeight: 700,
+    color: '#111111',
+    opacity: 0.08,
+    transform: 'rotate(-28deg)',
+  },
   rule: { borderBottomWidth: 1.5, borderBottomColor: VOID, marginTop: 14, marginBottom: 16 },
   hairline: { borderBottomWidth: 0.5, borderBottomColor: VOID, opacity: 0.25 },
   blocks: { flexDirection: 'row', justifyContent: 'space-between', gap: 24 },
@@ -237,6 +261,18 @@ export interface PdfInput {
   clientIce: string | null;
   clientIf: string | null;
   clientRc: string | null;
+  /*
+   * Where a client pays, passed in rather than read from a constant (0081).
+   *
+   * For an issued document these are the four columns frozen onto it, so
+   * reprinting an invoice from last year prints last year's account. For a
+   * draft preview they are the current row. The renderer does not know or care
+   * which — it is handed values and prints them, and that is why it cannot
+   * accidentally rewrite history.
+   */
+  bank: { name: string; rib: string; iban: string; swift: string };
+  /** A draft, printed to be looked at. Watermarked, and never a claim. */
+  preview?: boolean;
   clientAddress: string | null;
   /** A particulier has no ICE, and is not asked for one. */
   clientIsIndividual: boolean;
@@ -278,11 +314,16 @@ export async function renderDocumentPdf(input: PdfInput): Promise<Buffer> {
 
   const doc = (
     <Document
-      title={`${title} ${input.number}`}
+      title={input.preview ? `${title} (brouillon)` : `${title} ${input.number}`}
       author={VIXART.legalName}
       subject={input.subject ?? undefined}
     >
       <Page size="A4" style={s.page}>
+        {input.preview && (
+          <Text style={s.watermark} fixed>
+            BROUILLON
+          </Text>
+        )}
         {/* --- Issuer and document identity ------------------------------- */}
         <View style={s.headerRow}>
           <View style={{ width: '55%' }}>
@@ -303,7 +344,15 @@ export async function renderDocumentPdf(input: PdfInput): Promise<Buffer> {
           </View>
           <View style={{ width: '40%' }}>
             <Text style={s.docTitle}>{title}</Text>
-            <Text style={s.docNumber}>{input.number}</Text>
+            {/*
+              A draft has no number — `app.next_document_number` has not been
+              asked for one, because a number is spent for good once taken. So
+              the line says what it is instead of printing an empty space that
+              reads like a number nobody filled in.
+            */}
+            <Text style={s.docNumber}>
+              {input.preview ? 'BROUILLON — sans numéro' : input.number}
+            </Text>
             <Text style={[s.small, { textAlign: 'right', marginTop: 6 }]}>
               Date : {frDate(input.issueDate)}
             </Text>
@@ -522,10 +571,10 @@ export async function renderDocumentPdf(input: PdfInput): Promise<Buffer> {
           <View style={s.payBlock} wrap={false}>
             <Text style={s.payTitle}>COORDONNÉES BANCAIRES</Text>
             {([
-              ['Banque', VIXART.bank.name],
-              ['RIB', VIXART.bank.rib],
-              ['IBAN', VIXART.bank.iban],
-              ['SWIFT', VIXART.bank.swift],
+              ['Banque', input.bank.name],
+              ['RIB', input.bank.rib],
+              ['IBAN', input.bank.iban],
+              ['SWIFT', input.bank.swift],
             ] as const).map(([label, value]) => (
               <View key={label} style={s.payRow}>
                 <Text style={s.payLabel}>{label}</Text>

@@ -144,11 +144,20 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
         title={record.number ?? 'Draft'}
         actions={
           <>
-            {!isDraft && (
-              <a href={`/documents/${record.id}/pdf`} className="btn" target="_blank" rel="noreferrer">
-                Download PDF
-              </a>
-            )}
+            {/*
+              A draft prints too now, watermarked BROUILLON and with no number
+              (0081). Issuing spends a document number for good, so checking
+              the layout first has to be possible without doing it — and the
+              label says which of the two you are about to get.
+            */}
+            <a
+              href={`/documents/${record.id}/pdf`}
+              className={isDraft ? 'btn btn-inverse' : 'btn'}
+              target="_blank"
+              rel="noreferrer"
+            >
+              {isDraft ? 'Print a draft' : 'Download PDF'}
+            </a>
             <Link href="/documents" className="btn btn-inverse">
               Back
             </Link>

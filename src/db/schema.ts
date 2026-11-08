@@ -555,6 +555,17 @@ export const document = pgTable('document', {
   clientRc: text('client_rc'),
   clientAddress: text('client_address'),
 
+  /*
+   * The account this document asked to be paid into, as it stood at issue
+   * (0081). Frozen with everything else: a client who paid last year paid into
+   * the account printed on last year's invoice, and changing banks must not
+   * rewrite the instructions on an invoice already in their accounts.
+   */
+  issuerBankName: text('issuer_bank_name'),
+  issuerBankRib: text('issuer_bank_rib'),
+  issuerBankIban: text('issuer_bank_iban'),
+  issuerBankSwift: text('issuer_bank_swift'),
+
   subject: text('subject'),
   notes: text('notes'),
   paymentTerms: text('payment_terms'),
@@ -1079,3 +1090,25 @@ export const privateNote = pgTable(
   },
   (t) => [index('private_note_by_author_idx').on(t.authorId, t.updatedAt)],
 );
+
+/**
+ * Where a client pays. One row, admin-only, edited on /system (0081).
+ *
+ * The singleton is enforced by a unique index on a constant expression in the
+ * migration — `(true)` — which drizzle-kit cannot express, so it is not
+ * repeated here. Two rows would mean `LIMIT 1` choosing which bank account to
+ * print.
+ */
+export const paymentDetail = pgTable('payment_detail', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  /** As the bank writes it. */
+  bankName: text('bank_name'),
+  /** 24 digits, stored without the spaces a statement prints. */
+  rib: text('rib'),
+  /** Two letters then the rest; Morocco's own is 28 characters. */
+  iban: text('iban'),
+  /** BIC: 8 or 11, no other length exists. */
+  swift: text('swift'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedById: uuid('updated_by_id').references(() => appUser.id, { onDelete: 'set null' }),
+});

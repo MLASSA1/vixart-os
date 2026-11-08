@@ -568,6 +568,13 @@
       "when": 1791818735811,
       "tag": "0080_the_client_trade_register_on_the_invoice",
       "breakpoints": true
+    },
+    {
+      "idx": 81,
+      "version": "7",
+      "when": 1791818736811,
+      "tag": "0081_where_a_client_pays",
+      "breakpoints": true
     }
   ]
 }
