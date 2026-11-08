@@ -297,3 +297,15 @@ export const INVOICE_PAYMENT_METHOD_FR: Record<string, string> = {
   cheque: 'Chèque',
   especes: 'Espèces',
 };
+
+/**
+ * A trade register number with its label, exactly once.
+ *
+ * The company form asks for a "Trade register" and people fill it both ways:
+ * `12345`, and `RC 12345 (Tribunal de Commerce d'Agadir)` — which is how
+ * VIXART's own record is written. Prefixing unconditionally printed
+ * "RC RC 12345 (Agadir)" on the first invoice that carried a client's.
+ */
+export function labelledRc(value: string): string {
+  return /^\s*RC\b/i.test(value) ? value.trim() : `RC ${value.trim()}`;
+}

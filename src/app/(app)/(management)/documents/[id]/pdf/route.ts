@@ -60,6 +60,7 @@ export async function GET(
     clientLegalName: (data.doc.client_legal_name as string) ?? null,
     clientIce: (data.doc.client_ice as string) ?? null,
     clientIf: (data.doc.client_if as string) ?? null,
+    clientRc: (data.doc.client_rc as string) ?? null,
     clientAddress: (data.doc.client_address as string) ?? null,
     subject: (data.doc.subject as string) ?? null,
     notes: (data.doc.notes as string) ?? null,

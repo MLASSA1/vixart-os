@@ -551,6 +551,8 @@ export const document = pgTable('document', {
   clientLegalName: text('client_legal_name'),
   clientIce: text('client_ice'),
   clientIf: text('client_if'),
+  /** The client's trade register, snapshotted at issue like the rest (0080). */
+  clientRc: text('client_rc'),
   clientAddress: text('client_address'),
 
   subject: text('subject'),

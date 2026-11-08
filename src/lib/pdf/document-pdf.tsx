@@ -11,6 +11,7 @@ import {
   View,
   renderToBuffer,
 } from '@react-pdf/renderer';
+import { labelledRc } from '@/lib/labels';
 import { VIXART } from '@/lib/vixart';
 import { amountInWords } from '@/lib/amount-in-words';
 import { formatMAD, formatRate, fromMillis, lineTotal } from '@/lib/money';
@@ -235,6 +236,7 @@ export interface PdfInput {
   clientLegalName: string | null;
   clientIce: string | null;
   clientIf: string | null;
+  clientRc: string | null;
   clientAddress: string | null;
   /** A particulier has no ICE, and is not asked for one. */
   clientIsIndividual: boolean;
@@ -340,6 +342,19 @@ export async function renderDocumentPdf(input: PdfInput): Promise<Buffer> {
               <Text style={[s.meta, { fontWeight: 600 }]}>ICE — non renseigné —</Text>
             )}
             {input.clientIf && <Text style={s.meta}>IF {input.clientIf}</Text>}
+            {/*
+              The client's RC, beside their ICE and IF (0080).
+              Printed only when it is known: unlike the ICE, no article
+              requires the client's trade register on an invoice, so a missing
+              one is an absence rather than an omission worth announcing.
+
+              The label is dropped when the value carries it already. The
+              company form asks for a "Trade register" and people type both
+              "12345" and "RC 12345 (Agadir)" — VIXART's own record is stored
+              the second way — so prefixing unconditionally printed
+              "RC RC 12345 (Agadir)" on the first invoice that had one.
+            */}
+            {input.clientRc && <Text style={s.meta}>{labelledRc(input.clientRc)}</Text>}
           </View>
           {input.subject && (
             <View style={s.block}>

@@ -34,7 +34,9 @@ interface DocRow {
   company_id: string; company_name: string; company_ice: string | null;
   client_is_individual_now: boolean; ice_waiver_reason: string | null;
   company_if: string | null; company_address: string | null;
+  company_rc: string | null;
   client_name: string | null; client_ice: string | null; client_if: string | null;
+  client_rc: string | null;
   client_address: string | null;
   issue_date: string | null; due_date: string | null;
   vat_rate_bp: number; vat_exemption_reason: string | null;
@@ -61,6 +63,7 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
       SELECT d.*, c.name AS company_name, c.ice AS company_ice,
              c.is_individual AS client_is_individual_now,
              c.identifiant_fiscal AS company_if,
+             c.registre_commerce AS company_rc,
              concat_ws(', ', c.address_line, c.city) AS company_address,
              d.issue_date::text AS issue_date, d.due_date::text AS due_date,
              d.discount_centimes::text, d.advance_expected_centimes::text,
@@ -192,6 +195,11 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
           />
           <Field label="ICE" value={record.client_ice ?? record.company_ice} />
           <Field label="Tax ID" value={record.client_if ?? record.company_if} />
+          {/*
+            The trade register, frozen once issued and the company's current
+            value until then — the same fallback as every field above it.
+          */}
+          <Field label="Trade register" value={record.client_rc ?? record.company_rc} />
           <Field label="Address" value={record.client_address ?? record.company_address} />
         </div>
         <div>

@@ -547,6 +547,27 @@
       "when": 1791818732811,
       "tag": "0077_a_number_on_its_own_is_still_a_number",
       "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1791818733811,
+      "tag": "0078_the_retraction_applied_for_real",
+      "breakpoints": true
+    },
+    {
+      "idx": 79,
+      "version": "7",
+      "when": 1791818734811,
+      "tag": "0079_three_checks_that_never_ran",
+      "breakpoints": true
+    },
+    {
+      "idx": 80,
+      "version": "7",
+      "when": 1791818735811,
+      "tag": "0080_the_client_trade_register_on_the_invoice",
+      "breakpoints": true
     }
   ]
 }
