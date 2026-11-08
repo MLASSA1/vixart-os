@@ -248,6 +248,19 @@ export function Builder({
             Add a line
           </button>
         </div>
+        {/*
+          Said out loud, because it was only true in a code comment.
+          
+          Amin: "m not selling on the same time everytime" — the catalogue price
+          is a starting point, and the field stays editable, and whatever is
+          typed is what this document carries. Nothing on screen said so, so it
+          read like a fixed rate card you had to go and change first.
+        */}
+        <p className="hint mt-1">
+          Picking a service fills in its catalogue price — type over it if you
+          are charging something else this time. This document keeps what you
+          type, and the catalogue is left alone.
+        </p>
 
         <div className="mt-3 space-y-3">
           {lines.map((line) => {

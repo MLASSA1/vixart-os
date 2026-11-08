@@ -8,6 +8,7 @@ import { formatMAD } from '@/lib/money';
 import { formatDate, since } from '@/lib/format';
 import { TASK_STATUS_LABELS } from '@/lib/labels';
 import { ActivityFeed, type ActivityItem } from '@/components/ActivityFeed';
+import { MonthlyBars, fillMonths } from '@/components/MonthlyBars';
 
 export const dynamic = 'force-dynamic';
 
@@ -124,6 +125,58 @@ export default async function DashboardPage() {
       };
     }
 
+    /*
+     * Growth, month by month.
+     *
+     * One query per shape rather than one clever one: these are different
+     * tables with different date columns, and a UNION that lines them up reads
+     * worse than four plain selects and is no faster.
+     *
+     * Grouped by the expression rather than by an alias or an ordinal, because
+     * inside a UNION branch `GROUP BY m` is ambiguous and `GROUP BY 2` is a
+     * position nobody reading this would check.
+     */
+    const monthly = await tx.execute<{ kind: string; m: string; v: string }>(sql`
+      SELECT 'clients' AS kind, to_char(created_at, 'YYYY-MM') AS m, count(*)::text AS v
+        FROM company WHERE relationship = 'client'
+       GROUP BY to_char(created_at, 'YYYY-MM')
+      UNION ALL
+      SELECT 'projects', to_char(created_at, 'YYYY-MM'), count(*)::text
+        FROM project GROUP BY to_char(created_at, 'YYYY-MM')
+      UNION ALL
+      SELECT 'raised', to_char(created_at, 'YYYY-MM'), count(*)::text
+        FROM task GROUP BY to_char(created_at, 'YYYY-MM')
+      UNION ALL
+      SELECT 'done', to_char(completed_at, 'YYYY-MM'), count(*)::text
+        FROM task WHERE completed_at IS NOT NULL
+       GROUP BY to_char(completed_at, 'YYYY-MM')
+    `);
+
+    /*
+     * The money series, admin only, in DIRHAMS rather than centimes.
+     *
+     * A chart is read at a glance and a bar is a few pixels either way, so the
+     * sub-dirham precision the rest of the system guards so carefully buys
+     * nothing here. The figures beside and beneath the chart are the exact
+     * ones; this is the shape.
+     */
+    let moneyMonthly: { kind: string; m: string; v: string }[] = [];
+    if (seesMoney) {
+      const mm = await tx.execute<{ kind: string; m: string; v: string }>(sql`
+        SELECT 'won' AS kind, to_char(closed_at, 'YYYY-MM') AS m,
+               (sum(value_centimes) / 100)::text AS v
+          FROM deal WHERE stage = 'won' AND closed_at IS NOT NULL
+         GROUP BY to_char(closed_at, 'YYYY-MM')
+        UNION ALL
+        SELECT 'billed', to_char(issue_date, 'YYYY-MM'),
+               (sum(total_incl_vat) / 100)::text
+          FROM document
+         WHERE status <> 'brouillon' AND doc_type = 'facture' AND issue_date IS NOT NULL
+         GROUP BY to_char(issue_date, 'YYYY-MM')
+      `);
+      moneyMonthly = mm.rows;
+    }
+
     const feed = await tx.execute<ActivityItem & { [k: string]: unknown }>(sql`
       SELECT id, actor_name, entity_type, entity_label, action, created_at::text
         FROM activity ORDER BY created_at DESC LIMIT 12
@@ -135,11 +188,43 @@ export default async function DashboardPage() {
       myTasks: myTasks.rows,
       activity: feed.rows as ActivityItem[],
       money,
-        recurring,
+      recurring,
+      monthly: monthly.rows,
+      moneyMonthly,
     };
   });
 
-  const { counts, activeClients, myTasks, activity, money, recurring } = data;
+  const {
+    counts, activeClients, myTasks, activity, money, recurring, monthly, moneyMonthly,
+  } = data;
+
+  /*
+   * The series, pulled out of the flat rows and padded to a continuous run of
+   * months up to this one. `fillMonths` is what makes a month with nothing in
+   * it show as an empty slot instead of vanishing — the month nobody won
+   * anything is the most informative bar on a growth chart.
+   */
+  const thisMonth = new Date().toISOString().slice(0, 7);
+  const series = (rows: { kind: string; m: string; v: string }[], kind: string) =>
+    fillMonths(
+      rows.filter((r) => r.kind === kind && r.m).map((r) => ({ month: r.m, value: Number(r.v) })),
+      thisMonth,
+    );
+
+  const raised = series(monthly, 'raised');
+  const done = series(monthly, 'done');
+  // One ceiling across both, so the two charts can be compared by eye. Two
+  // measures of the same unit on one axis would be a dual-axis chart; two
+  // charts on a shared scale is the honest version of the same comparison.
+  const taskCeiling = Math.max(0, ...raised.map((p) => p.value), ...done.map((p) => p.value));
+
+  const clients = series(monthly, 'clients');
+  const projects = series(monthly, 'projects');
+
+  const won = series(moneyMonthly, 'won');
+  const billed = series(moneyMonthly, 'billed');
+  const wonTotal = won.reduce((a, p) => a + p.value, 0);
+  const billedTotal = billed.reduce((a, p) => a + p.value, 0);
 
   return (
     <>
@@ -206,6 +291,78 @@ export default async function DashboardPage() {
           </div>
         </div>
       )}
+
+      {/* --- Growth, month by month ------------------------------------------ */}
+      <Section title="Growth, month by month">
+        {seesMoney && (
+          <>
+            {/*
+              THREE NUMBERS BEFORE ANY CHART, because the gap between the first
+              two is the thing worth knowing and a chart would bury it. Work is
+              won in one place and billed in another, and nothing in the system
+              has been shouting when the second does not follow the first.
+            */}
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div className="card px-4 py-3">
+                <p className="label" style={{ opacity: 0.55 }}>Won</p>
+                <p className="mt-1 text-[19px] font-bold tabular-nums">
+                  {formatMAD(BigInt(Math.round(wonTotal)) * 100n)}
+                </p>
+              </div>
+              <div className="card px-4 py-3">
+                <p className="label" style={{ opacity: 0.55 }}>Invoiced</p>
+                <p className="mt-1 text-[19px] font-bold tabular-nums">
+                  {formatMAD(BigInt(Math.round(billedTotal)) * 100n)}
+                </p>
+              </div>
+              <div className={`card px-4 py-3 ${wonTotal - billedTotal > 0 ? 'tone-warn' : ''}`}>
+                <p className="label" style={{ opacity: 0.55 }}>Won but not invoiced</p>
+                <p className="mt-1 text-[19px] font-bold tabular-nums">
+                  {formatMAD(BigInt(Math.round(Math.max(0, wonTotal - billedTotal))) * 100n)}
+                </p>
+              </div>
+            </div>
+
+            {wonTotal > billedTotal && (
+              <p className="hint mt-3">
+                Work has been marked won that no invoice has followed. That is
+                either billing still to do, or a deal marked won too early —
+                both worth knowing before the month closes.
+              </p>
+            )}
+
+            <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <MonthlyBars
+                title="Deals won" points={won} money
+                caption="by the month the deal was closed"
+              />
+              <MonthlyBars
+                title="Invoiced" points={billed} money
+                caption="issued invoices, VAT included"
+              />
+            </div>
+          </>
+        )}
+
+        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <MonthlyBars title="Clients added" points={clients} caption="new client records" />
+          <MonthlyBars title="Projects started" points={projects} caption="by the month they were created" />
+          {/*
+            Raised and finished are the same unit, so they share a ceiling and
+            can be read against each other. They are two charts rather than two
+            series on one, which is the only way to compare them without a
+            second y-axis — the fastest way there is to make a chart lie.
+          */}
+          <MonthlyBars
+            title="Tasks raised" points={raised} scaleTo={taskCeiling}
+            caption="what the team took on"
+          />
+          <MonthlyBars
+            title="Tasks finished" points={done} scaleTo={taskCeiling}
+            caption="same scale as raised, so the two compare"
+          />
+        </div>
+      </Section>
 
       {/* --- Active engagements: the Monk Mode headline ---------------------- */}
       <Section title={`Active engagements — ${activeClients.length}`}>
