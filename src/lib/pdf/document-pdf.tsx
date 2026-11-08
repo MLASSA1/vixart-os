@@ -559,15 +559,21 @@ export async function renderDocumentPdf(input: PdfInput): Promise<Buffer> {
         )}
 
         {/*
-          Where to pay. Invoices only: a quote is an offer, not a demand for
-          payment, and bank details on one invite a client to pay against
-          something nobody has agreed to yet.
+          Where to pay, on EVERY document — Amin: "each quote or invoice needs
+          to carry it".
 
-          Fields with no value are printed as missing rather than left out. An
-          invoice with no payment block looks finished; one that says the
+          This was invoices only, on the reasoning that a quote is an offer
+          rather than a demand for payment and bank details on one invite a
+          client to pay against something nobody has agreed to yet. That is a
+          judgement about how VIXART sells, not a rule, and it is Amin's to
+          make: a client who has just said yes to a quote can pay the deposit
+          from the same sheet of paper instead of waiting for an invoice.
+
+          Fields with no value are printed as missing rather than left out. A
+          document with no payment block looks finished; one that says the
           details are not on file does not, and gets fixed before it is sent.
         */}
-        {input.docType === 'facture' && (
+        {(
           <View style={s.payBlock} wrap={false}>
             <Text style={s.payTitle}>COORDONNÉES BANCAIRES</Text>
             {([

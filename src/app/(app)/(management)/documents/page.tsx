@@ -4,7 +4,9 @@ import { sql } from 'drizzle-orm';
 import { auth } from '@/auth';
 import { ButtonLink, Empty, PageHeader, Section } from '@/components/ui';
 import { withUser } from '@/db/session';
-import { DOCUMENT_STATUS_LABELS, DOCUMENT_TYPE_LABELS } from '@/lib/labels';
+import {
+  DOCUMENT_STATUS_LABELS, DOCUMENT_TYPE_LABELS, INVOICE_PAYMENT_METHOD_FR,
+} from '@/lib/labels';
 import { formatMAD } from '@/lib/money';
 import { formatDate } from '@/lib/format';
 import { NewDocumentForm } from './NewDocumentForm';
@@ -19,6 +21,7 @@ interface Row {
   status: string;
   number: string | null;
   subject: string | null;
+  payment_method: string | null;
   company_name: string;
   company_id: string;
   issue_date: string | null;
@@ -46,7 +49,7 @@ export default async function DocumentsPage() {
 
   const { rows, companies, deals } = await withUser(async (tx) => {
     const docs = await tx.execute<Row>(sql`
-      SELECT d.id, d.doc_type, d.status, d.number, d.subject,
+      SELECT d.id, d.doc_type, d.status, d.number, d.subject, d.payment_method,
              c.name AS company_name, c.id AS company_id,
              d.issue_date::text, d.due_date::text,
              d.total_incl_vat::text, d.net_to_collect::text,
@@ -127,6 +130,17 @@ export default async function DocumentsPage() {
                   <span className={`chip ${STATUS_STYLE[row.status]}`}>
                     {DOCUMENT_STATUS_LABELS[row.status]}
                   </span>
+                  {/*
+                    How it is to be settled, under the status rather than in a
+                    column of its own — this table is already five wide and the
+                    answer is two words. A quote has no mode de règlement and a
+                    draft has not chosen one yet, so neither prints a line.
+                  */}
+                  {row.payment_method && (
+                    <p className="hint mt-0.5">
+                      {INVOICE_PAYMENT_METHOD_FR[row.payment_method] ?? row.payment_method}
+                    </p>
+                  )}
                 </td>
                 <td className="hint py-3 pr-4 whitespace-nowrap">
                   {row.issue_date ? formatDate(row.issue_date) : '—'}

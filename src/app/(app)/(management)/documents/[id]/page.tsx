@@ -6,7 +6,10 @@ import { Empty, Field, PageHeader, Section } from '@/components/ui';
 import { withUser } from '@/db/session';
 import { Attachments } from '@/components/Attachments';
 import { listAttachments, uploadAttachmentAction } from '@/lib/attachment-actions';
-import { DOCUMENT_STATUS_LABELS, DOCUMENT_TYPE_LABELS, SERVICE_UNIT_LABELS } from '@/lib/labels';
+import {
+  DOCUMENT_STATUS_LABELS, DOCUMENT_TYPE_LABELS, INVOICE_PAYMENT_METHOD_FR,
+  SERVICE_UNIT_LABELS,
+} from '@/lib/labels';
 import { formatMAD, fromCentimes, fromMillis } from '@/lib/money';
 import { computeDealTotals } from '@/lib/deal-totals';
 import { applyRate } from '@/lib/money';
@@ -31,6 +34,7 @@ interface DocRow {
   [k: string]: unknown;
   id: string; doc_type: string; status: string; number: string | null;
   subject: string | null; notes: string | null; payment_terms: string | null;
+  payment_method: string | null;
   company_id: string; company_name: string; company_ice: string | null;
   client_is_individual_now: boolean; ice_waiver_reason: string | null;
   company_if: string | null; company_address: string | null;
@@ -227,6 +231,27 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
             value={record.issue_date ? formatDate(record.issue_date) : null}
           />
           <Field label="Due" value={record.due_date ? formatDate(record.due_date) : null} />
+          {/*
+            How this one is to be settled — cash, cheque or transfer.
+            
+            It has been on the PDF since 0049 (CGI art. 145 requires it on an
+            invoice) and nowhere on screen, so after issuing you had to open the
+            PDF to find out what you had chosen. On a draft it is not chosen
+            yet: that happens at issue, with the rest of the frozen figures, so
+            the field says so rather than sitting empty.
+          */}
+          {record.doc_type !== 'devis' && (
+            <Field
+              label="Mode de règlement"
+              value={
+                record.payment_method
+                  ? (INVOICE_PAYMENT_METHOD_FR[record.payment_method] ?? record.payment_method)
+                  : isDraft
+                    ? 'Chosen when you issue it'
+                    : null
+              }
+            />
+          )}
           <Field label="VAT rate" value={`${record.vat_rate_bp / 100} %`} />
           {record.vat_exemption_reason && (
             <Field label="Exemption" value={record.vat_exemption_reason} />
