@@ -18,12 +18,15 @@
  * who to expect the password from instead, which is also how the recipient can
  * tell a real one from a phishing attempt.
  *
- * The body is built by a pure function so it can be read in a test without a
- * relay, a database or a network. `sendWelcomeMail` is the only part that
- * touches the outside world.
+ * The body is built by a pure function so it can be read in a test, in a
+ * script, or anywhere else, without a relay, a database or a network.
+ * `sendWelcomeMail` is the only part that touches the outside world, and it
+ * imports the relay WHERE IT USES IT rather than at the top of the file:
+ * `mailer` is `server-only`, and importing it up here made the pure function
+ * unimportable outside a server component — including from a one-line script
+ * to read what the app is about to send somebody.
  */
 
-import { sendMail } from '@/lib/mailer';
 import { appUrl } from '@/lib/vixart';
 
 export type Role = 'admin' | 'moderator' | 'member';
@@ -87,23 +90,34 @@ function firstStops(role: Role): string {
 function cautions(role: Role): string {
   if (role !== 'admin') return '';
   return `
-Two things worth knowing before you issue anything. An invoice number is spent
-the moment a document is issued and cannot be reused, so print the draft and
-check it first. And an issued invoice cannot be edited afterwards, by anyone,
-which is the point of it.
+Two things worth knowing before you issue anything. An invoice number
+is spent the moment a document is issued and cannot be reused, so print
+the draft and check it first. And an issued invoice cannot be edited
+afterwards, by anyone, which is the point of it.
 `;
 }
 
+/**
+ * Hard-wrapped at roughly 72 columns, on purpose.
+ *
+ * This is a plain-text email. Nothing downstream re-flows it: a mail client
+ * shows the line breaks that are in it, and a phone shows them narrower still.
+ * The first draft built this paragraph by gluing a role sentence onto a fixed
+ * opening, which produced a 120-character line that only became obvious when
+ * the message was printed and read. So each block carries its own breaks and
+ * is never concatenated mid-sentence.
+ */
 const WHAT_IT_IS: Record<Role, string> = {
   admin:
-    'It is where the agency\'s work, its clients and its money all live. Your\n' +
-    'account is an administrator one, so nothing in it is hidden from you.',
+    "It is where the agency's work, its clients and its money all live,\n" +
+    'and your account is an administrator one, so nothing in it is hidden\n' +
+    'from you.',
   moderator:
-    'It is where the agency\'s work and its clients live. You can assign work\n' +
-    'and sign it off.',
+    "It is where the agency's work and its clients live, and you can assign\n" +
+    'work and sign it off.',
   member:
-    'It replaces the scattered notes, chats and spreadsheets with one place for\n' +
-    'the work.',
+    'It replaces the scattered notes, chats and spreadsheets with one place\n' +
+    'for the work.',
 };
 
 export function welcomeMailSubject(): string {
@@ -115,14 +129,15 @@ export function welcomeMailText(p: WelcomePerson): string {
 
   return `Hi ${firstName},
 
-You have an account on VIXART OS, the agency's own system. ${WHAT_IT_IS[p.role]}
+You have an account on VIXART OS, the agency's own system.
+${WHAT_IT_IS[p.role]}
 
 Sign in at   ${appUrl()}
 Your email   ${p.email}
 
-${p.invitedBy} will send you your first password separately — it is never put in
-an email. The app asks you to choose your own the moment you sign in, so the one
-you are sent stops working straight away.
+${p.invitedBy} will send you your first password separately — a password is
+never put in an email. The app asks you to choose your own the moment you
+sign in, so the one you are sent stops working straight away.
 
 What you will probably want first:
 
@@ -145,6 +160,7 @@ If anything looks wrong or missing, tell ${p.invitedBy}.
  */
 export async function sendWelcomeMail(p: WelcomePerson): Promise<string | null> {
   try {
+    const { sendMail } = await import('@/lib/mailer');
     await sendMail({
       to: p.email,
       subject: welcomeMailSubject(),

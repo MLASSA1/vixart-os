@@ -31,7 +31,8 @@ describe('welcomeMailText', () => {
       expect(text.toLowerCase()).not.toContain('your password is');
       // It must still SAY where the password comes from, or the recipient has
       // no way to tell this message from a phishing attempt.
-      expect(text).toContain('Amin will send you your first password');
+      expect(text.replace(/\s+/g, ' '))
+        .toContain('Amin will send you your first password');
     }
   });
 
@@ -71,11 +72,33 @@ describe('welcomeMailText', () => {
   });
 
   it('warns an administrator about spending an invoice number', () => {
-    expect(welcomeMailText({ ...base, role: 'admin' }))
-      .toContain('invoice number is spent');
+    // Whitespace-flattened: this asserts what the email SAYS, and the body is
+    // hard-wrapped, so where a line happens to break must not fail a content
+    // test. It did once — rewrapping the paragraph split the phrase in two.
+    const flat = (role: Role) =>
+      welcomeMailText({ ...base, role }).replace(/\s+/g, ' ');
+
+    expect(flat('admin')).toContain('invoice number is spent');
+    expect(flat('admin')).toContain('cannot be edited afterwards');
     // Not said to someone who cannot issue one — it would only confuse.
-    expect(welcomeMailText({ ...base, role: 'member' }))
-      .not.toContain('invoice number is spent');
+    expect(flat('member')).not.toContain('invoice number is spent');
+  });
+
+  it('wraps every line narrow enough for a mail client to show as written', () => {
+    /*
+     * This is plain text. Nothing re-flows it: a client shows the breaks that
+     * are in it, and a phone shows them narrower still. The first version
+     * built the opening paragraph by gluing a role sentence onto a fixed
+     * sentence and produced a 120-character line, which was invisible in the
+     * source and obvious the moment the message was printed and read.
+     */
+    for (const role of ROLES) {
+      const long = welcomeMailText({ ...base, role })
+        .split('\n')
+        .filter((line) => line.length > 76);
+      expect(long, `${role}: ${long.length} line(s) too long to read on a phone`)
+        .toEqual([]);
+    }
   });
 
   it('has a subject that says what it is', () => {
