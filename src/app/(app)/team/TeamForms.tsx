@@ -38,6 +38,18 @@ function PasswordHandover({ state }: { state: TeamState }) {
         lose it, use “Reset password” to issue a new one. They must change it before
         they can reach anything.
       </p>
+      {state.mailProblem ? (
+        <p className="mt-3 border-l-2 border-void pl-3 text-[13px] font-semibold">
+          The welcome email did not go out, so they have not been told the account
+          exists. Send them the sign-in address as well as the password.
+          <span className="hint mt-1 block font-normal">{state.mailProblem}</span>
+        </p>
+      ) : (
+        <p className="hint mt-3">
+          A welcome email has gone to them with the sign-in address — it does not
+          contain the password, so you still have to send that.
+        </p>
+      )}
     </div>
   );
 }

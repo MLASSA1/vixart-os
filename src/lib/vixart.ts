@@ -51,3 +51,16 @@ export const VIXART = {
    * does a client pay", and the whole point of the table is that there is one.
    */
 } as const;
+
+/**
+ * Where the app lives, for a link in an email.
+ *
+ * One answer, in one place. It was written out twice — once in
+ * `notification-mail.ts` and once in the welcome mail — and two copies of a
+ * hostname is how an environment ends up emailing links to the wrong one.
+ * The trailing slash is stripped so `${appUrl()}/documents` cannot become a
+ * double slash, which some mail clients refuse to make a link of.
+ */
+export function appUrl(): string {
+  return (process.env.APP_URL ?? 'https://visionxart.cloud').replace(/\/$/, '');
+}

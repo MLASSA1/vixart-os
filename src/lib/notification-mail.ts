@@ -1,6 +1,7 @@
 import 'server-only';
 import { Client } from 'pg';
 import { sendMail, mailerConfigured } from './mailer';
+import { appUrl } from './vixart';
 
 /**
  * Notifications that also arrive in a mailbox.
@@ -105,10 +106,6 @@ interface Pending {
   full_name: string;
 }
 
-/** Where a link in an email should point. */
-function appUrl(): string {
-  return (process.env.APP_URL ?? 'https://visionxart.cloud').replace(/\/$/, '');
-}
 
 /** The subject and text of one notification, by kind. */
 export function composeNotificationMail(n: {

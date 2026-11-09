@@ -9,6 +9,7 @@ import { appUser } from '@/db/schema';
 import { withUser } from '@/db/session';
 import { describeDbError } from '@/lib/db-errors';
 import { EMPTY_TEAM_STATE, type TeamState } from '@/lib/form-state';
+import { sendWelcomeMail } from '@/lib/welcome-mail';
 
 const TEAM_ERRORS = {
   app_user_email_key: 'That email address already has an account.',
@@ -40,11 +41,24 @@ function generatePassword(): string {
 }
 
 /**
- * Creates an account.
+ * Creates an account, and tells the person it exists.
  *
  * The initial password is generated here and shown to the admin exactly once —
  * it is never stored in readable form, and the new member must change it before
  * reaching anything.
+ *
+ * THE EMAIL IS SENT AFTER THE ACCOUNT EXISTS, AND CANNOT UNDO IT. For a year
+ * this function created a row and told nobody; the welcome the team received
+ * had been a script run by hand, which is to say it worked exactly once. An
+ * accountant was given a full administrator account on 9 November 2026 and
+ * heard nothing, because there was nothing to hear.
+ *
+ * So the send is deliberately outside the transaction and deliberately cannot
+ * throw. A relay that is down is not a reason to lose an account that was
+ * created correctly, and it is not a reason to lie either: the problem comes
+ * back in `mailProblem` and is shown next to the password, so whoever created
+ * the account knows they have to say it by hand. The password itself is never
+ * in the email — see `welcome-mail.ts` for why.
  */
 export async function createMemberAction(
   _previous: TeamState,
@@ -63,23 +77,35 @@ export async function createMemberAction(
   const password = generatePassword();
   const passwordHash = await hash(password, 12);
 
+  let invitedBy = 'Amin';
   try {
-    await withUser(async (tx) => {
+    invitedBy = await withUser(async (tx, user) => {
       await tx.execute(sql`
         SELECT app.create_team_member(
           ${parsed.data.email}, ${parsed.data.fullName},
           ${parsed.data.jobTitle}, ${parsed.data.role}, ${passwordHash})
       `);
+      // Named in the email so the recipient can tell a real welcome from a
+      // phishing attempt, and knows whose message the password will be in.
+      return user.name;
     });
   } catch (error) {
     return { error: describeDbError(error, TEAM_ERRORS) };
   }
+
+  const mailProblem = await sendWelcomeMail({
+    fullName: parsed.data.fullName,
+    email: parsed.data.email,
+    role: parsed.data.role,
+    invitedBy,
+  });
 
   revalidatePath('/team');
   return {
     error: null,
     createdPassword: password,
     createdFor: `${parsed.data.fullName} (${parsed.data.email})`,
+    ...(mailProblem ? { mailProblem } : {}),
   };
 }
 

@@ -32,6 +32,15 @@ export const EMPTY_STATE: FormState = { error: null };
 export interface TeamState extends FormState {
   createdPassword?: string;
   createdFor?: string;
+  /**
+   * Why the welcome email did not go out, when it did not.
+   *
+   * Absent means it was sent. Present means the account exists and the person
+   * has not been told, which is a different instruction to whoever is holding
+   * the password on screen — so it is its own field rather than folded into
+   * `error`, which would read as "the account was not created".
+   */
+  mailProblem?: string;
 }
 
 export const EMPTY_TEAM_STATE: TeamState = { error: null };
