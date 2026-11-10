@@ -162,6 +162,49 @@ h3,
   line-height: 1.1;
 }
 
+/*
+ * Three sizes of figure, because nine figures at one size is a list, not a
+ * dashboard. The eye needs to be told what to read first.
+ *
+ * `.kpi-hero` is spent once per screen, on the single number that would change
+ * a decision. `.kpi` is the ordinary one. `.kpi-sm` is for a figure that is
+ * there for comparison rather than for its own sake.
+ *
+ * All three are clamped against the VIEWPORT, not against their column. A
+ * Moroccan amount is formatted with non-breaking spaces — "36 000,00 DH" is a
+ * single unbreakable token — so a figure that cannot shrink on a narrow screen
+ * runs straight out of its column and into the next one. It does not wrap; it
+ * overlaps, which is how a dashboard tells a lie.
+ */
+.kpi-hero {
+  font-family: var(--font-head);
+  font-size: clamp(2.1rem, 6vw, 3.1rem);
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.05;
+}
+
+.kpi-sm {
+  font-family: var(--font-head);
+  font-size: clamp(1.1rem, 3.4vw, 1.4rem);
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
+}
+
+/*
+ * A figure of zero is still true, and still has to be shown — a dashboard that
+ * hides its empty measures cannot be trusted about the full ones. But it has
+ * no claim on the eye, so it steps back instead of shouting in the same
+ * typeface as the number that matters.
+ */
+.is-zero {
+  color: color-mix(in srgb, var(--color-void) 38%, transparent);
+  font-weight: 600;
+}
+
 .prose-vixart {
   max-width: 68ch;
 }

@@ -225,72 +225,179 @@ export default async function DashboardPage() {
   const billed = series(moneyMonthly, 'billed');
   const wonTotal = won.reduce((a, p) => a + p.value, 0);
   const billedTotal = billed.reduce((a, p) => a + p.value, 0);
+  const uninvoiced = Math.max(0, wonTotal - billedTotal);
+
+  /*
+   * WHAT NEEDS YOU, and nothing else.
+   *
+   * The dashboard used to open with nine tiles of equal weight, six of which
+   * read zero. Everything was shown and nothing was said — the one figure that
+   * mattered sat last, alone on a third row, because nine does not divide by
+   * four.
+   *
+   * These are the measures that are only worth a line when they are NOT zero,
+   * because each one names something somebody has to go and do. A quiet week
+   * produces an empty list, and an empty list is the correct answer: it says
+   * "nothing is waiting", which no arrangement of zeroes can say.
+   */
+  const attention: { count: string; text: string; href: string }[] = [];
+  if (Number(counts.overdue_tasks) > 0) {
+    attention.push({
+      count: counts.overdue_tasks,
+      text:
+        counts.overdue_tasks === '1'
+          ? 'task is past its due date'
+          : 'tasks are past their due date',
+      href: '/tasks',
+    });
+  }
+  if (Number(counts.awaiting_signoff) > 0) {
+    attention.push({
+      count: counts.awaiting_signoff,
+      text:
+        counts.awaiting_signoff === '1'
+          ? 'task is finished and waiting for sign-off'
+          : 'tasks are finished and waiting for sign-off',
+      // `/attention`. The sidebar calls this screen "Needs attention", and
+      // guessing the route from the label lands on a 404.
+      href: '/attention',
+    });
+  }
+  if (seesMoney && recurring.at_risk > 0) {
+    attention.push({
+      count: String(recurring.at_risk),
+      text:
+        recurring.at_risk === 1
+          ? 'retainer client nobody has spoken to in a month'
+          : 'retainer clients nobody has spoken to in a month',
+      href: '/clients',
+    });
+  }
+  if (seesMoney && uninvoiced > 0) {
+    attention.push({
+      count: formatMAD(BigInt(Math.round(uninvoiced)) * 100n),
+      text: 'won, with no invoice behind it yet',
+      href: '/documents',
+    });
+  }
+
+  /*
+   * One hero figure, chosen by which one is real.
+   *
+   * Recurring revenue is the number that decides whether a studio survives a
+   * slow month, so it leads whenever there are retainers at all. With none,
+   * leading on a 0,00 DH hero would be a large, confident way of saying
+   * nothing — so the headline falls back to what has actually been signed.
+   */
+  const hero =
+    recurring.active > 0
+      ? {
+          label: 'Monthly recurring',
+          value: formatMAD(recurring.mrr),
+          note: `${recurring.active} active retainer${recurring.active === 1 ? '' : 's'}`,
+          zero: recurring.mrr === 0n,
+        }
+      : {
+          label: 'Won to date',
+          value: formatMAD(money.won_value),
+          note: 'Signed. No retainers yet.',
+          zero: money.won_value === 0n,
+        };
+
+  /** A figure that is zero steps back rather than shouting. */
+  const fig = (isZero: boolean) => (isZero ? 'is-zero' : '');
 
   return (
     <>
       <PageHeader eyebrow={`Signed in as ${me.name}`} title="Dashboard" />
 
-      {/* --- Headline figures ------------------------------------------------ */}
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <div className="card px-5 py-4">
-          <p className="label">Paying clients</p>
-          <p className="kpi mt-1">{counts.clients}</p>
-          <Link href="/clients" className="hint underline underline-offset-4">
-            View
-          </Link>
-        </div>
-        <div className="card px-5 py-4">
-          <p className="label">Open leads</p>
-          <p className="kpi mt-1">{counts.leads}</p>
-          <Link href="/leads" className="hint underline underline-offset-4">
-            View
-          </Link>
-        </div>
-        <div className="card px-5 py-4">
-          <p className="label">Active projects</p>
-          <p className="kpi mt-1">{counts.active_projects}</p>
-          <Link href="/projects" className="hint underline underline-offset-4">
-            View
-          </Link>
-        </div>
-        <div className="card px-5 py-4">
-          <p className="label">Open tasks</p>
-          <p className="kpi mt-1">{counts.open_tasks}</p>
-          <p className="hint">
-            {counts.overdue_tasks} overdue · {counts.awaiting_signoff} awaiting sign-off
+      {/* --- 1. What needs you ------------------------------------------------ */}
+      {attention.length > 0 ? (
+        <section className="card tone-warn px-5 py-4">
+          <p className="label" style={{ opacity: 0.8 }}>
+            Needs you
           </p>
-        </div>
-      </div>
-
-      {seesMoney && (
-        <div className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-4">
-          <div className="card px-5 py-4">
-            <p className="label">Open deals</p>
-            <p className="kpi mt-1">{money.open_deals}</p>
-          </div>
-          <div className="card px-5 py-4">
-            <p className="label">Monthly recurring</p>
-            <p className="kpi mt-1">{formatMAD(recurring.mrr)}</p>
-            <p className="hint mt-1">
-              {recurring.active} retainer{recurring.active === 1 ? '' : 's'}
-              {recurring.at_risk > 0 ? ` · ${recurring.at_risk} gone quiet` : ''}
-            </p>
-          </div>
-          <div className="card px-5 py-4">
-            <p className="label">Pipeline value</p>
-            <p className="kpi mt-1">{formatMAD(money.open_value)}</p>
-          </div>
-          <div className="card px-5 py-4">
-            <p className="label">Weighted forecast</p>
-            <p className="kpi mt-1">{formatMAD(money.weighted)}</p>
-          </div>
-          <div className="card px-5 py-4">
-            <p className="label">Won to date</p>
-            <p className="kpi mt-1">{formatMAD(money.won_value)}</p>
-            <p className="hint">Signed, not yet invoiced.</p>
-          </div>
-        </div>
+          <ul className="mt-2 flex flex-col gap-y-2">
+            {attention.map((a) => (
+              <li key={a.href + a.text}>
+                <Link
+                  href={a.href}
+                  className="group flex flex-wrap items-baseline gap-x-2.5 underline-offset-4"
+                >
+                  <span className="kpi-sm">{a.count}</span>
+                  <span className="text-[14px] group-hover:underline">{a.text}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : (
+        <p className="hint">Nothing is waiting on you right now.</p>
       )}
+
+      {/* --- 2. Money, with one figure leading -------------------------------- */}
+      {seesMoney && (
+        <section className="card mt-4 px-5 py-5 sm:px-6">
+          <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
+            <div className="min-w-0">
+              <p className="label">{hero.label}</p>
+              <p className={`kpi-hero mt-1 ${fig(hero.zero)}`}>{hero.value}</p>
+              <p className="hint mt-1">{hero.note}</p>
+            </div>
+
+            {/*
+              Three supporting figures, deliberately a third the size of the
+              hero. They are read second, and the type says so.
+
+              THEY STACK ON A PHONE, and that is not a nicety. An amount here
+              is formatted with non-breaking spaces, so "1 236 500,00 DH" is a
+              single token roughly 136px wide. Three of those side by side on a
+              375px screen get 79px each; the text cannot wrap and does not
+              shrink, so it runs into its neighbour and two amounts read as one
+              number. Below `sm` each becomes a label-left/figure-right row with
+              the full width of the card to sit in.
+            */}
+            <dl className="grid shrink-0 grid-cols-1 gap-y-0 sm:grid-cols-3 sm:gap-x-8">
+              {[
+                { label: 'Pipeline', value: formatMAD(money.open_value), zero: money.open_value === 0n },
+                { label: 'Weighted', value: formatMAD(money.weighted), zero: money.weighted === 0n },
+                { label: 'Open deals', value: String(money.open_deals), zero: money.open_deals === 0 },
+              ].map((s) => (
+                <div
+                  key={s.label}
+                  className="flex items-baseline justify-between gap-4 border-t border-void/10 py-1.5 sm:block sm:border-0 sm:py-0"
+                >
+                  <dt className="label text-[12px]">{s.label}</dt>
+                  <dd className={`kpi-sm sm:mt-0.5 ${fig(s.zero)}`}>{s.value}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        </section>
+      )}
+
+      {/* --- 3. The counts, which are navigation rather than insight ---------- */}
+      <nav className="mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-[14px] border border-void/10 bg-void/10 sm:grid-cols-4">
+        {[
+          { label: 'Paying clients', value: counts.clients, href: '/clients' },
+          { label: 'Open leads', value: counts.leads, href: '/leads' },
+          { label: 'Active projects', value: counts.active_projects, href: '/projects' },
+          { label: 'Open tasks', value: counts.open_tasks, href: '/tasks' },
+        ].map((s) => (
+          <Link
+            key={s.href}
+            href={s.href}
+            className="group bg-surface px-4 py-3 transition-colors hover:bg-paper"
+          >
+            <span className="label text-[12px] group-hover:underline group-hover:underline-offset-4">
+              {s.label}
+            </span>
+            <span className={`figure mt-0.5 block text-[22px] ${fig(s.value === '0')}`}>
+              {s.value}
+            </span>
+          </Link>
+        ))}
+      </nav>
 
       {/* --- Growth, month by month ------------------------------------------ */}
       <Section title="Growth, month by month">
