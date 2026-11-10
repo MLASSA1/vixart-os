@@ -22,7 +22,13 @@ export default async function CompaniesPage({
     <>
       <PageHeader
         eyebrow="Archive"
-        title="All clients"
+        /*
+          Named to match the sidebar. It read "All clients" in both places and
+          sat next to a "Clients" entry, so the only way to tell the two apart
+          was to open both — and the name was wrong anyway, since a lead that
+          never became a client is in this list too.
+        */
+        title="Directory"
         actions={<ButtonLink href="/companies/new">New record</ButtonLink>}
       />
       <SearchBar action="/companies" defaultValue={q} placeholder="Search organisations" />

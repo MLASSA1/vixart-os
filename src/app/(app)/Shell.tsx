@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
 import { signOutAction } from './actions';
 import { homeFor } from '@/lib/home';
+import { QuickJump } from '@/components/QuickJump';
 
 interface NavItem {
   href: string;
@@ -61,9 +62,22 @@ const NAV: NavItem[] = [
    */
   { href: '/dashboard', label: 'Dashboard', minRole: 'moderator' },
 
-  { href: '/clients', label: 'Clients', group: 'Relationships', minRole: 'moderator' },
+  /*
+   * THREE NAMES THAT WERE ONE NAME.
+   *
+   * These read "Clients", "Leads" and "All clients" — and the first and third
+   * are plainly the same word, so the only way to learn which was which was to
+   * open both. They are in fact three points on one pipeline, so they are now
+   * named and ordered as one: somebody you are chasing, somebody who pays you,
+   * and the file drawer holding every record either way.
+   *
+   * "Directory" rather than "All clients" because the page lists companies
+   * that are not clients at all — a lead that went cold is still in it. It is
+   * also the word the dashboard already uses for the same set.
+   */
   { href: '/leads', label: 'Leads', group: 'Relationships', minRole: 'moderator' },
-  { href: '/companies', label: 'All clients', group: 'Relationships', minRole: 'moderator' },
+  { href: '/clients', label: 'Clients', group: 'Relationships', minRole: 'moderator' },
+  { href: '/companies', label: 'Directory', group: 'Relationships', minRole: 'moderator' },
 
   { href: '/projects', label: 'Projects', group: 'Commerce', minRole: 'moderator' },
   { href: '/deals', label: 'Deals', group: 'Commerce', minRole: 'moderator' },
@@ -176,6 +190,7 @@ export function Shell({
         </div>
 
         <nav className="flex-1 overflow-y-auto px-3 py-1">
+          <QuickJump items={items} />
           {GROUPS.map((group) => {
             const inGroup = items.filter((i) => i.group === group);
             if (inGroup.length === 0) return null;
@@ -317,6 +332,12 @@ export function Shell({
       {menuOpen && (
         <div className="fixed inset-0 top-14 z-30 flex flex-col bg-void text-pure md:hidden">
           <nav className="flex-1 overflow-y-auto px-3 py-3">
+            {/*
+              The same box in the drawer. There is no ⌘K on a phone, but the
+              list is the same twenty-one entries and typing three letters
+              still beats scrolling a column of them with a thumb.
+            */}
+            <QuickJump items={items} />
             {GROUPS.map((group) => {
               const inGroup = items.filter((i) => i.group === group);
               if (inGroup.length === 0) return null;
