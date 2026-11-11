@@ -56,7 +56,7 @@ export function CompanyTable({
     <div className="overflow-x-auto">
       <table className="table-wide text-left">
         <thead>
-          <tr className="border-b-2 border-void">
+          <tr className="border-b-2 border-void/40">
             <th className="th py-2 pr-4">Organisation</th>
             <th className="th py-2 pr-4">Stage</th>
             <th className="th py-2 pr-4">City</th>

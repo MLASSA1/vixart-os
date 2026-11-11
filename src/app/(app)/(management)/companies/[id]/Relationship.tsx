@@ -40,6 +40,8 @@ export interface RelatedProject {
   status: string;
   archived_at: string | null;
   due_date: string | null;
+  start_date?: string | null;
+  created_at?: string;
   percent: number;
   done: number;
   total: number;
@@ -65,6 +67,7 @@ export interface RelatedRetainer {
   status: string;
   billing_day: number;
   end_date: string | null;
+  auto_renew?: boolean;
 }
 
 export interface RelatedDocument {
@@ -77,6 +80,10 @@ export interface RelatedDocument {
   total_incl_vat: string;
   net_to_collect: string | null;
   paid_at: string | null;
+  due_date?: string | null;
+  payment_method?: string | null;
+  /** Received so far, in centimes. */
+  paid?: string;
 }
 
 export interface RelatedThread {
@@ -117,10 +124,13 @@ function Row({
   faded?: boolean;
 }) {
   return (
-    <li className={`border-b border-void/[0.07] py-2.5 last:border-b-0 ${faded ? 'opacity-55' : ''}`}>
+    // A closed or archived row is set back by its TITLE only. Dimming the whole
+    // row stacked under the already-quiet detail line and dropped it to 3.6:1;
+    // the row says "Won" or "Archived" in words anyway.
+    <li className="border-b border-void/[0.07] py-2.5 last:border-b-0">
       <div className="flex flex-wrap items-baseline justify-between gap-x-5 gap-y-1">
         <div className="min-w-0">
-          <Link href={href} className="font-semibold underline-offset-2 hover:underline">
+          <Link href={href} className={`font-semibold underline-offset-2 hover:underline ${faded ? 'text-void/70' : ''}`}>
             {title}
           </Link>
           {children}
@@ -131,29 +141,16 @@ function Row({
   );
 }
 
-export function RelationshipSections({
-  relationship,
-  isAdmin,
-}: {
-  relationship: Relationship;
-  isAdmin: boolean;
-}) {
-  const { projects, deals, retainers, documents, threads } = relationship;
+/*
+ * FIVE SECTIONS, NOT ONE. The client page became a summary and tabs (Amin,
+ * November 2026), so the work, the sales, the contracts, the money and the
+ * conversations each go to the tab they belong in instead of one long scroll.
+ * The rules below did not change: every row is a link, an absent owner is
+ * named, and the money is never rendered for anybody but an administrator.
+ */
 
-  /*
-   * The money, as three numbers.
-   *
-   * The definitions live in `summariseBilling` — what counts as billed, why a
-   * draft and a cancelled invoice do not, and why the figure is
-   * `net_to_collect` rather than the total where withholding applies. They are
-   * checked in `client-relationship.test.ts`, which is the point of their being
-   * a function rather than arithmetic in a component.
-   */
-  const { billed, collected, outstanding, drafts } = summariseBilling(documents);
-
+export function ProjectsSection({ projects }: { projects: RelatedProject[] }) {
   return (
-    <>
-      {/* ---- the work -------------------------------------------------------- */}
       <Section title={`Projects — ${projects.length}`}>
         {projects.length === 0 ? (
           <Empty message="No project for this client yet." />
@@ -189,7 +186,11 @@ export function RelationshipSections({
           </ul>
         )}
       </Section>
+  );
+}
 
+export function DealsSection({ deals }: { deals: RelatedDeal[] }) {
+  return (
       <Section title={`Deals — ${deals.length}`}>
         {deals.length === 0 ? (
           <Empty message="No opportunity recorded for this client." />
@@ -215,8 +216,12 @@ export function RelationshipSections({
           </ul>
         )}
       </Section>
+  );
+}
 
-      {retainers.length > 0 && (
+export function RetainersSection({ retainers }: { retainers: RelatedRetainer[] }) {
+  if (retainers.length === 0) return null;
+  return (
         <Section title={`Retainers — ${retainers.length}`}>
           <ul>
             {retainers.map((r) => (
@@ -243,8 +248,26 @@ export function RelationshipSections({
             ))}
           </ul>
         </Section>
-      )}
+  );
+}
 
+/**
+ * Every quote and invoice, for an administrator only. The three totals moved
+ * to the summary at the top of the page, where they are seen without opening
+ * this tab; what stays here is the list, and the way to add to it.
+ */
+export function DocumentsSection({
+  documents,
+  isAdmin,
+  companyId,
+}: {
+  documents: RelatedDocument[];
+  isAdmin: boolean;
+  companyId: string;
+}) {
+  const { drafts } = summariseBilling(documents);
+  return (
+    <>
       {/* ---- the money, for an administrator only ---------------------------- */}
       {isAdmin && (
         <Section
@@ -253,30 +276,26 @@ export function RelationshipSections({
               ? 'Quotes & invoices'
               : `Quotes & invoices — ${documents.length}`
           }
+          action={
+            // Opens with this client already chosen, so it is not picked twice.
+            <div className="flex flex-wrap gap-2">
+              <Link href={`/documents/new?client=${companyId}&type=devis`} className="btn btn-small">
+                New quote
+              </Link>
+              <Link href={`/documents/new?client=${companyId}&type=facture`} className="btn btn-inverse btn-small">
+                New invoice
+              </Link>
+            </div>
+          }
         >
           {documents.length === 0 ? (
             <Empty message="Nothing has been quoted or invoiced to this client." />
           ) : (
             <>
-              <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-                <div className="card px-4 py-3">
-                  <p className="label" style={{ opacity: 0.55 }}>Billed</p>
-                  <p className="mt-1 text-[19px] font-bold tabular-nums">{formatMAD(billed)}</p>
-                </div>
-                <div className="card px-4 py-3">
-                  <p className="label" style={{ opacity: 0.55 }}>Collected</p>
-                  <p className="mt-1 text-[19px] font-bold tabular-nums">{formatMAD(collected)}</p>
-                </div>
-                <div className={`card px-4 py-3 ${outstanding > 0n ? 'tone-warn' : ''}`}>
-                  <p className="label" style={{ opacity: 0.55 }}>Outstanding</p>
-                  <p className="mt-1 text-[19px] font-bold tabular-nums">{formatMAD(outstanding)}</p>
-                </div>
-              </div>
-
               {drafts > 0 && (
                 <p className="hint mb-3">
                   {drafts === 1 ? 'One draft is' : `${drafts} drafts are`} not counted above —
-                  a draft has no number and is not a claim on anybody.
+                  a draft has no number and is not a claim on anybody. Quotes and credit notes are listed, never counted as owed.
                 </p>
               )}
 
@@ -310,9 +329,13 @@ export function RelationshipSections({
           )}
         </Section>
       )}
+    </>
+  );
+}
 
-      {/* ---- what has actually been said ------------------------------------ */}
-      {threads.length > 0 && (
+export function ConversationsSection({ threads }: { threads: RelatedThread[] }) {
+  if (threads.length === 0) return null;
+  return (
         <Section title="Conversations">
           <ul>
             {threads.map((t) => (
@@ -350,7 +373,5 @@ export function RelationshipSections({
             ))}
           </ul>
         </Section>
-      )}
-    </>
   );
 }

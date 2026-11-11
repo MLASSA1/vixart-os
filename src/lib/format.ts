@@ -66,6 +66,88 @@ export function forDateTimeField(value: Date = new Date()): string {
   return parts.replace(' ', 'T');
 }
 
+/*
+ * THE CLOCK IS THE SERVER'S, not only the zone.
+ *
+ * Naming the zone is necessary and was not enough. In November 2026 a chat
+ * timestamp rendered 12:22 on the server and 11:22 in the browser — both
+ * formatting in Africa/Casablanca. Morocco's offset rule changed in the time
+ * zone database during 2026: Node with tzdata 2026a put Casablanca at UTC+1
+ * that day, Node with 2026e (production) and a current Chrome at UTC+0. React
+ * saw two different strings, threw the server's HTML away and showed the
+ * BROWSER's answer — which on any phone with stale tz data is an hour wrong.
+ *
+ * So anything formatted for a client component is formatted on the server and
+ * handed over as text, and the browser does no date arithmetic of its own. The
+ * server's tz data is current as of its last deploy; a device's is current as
+ * of whenever it last updated, which nobody here controls. The helpers below
+ * are pure, so they run on the server; `dayHeading` takes day KEYS rather than
+ * instants precisely so that it can also run in the browser without ever
+ * consulting the device's idea of Morocco.
+ */
+
+const clock = new Intl.DateTimeFormat(LOCALE, {
+  timeZone: TIMEZONE,
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+});
+
+const dayKeyFormat = new Intl.DateTimeFormat('en-CA', {
+  timeZone: TIMEZONE,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+
+// Formats a day KEY, which already is the Casablanca calendar day: read at
+// noon UTC so that no zone can move it across midnight.
+const dayName = new Intl.DateTimeFormat(LOCALE, {
+  timeZone: 'UTC',
+  weekday: 'long',
+  day: 'numeric',
+  month: 'long',
+});
+
+const dayMonthClock = new Intl.DateTimeFormat(LOCALE, {
+  timeZone: TIMEZONE,
+  day: 'numeric',
+  month: 'short',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+});
+
+/** "10 Nov, 11:22", Casablanca time. The client portal's message stamp. */
+export function formatDayMonthClock(value: Date | string): string {
+  return dayMonthClock.format(new Date(value));
+}
+
+/** 14:32, Casablanca time. Server side: see the note above. */
+export function formatClock(value: Date | string): string {
+  return clock.format(new Date(value));
+}
+
+/** "2026-11-10": the Casablanca calendar day an instant falls on. */
+export function casablancaDay(value: Date | string = new Date()): string {
+  return dayKeyFormat.format(new Date(value));
+}
+
+/**
+ * "Today", "Yesterday", otherwise "Tuesday 10 November", from two day keys.
+ *
+ * Pure arithmetic on keys, so it gives the same answer on the server and in
+ * any browser: `today` comes from the server too, never from `new Date()` in
+ * the client.
+ */
+export function dayHeading(day: string, today: string): string {
+  if (day === today) return 'Today';
+  const t = new Date(`${today}T12:00:00Z`);
+  t.setUTCDate(t.getUTCDate() - 1);
+  if (day === t.toISOString().slice(0, 10)) return 'Yesterday';
+  return dayName.format(new Date(`${day}T12:00:00Z`));
+}
+
 /** "3 days ago", "today". Used for how fresh a last contact is. */
 export function since(value: Date | string | null | undefined): string {
   if (!value) return 'never';

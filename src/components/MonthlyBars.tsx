@@ -9,9 +9,10 @@
  * network off, and it cannot flash empty while something hydrates.
  *
  * ONE COLOUR. Every series here is a single measure over time, so there is no
- * identity to encode and no second hue to justify. `--color-accent` (#6d28d9)
- * was checked against the page surface before it was used: it sits inside the
- * lightness band, clears the chroma floor, and passes contrast at 3:1. Two
+ * identity to encode and no second hue to justify. `--color-chart` (#8b5cf6)
+ * was computed against the dark card before it was used: 4.1:1, where the
+ * button violet only managed 3.1:1 there — legal for a graphic, and too faint
+ * for something read at a glance (Night studio, Nov 2026). Two
  * measures that want comparing — tasks raised against tasks finished — are two
  * charts on a shared scale rather than two colours on one, which is also the
  * only honest way to compare them without a second axis.
@@ -171,7 +172,7 @@ export function MonthlyBars({
                   d={`M ${x} ${BASE} L ${x} ${y + r} Q ${x} ${y} ${x + r} ${y}
                       L ${x + barW - r} ${y} Q ${x + barW} ${y} ${x + barW} ${y + r}
                       L ${x + barW} ${BASE} Z`}
-                  fill="var(--color-accent)"
+                  fill="var(--color-chart)"
                   pointerEvents="none"
                 />
               ) : (

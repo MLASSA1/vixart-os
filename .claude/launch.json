@@ -9,6 +9,21 @@
         "dev"
       ],
       "port": 3000
+    },
+    {
+      "name": "portal",
+      "runtimeExecutable": "env",
+      "runtimeArgs": [
+        "APP_MODE=portal",
+        "AUTH_URL=http://localhost:3001",
+        "NEXTAUTH_URL=http://localhost:3001",
+        "npx",
+        "next",
+        "dev",
+        "-p",
+        "3001"
+      ],
+      "port": 3001
     }
   ]
 }

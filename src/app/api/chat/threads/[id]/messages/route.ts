@@ -4,6 +4,7 @@ import { auth } from '@/auth';
 import { withUser } from '@/db/session';
 import { listMessages } from '@/lib/chat-queries';
 import { markThreadRead } from '@/lib/chat-read';
+import { casablancaDay } from '@/lib/format';
 
 /**
  * Messages in the open channel — the tail for the poll, or a page of history.
@@ -59,5 +60,8 @@ export async function GET(
   // Out of reach and never existed give the same answer.
   if (messages === null) return new NextResponse('Not found', { status: 404 });
 
-  return NextResponse.json({ messages });
+  // `today` is the server's Casablanca day, so the browser labels "Today"
+  // and "Yesterday" from the same clock that labelled the messages — and a
+  // page left open past midnight is corrected by its next poll.
+  return NextResponse.json({ messages, today: casablancaDay() });
 }

@@ -233,3 +233,136 @@ body:has(.portal) {
   padding: 12px 16px;
   font-size: 14px;
 }
+
+/* --- Figures, rows, tags (2026-11: billing and project pages) -------------- */
+
+/*
+ * Three figures in a row, the way the site states its numbers: a label in the
+ * tracked meta face, the figure large beneath it, rules between. Stacks on a
+ * phone rather than shrinking the figure until it stops being one.
+ */
+.portal .vix-figures {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  border-top: 1px solid var(--vix-line);
+  border-bottom: 1px solid var(--vix-line);
+}
+
+.portal .vix-figures > div {
+  padding: 22px 24px 22px 0;
+}
+
+.portal .vix-figures > div + div {
+  border-left: 1px solid var(--vix-line);
+  padding-left: 24px;
+}
+
+@media (max-width: 640px) {
+  .portal .vix-figures > div + div {
+    border-left: 0;
+    border-top: 1px solid var(--vix-line);
+    padding-left: 0;
+  }
+}
+
+.portal .vix-figure {
+  font-family: var(--font-figures), ui-monospace, monospace;
+  font-size: clamp(22px, 3vw, 30px);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin-top: 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* One document, one payment, one file: content, figure, action. */
+.portal .vix-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px 24px;
+  padding: 18px 0;
+  border-top: 1px solid var(--vix-line);
+}
+
+.portal .vix-row:last-child {
+  border-bottom: 1px solid var(--vix-line);
+}
+
+.portal .vix-row-2 {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+@media (max-width: 560px) {
+  .portal .vix-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .portal .vix-row > :nth-child(2) {
+    grid-column: 1;
+    text-align: left;
+  }
+  .portal .vix-row > :nth-child(3) {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+}
+
+/* A state, in words. No colour: the site has none, so weight carries it. */
+.portal .vix-tag {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 3px 8px;
+  font-family: var(--font-figures), ui-monospace, monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #ffffffb8;
+  border: 1px solid var(--vix-line);
+  border-radius: 2px;
+  white-space: nowrap;
+}
+
+.portal .vix-tag-strong {
+  color: var(--vix-ink);
+  background-color: var(--vix-white);
+  border-color: var(--vix-white);
+  font-weight: 600;
+}
+
+.portal .vix-btn-small {
+  padding: 8px 16px;
+  font-size: 13px;
+  border-top-left-radius: 14px;
+}
+
+/* The page you are on, in the navigation. */
+.portal .vix-nav-on {
+  color: var(--vix-white);
+  box-shadow: inset 0 -2px 0 var(--vix-white);
+}
+
+/* A card that is a link: the whole surface answers the pointer. */
+.portal a.vix-card {
+  display: block;
+  transition: border-color 200ms, background-color 200ms;
+}
+
+.portal a.vix-card:hover {
+  border-color: #ffffff59;
+  background-color: #ffffff0f;
+}
+
+/* Where the replies this visit is the first to show begin. */
+.portal .vix-new {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+}
+
+.portal .vix-new::before,
+.portal .vix-new::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background-color: #ffffff59;
+}

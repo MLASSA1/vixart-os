@@ -1,5 +1,6 @@
 'use client';
 
+import { useKeepOnError } from '@/lib/use-keep-on-error';
 import { useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { EMPTY_STATE } from '@/lib/form-state';
@@ -16,9 +17,10 @@ function Submit({ label }: { label: string }) {
 
 export function ClientPasswordForm({ label }: { label: string }) {
   const [state, formAction] = useActionState(setClientPasswordAction, EMPTY_STATE);
+  const keepState = useKeepOnError(state);
 
   return (
-    <form action={formAction} className="mt-8 max-w-[380px] space-y-5">
+    <form action={formAction} onSubmit={keepState} className="mt-8 max-w-[380px] space-y-5">
       {state.error && <p role="alert" className="vix-alert">{state.error}</p>}
       {state.notice && <p role="status" className="vix-alert">{state.notice}</p>}
 

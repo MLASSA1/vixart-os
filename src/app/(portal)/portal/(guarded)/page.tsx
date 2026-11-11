@@ -1,125 +1,132 @@
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { requireClientPage } from './session';
 import { withClient } from '@/db/session';
-import { listPortalProjects } from '@/lib/client-portal-queries';
-import { formatDate } from '@/lib/format';
+import { listPortalDocuments, listPortalProjects, readPortalInbox } from '@/lib/client-portal-queries';
+import { summariseBilling } from '@/lib/client-relationship';
+import { casablancaDay, formatDate } from '@/lib/format';
+import { formatMAD } from '@/lib/money';
+import { PortalTitle } from './PortalTitle';
+import { PROJECT_STATUS } from './labels';
 
 export const dynamic = 'force-dynamic';
 
-const STATUS: Record<string, string> = {
-  planned: 'Not started yet',
-  active: 'In progress',
-  on_hold: 'Paused',
-  delivered: 'Delivered',
-};
-
+/**
+ * The overview: the three things a client opens the portal to find out.
+ * Where is my work, do I owe anything, has anybody answered me. Each block
+ * says it in one line and leads to the page with the detail.
+ */
 export default async function PortalHome() {
   const session = await requireClientPage();
   if (session.user.mustChangePassword) redirect('/portal/account');
 
-  const projects = await withClient(session.user.id, (tx) => listPortalProjects(tx));
+  const { projects, documents, inbox } = await withClient(session.user.id, async (tx) => ({
+    projects: await listPortalProjects(tx),
+    documents: await listPortalDocuments(tx),
+    inbox: await readPortalInbox(tx),
+  }));
+
+  const today = casablancaDay();
+  // Credit notes already taken off; below zero is credit in their favour,
+  // which is not something they "still have to pay".
+  const balance = summariseBilling(documents).outstanding;
+  const owed = balance < 0n ? 0n : balance;
+  const pastDue = documents.filter(
+    (d) => d.doc_type === 'facture' && d.status === 'emis' && d.due_date !== null && d.due_date < today,
+  ).length;
+  const firstName = (session.user.name ?? '').split(' ')[0] || 'there';
 
   return (
     <>
-      <p className="vix-meta">{session.user.companyName}</p>
-      <h1 className="vix-h1 mt-4">Your work</h1>
+      <PortalTitle
+        eyebrow={session.user.companyName ?? ''}
+        title={`Hello, ${firstName}.`}
+        lead="Your projects, what you have been invoiced, and your conversation with the team — all in one place."
+      />
 
-      {projects.length === 0 ? (
-        <div className="vix-card mt-10 px-7 py-8">
-          <p className="font-semibold">Nothing here yet.</p>
-          <p className="vix-body mt-2">
-            When we start a project for you it will appear here, with where it
-            has got to. In the meantime you can write to us under “Talk to us”.
+      <div className="mt-10 grid gap-3 sm:grid-cols-2">
+        <Link href="/portal/billing" className="vix-card px-6 py-6">
+          <p className="vix-meta">Still to pay</p>
+          <p className="vix-figure">{formatMAD(owed)}</p>
+          <p className="vix-quiet mt-2">
+            {owed === 0n
+              ? 'You are up to date. See invoices and payments →'
+              : pastDue > 0
+                ? `${pastDue} invoice${pastDue === 1 ? ' is' : 's are'} past due. See invoices →`
+                : 'See invoices and payments →'}
           </p>
-        </div>
-      ) : (
-        <ul className="mt-10">
-          {projects.map((p) => {
-            const total = Number(p.total ?? 0);
-            const done = Number(p.done ?? 0);
-            /*
-             * The figure comes from the database, not from arithmetic here.
-             *
-             * It used to be computed on this line, which meant a project with
-             * no task list had no honest percentage and showed nothing at all —
-             * a client watching a film being made was told nothing was
-             * happening. Amin and Mohamed Amine can now set the number
-             * directly, and `app.project_progress` decides which of the two
-             * applies so that this page and the internal one cannot disagree.
-             *
-             * Still nothing rather than a confident 0% when neither exists:
-             * no tasks and nobody has set a figure means there is genuinely
-             * nothing to report yet.
-             */
-            const pct = Number(p.percent ?? 0);
-            const byHand = Boolean(p.by_hand);
-            const show = total > 0 || pct > 0;
-            /*
-             * The step count, only when the bar IS the step count.
-             *
-             * Caught on the running page: with a hand-set 70% beside "1 of 2
-             * steps done", a client does the division, gets 50, and reasonably
-             * concludes that one of the two numbers is untrue. Neither is — the
-             * count is simply not what the bar means once somebody has set it.
-             */
-            const showSteps = !byHand && total > 0;
+        </Link>
+        <Link href="/portal/support" className="vix-card px-6 py-6">
+          <p className="vix-meta">Messages</p>
+          <p className="vix-figure">{inbox.unread === 0 ? 'Up to date' : `${inbox.unread} new`}</p>
+          <p className="vix-quiet mt-2">
+            {inbox.unread === 0 ? 'Write to the team →' : `${inbox.unread === 1 ? 'A reply' : 'Replies'} from the team. Read →`}
+          </p>
+        </Link>
+      </div>
 
-            return (
-              <li key={p.id} className="vix-rule border-t py-9 first:border-t-0 first:pt-0">
-                <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
-                  <h2 className="vix-h2">{p.name}</h2>
-                  <span className="vix-meta">{STATUS[p.status] ?? p.status}</span>
-                </div>
-
-                {p.description && <p className="vix-body mt-3">{p.description}</p>}
-
-                {show && (
-                  <div className="mt-7 max-w-[560px]">
-                    <div className="flex items-baseline justify-between">
-                      <span className="vix-meta">Progress</span>
-                      <span className="vix-meta tabular-nums">{pct}%</span>
+      <section className="mt-16">
+        <h2 className="vix-h2">Your projects</h2>
+        {projects.length === 0 ? (
+          <div className="vix-card mt-6 px-7 py-8">
+            <p className="font-semibold">Nothing here yet.</p>
+            <p className="vix-body mt-2">
+              When we start a project for you it will appear here, with where it
+              has got to. In the meantime you can write to us under “Messages”.
+            </p>
+          </div>
+        ) : (
+          <ul className="mt-6 grid gap-3">
+            {projects.map((p) => {
+              /*
+               * The figure comes from the database (`app.project_progress`), so
+               * this page and the team's cannot disagree. Nothing rather than a
+               * confident 0% when there is genuinely nothing to report yet.
+               */
+              const pct = Number(p.percent ?? 0);
+              const show = Number(p.total ?? 0) > 0 || pct > 0;
+              return (
+                <li key={p.id}>
+                  <Link href={`/portal/projects/${p.id}`} className="vix-card px-6 py-6">
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+                      <h3 className="text-[19px] font-bold">{p.name}</h3>
+                      <span className="vix-meta">{PROJECT_STATUS[p.status] ?? p.status}</span>
                     </div>
-                    <div
-                      className="vix-track mt-2.5"
-                      role="progressbar"
-                      aria-valuenow={pct}
-                      aria-valuemin={0}
-                      aria-valuemax={100}
-                      aria-label={`${p.name} progress`}
-                    >
-                      <span style={{ width: `${pct}%` }} />
-                    </div>
-                    {showSteps && (
-                      <p className="vix-quiet mt-2">{done} of {total} steps done</p>
+                    {p.next_step && (
+                      <p className="vix-body mt-2">
+                        <span className="vix-meta mr-2">Next</span>
+                        {p.next_step}
+                      </p>
                     )}
-                  </div>
-                )}
-
-                {(p.start_date || p.due_date) && (
-                  <p className="vix-quiet mt-5">
-                    {p.start_date && <>Started {formatDate(p.start_date)}</>}
-                    {p.start_date && p.due_date && ' · '}
-                    {p.due_date && <>Due {formatDate(p.due_date)}</>}
-                  </p>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-      )}
-
-      {/*
-        True whichever way the figure was arrived at.
-        
-        This said "progress is counted from the steps we track internally",
-        which stopped being true the moment a figure could be set by hand — and
-        a sentence to a client that is no longer true is worse than no sentence.
-      */}
-      <p className="vix-quiet vix-rule mt-14 border-t pt-6">
-        Progress is where your producer says the work has got to. If something
-        here does not match what you expect, tell us — that is what the
-        conversation is for.
-      </p>
+                    {show && (
+                      <div className="mt-5 flex items-center gap-4">
+                        <div
+                          className="vix-track flex-1"
+                          role="progressbar"
+                          aria-valuenow={pct}
+                          aria-valuemin={0}
+                          aria-valuemax={100}
+                          aria-label={`${p.name} progress`}
+                        >
+                          <span style={{ width: `${pct}%` }} />
+                        </div>
+                        <span className="vix-meta tabular-nums">{pct}%</span>
+                      </div>
+                    )}
+                    <p className="vix-quiet mt-3">
+                      {p.due_date ? <>Due {formatDate(p.due_date)} · </> : null}
+                      {Number(p.delivered_files) > 0
+                        ? `${p.delivered_files} file${Number(p.delivered_files) === 1 ? '' : 's'} delivered · `
+                        : ''}
+                      Open →
+                    </p>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
     </>
   );
 }

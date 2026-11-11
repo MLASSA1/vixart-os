@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 export default function NewClientPage() {
   return (
     <>
-      <PageHeader eyebrow="Pipeline" title="New record" />
+      <PageHeader title="New record" />
       <CompanyForm
         action={createCompanyAction}
         submitLabel="Create record"

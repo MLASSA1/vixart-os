@@ -1,5 +1,6 @@
 'use client';
 
+import { useKeepOnError } from '@/lib/use-keep-on-error';
 import { useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { changePasswordAction, type PasswordState } from './actions';
@@ -17,18 +18,19 @@ const INITIAL: PasswordState = { error: null };
 
 export function PasswordForm({ label = 'Change password' }: { label?: string }) {
   const [state, formAction] = useActionState(changePasswordAction, INITIAL);
+  const keepState = useKeepOnError(state);
 
   return (
-    <form action={formAction} className="mt-6 max-w-md space-y-5">
+    <form action={formAction} onSubmit={keepState} className="mt-6 max-w-md space-y-5">
       {state.error && (
-        <div role="alert" className="border-2 border-void bg-void px-4 py-3 text-pure">
+        <div role="alert" className="border-2 border-void bg-void px-4 py-3 text-night">
           <p className="label">Refused</p>
           <p className="mt-1">{state.error}</p>
         </div>
       )}
 
       <label className="block" htmlFor="password">
-        <span className="label block" style={{ opacity: 0.68 }}>
+        <span className="label block">
           New password
         </span>
         <input
@@ -46,7 +48,7 @@ export function PasswordForm({ label = 'Change password' }: { label?: string }) 
       </label>
 
       <label className="block" htmlFor="confirmation">
-        <span className="label block" style={{ opacity: 0.68 }}>
+        <span className="label block">
           Confirm password
         </span>
         <input

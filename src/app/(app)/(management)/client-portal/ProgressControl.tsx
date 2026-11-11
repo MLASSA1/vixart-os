@@ -1,5 +1,6 @@
 'use client';
 
+import { useKeepOnError } from '@/lib/use-keep-on-error';
 import { useActionState, useEffect, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { EMPTY_STATE } from '@/lib/form-state';
@@ -41,6 +42,7 @@ export function ProgressControl({
   fromTasks: number | null;
 }) {
   const [state, formAction] = useActionState(setProjectProgressAction, EMPTY_STATE);
+  const keepState = useKeepOnError(state);
   const [value, setValue] = useState(percent);
 
   // Follow the server once it has answered, so a save that was rejected does
@@ -75,7 +77,7 @@ export function ProgressControl({
           />
         </div>
 
-        <form action={formAction} className="flex flex-wrap items-center gap-2">
+        <form action={formAction} onSubmit={keepState} className="flex flex-wrap items-center gap-2">
           <input type="hidden" name="projectId" value={projectId} />
           {/* The field the action reads. The steps below only move it. */}
           <input
@@ -119,7 +121,7 @@ export function ProgressControl({
            * stops tracking the work the moment the team gets on with it, so the
            * way back to the count must not be a database visit.
            */
-          <form action={formAction}>
+          <form action={formAction} onSubmit={keepState}>
             <input type="hidden" name="projectId" value={projectId} />
             <input type="hidden" name="percent" value="" />
             <button type="submit" className="text-[13.5px] underline underline-offset-2">

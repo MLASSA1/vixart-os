@@ -1,5 +1,6 @@
 'use client';
 
+import { useKeepOnError } from '@/lib/use-keep-on-error';
 import { useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { ErrorBanner, FormGrid, Select, TextInput } from '@/components/ui';
@@ -25,9 +26,10 @@ export function NewDocumentForm({
   deals: ReadonlyArray<{ id: string; label: string }>;
 }) {
   const [state, formAction] = useActionState(action, EMPTY_STATE);
+  const keepState = useKeepOnError(state);
 
   return (
-    <form action={formAction} className="border border-void/25 p-5">
+    <form action={formAction} onSubmit={keepState} className="border border-void/25 p-5">
       <ErrorBanner message={state.error} />
       <FormGrid>
         <Select

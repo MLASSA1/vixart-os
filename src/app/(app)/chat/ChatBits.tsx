@@ -88,7 +88,11 @@ export function Avatar({
         width: size,
         height: size,
         fontSize: size * 0.38,
-        backgroundColor: `hsl(${hash} 42% 42%)`,
+        // 32% lightness: white initials clear 4.5:1 on every one of the 360
+        // hues (worst 4.75, at yellow). At 42% the worst was 3.0. The inset ring
+        // keeps the tile's shape where a deep blue would melt into a dark card.
+        backgroundColor: `hsl(${hash} 45% 32%)`,
+        boxShadow: 'inset 0 0 0 1px rgb(255 255 255 / 0.1)',
       }}
     >
       {!shown && <span>{initials || '?'}</span>}
@@ -147,18 +151,10 @@ export function MentionText({
   return <>{out}</>;
 }
 
-/** "Today", "Yesterday", then the date. One divider per day of messages. */
-export function dayLabel(iso: string): string {
-  const d = new Date(iso);
-  const today = new Date();
-  const same = (a: Date, b: Date) => a.toDateString() === b.toDateString();
-  if (same(d, today)) return 'Today';
-  const yesterday = new Date(today);
-  yesterday.setDate(today.getDate() - 1);
-  if (same(d, yesterday)) return 'Yesterday';
-  return d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
-}
-
-export function clockTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-}
+/*
+ * `dayLabel` and `clockTime` used to live here and formatted in the BROWSER,
+ * in whatever zone and tz data the device had. They are gone on purpose: a
+ * message now arrives with `time_label` and `day_key` made by the server, and
+ * `dayHeading` in src/lib/format.ts turns a key into "Today". See the note
+ * there for the hour it was wrong by.
+ */

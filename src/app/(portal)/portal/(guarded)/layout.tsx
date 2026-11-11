@@ -3,15 +3,11 @@ import { redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { auth } from '@/auth';
 import { signOutAction } from '@/app/(app)/actions';
+import { withClient } from '@/db/session';
+import { readPortalInbox } from '@/lib/client-portal-queries';
+import { PortalNav } from './PortalNav';
 
 export const dynamic = 'force-dynamic';
-
-const NAV = [
-  { href: '/portal', label: 'Your work' },
-  { href: '/portal/systems', label: 'What we build' },
-  { href: '/portal/support', label: 'Talk to us' },
-  { href: '/portal/account', label: 'Account' },
-];
 
 /**
  * What a client sees around every page.
@@ -32,6 +28,12 @@ export default async function PortalLayout({ children }: { children: ReactNode }
 
   const mustChange = session.user.mustChangePassword;
 
+  // Replies they have not opened yet, for the count beside "Messages". A
+  // failure here costs the badge, never the page.
+  const unread = mustChange
+    ? 0
+    : await withClient(session.user.id, readPortalInbox).then((i) => i.unread).catch(() => 0);
+
   return (
     <div className="flex min-h-[100dvh] flex-col">
       <header className="vix-rule border-b">
@@ -46,16 +48,16 @@ export default async function PortalLayout({ children }: { children: ReactNode }
         </div>
 
         {!mustChange && (
-          <nav className="vix-rule mx-auto flex max-w-[1100px] items-center gap-1 overflow-x-auto border-t px-4">
-            {NAV.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="vix-meta px-3 py-3.5 whitespace-nowrap hover:text-white"
-              >
-                {item.label}
-              </Link>
-            ))}
+          <nav className="vix-rule mx-auto flex max-w-[1100px] flex-wrap items-center gap-x-1 border-t px-4">
+            {/*
+              Wraps rather than scrolls. As a sideways-scrolling strip, a phone
+              showed three of the five entries and put Account and Sign out past
+              the right edge, with a grey native scrollbar as the only sign they
+              existed. A client looking for where to change their password would
+              not have found it. Two rows on a phone cost 46px; a missing door
+              costs a support message.
+            */}
+            <PortalNav unread={unread} />
             <form action={signOutAction} className="ml-auto">
               <button type="submit" className="vix-meta px-3 py-3.5 whitespace-nowrap hover:text-white">
                 Sign out

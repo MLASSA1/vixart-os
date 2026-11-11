@@ -97,9 +97,23 @@ export default async function FinancePage({
         FROM finance_entry ORDER BY 1 DESC
     `);
 
+    /*
+     * The same definition as summariseBilling (client-relationship.ts), in SQL
+     * because this page has no document list to sum: open invoices less what
+     * has already arrived on them, less every issued credit note. It used to
+     * be the open invoices' full net, so a 50% deposit still read as owed.
+     */
     const outstanding = await tx.execute<{ [k: string]: unknown; total: string; n: string }>(sql`
-      SELECT coalesce(sum(net_to_collect), 0)::text AS total, count(*)::text AS n
-        FROM document WHERE doc_type = 'facture' AND status = 'emis'
+      SELECT greatest(
+               coalesce(sum(CASE WHEN d.doc_type = 'facture' AND d.status = 'emis'
+                                 THEN coalesce(d.net_to_collect, d.total_incl_vat)
+                                      - coalesce((SELECT sum(p.amount_centimes) FROM document_payment p
+                                                   WHERE p.document_id = d.id), 0) END), 0)
+             - coalesce(sum(CASE WHEN d.doc_type = 'avoir' AND d.status IN ('emis','paye')
+                                 THEN coalesce(d.net_to_collect, d.total_incl_vat) END), 0),
+             0)::text AS total,
+             count(*) FILTER (WHERE d.doc_type = 'facture' AND d.status = 'emis')::text AS n
+        FROM document d
     `);
 
     const comps = await tx.execute<{ id: string; name: string }>(
@@ -253,8 +267,8 @@ export default async function FinancePage({
   return (
     <>
       <PageHeader
-        eyebrow="Management only"
         title="Finance"
+        intro="Money in, money out, and the VAT that is owed."
         actions={
           <div className="flex gap-2">
             {yearOptions.map((y) => (
@@ -270,10 +284,10 @@ export default async function FinancePage({
         }
       />
 
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:grid-cols-4">
         <div className="card px-5 py-4">
           <p className="label">Money in — {year}</p>
-          <p className="kpi mt-1">{formatMAD(income)}</p>
+          <p className="kpi kpi-money mt-1">{formatMAD(income)}</p>
           {/* Named plainly, because the old page read as though income were
               something that arrives monthly on its own. It is not: it is what
               clients paid for work sold. */}
@@ -281,18 +295,18 @@ export default async function FinancePage({
         </div>
         <div className="card px-5 py-4">
           <p className="label">Money out — {year}</p>
-          <p className="kpi mt-1">{formatMAD(expense)}</p>
+          <p className="kpi kpi-money mt-1">{formatMAD(expense)}</p>
           <p className="hint mt-1">Charges and spending actually paid</p>
         </div>
         <div className="card px-5 py-4">
           <p className="label">Result</p>
           {/* Loss is stated in words and by the minus sign, never in red. */}
-          <p className="kpi mt-1">{formatMAD(profit)}</p>
+          <p className="kpi kpi-money mt-1">{formatMAD(profit)}</p>
           <p className="hint mt-1">{profit < 0n ? 'Loss' : 'Profit'}</p>
         </div>
         <div className="card px-5 py-4">
           <p className="label">Awaiting payment</p>
-          <p className="kpi mt-1">{formatMAD(data.outstanding.total)}</p>
+          <p className="kpi kpi-money mt-1">{formatMAD(data.outstanding.total)}</p>
           <p className="hint mt-1">
             {data.outstanding.count} invoice{data.outstanding.count === 1 ? '' : 's'} issued,
             not yet paid
@@ -307,7 +321,7 @@ export default async function FinancePage({
           <div className="overflow-x-auto">
             <table className="table-wide text-left">
               <thead>
-                <tr className="border-b-2 border-void">
+                <tr className="border-b-2 border-void/40">
                   <th className="th py-2 pr-4">Month</th>
                   <th className="th py-2 pr-4 text-right">In</th>
                   <th className="th py-2 pr-4 text-right">Out</th>
@@ -332,7 +346,7 @@ export default async function FinancePage({
                     </tr>
                   );
                 })}
-                <tr className="border-t-2 border-void">
+                <tr className="border-t-2 border-void/40">
                   <td className="py-2.5 pr-4 font-semibold">Year</td>
                   <td className="code py-2.5 pr-4 text-right font-semibold">
                     {formatMAD(income)}
@@ -384,7 +398,7 @@ export default async function FinancePage({
           <div className="overflow-x-auto">
             <table className="table-wide text-left">
               <thead>
-                <tr className="border-b-2 border-void">
+                <tr className="border-b-2 border-void/40">
                   <th className="th py-2 pr-4">Date</th>
                   <th className="th py-2 pr-4">Description</th>
                   <th className="th py-2 pr-4">Category</th>
@@ -448,9 +462,7 @@ export default async function FinancePage({
 
       <Section title="Export for the accountant">
         <p className="prose-vixart" style={{ opacity: 0.7 }}>
-          UTF-8 with a byte-order mark and semicolon separators, so Excel opens
-          them correctly with accents intact. Amounts are plain decimals, so the
-          columns can be summed.
+          Opens straight in Excel, accents intact, amounts ready to add up.
         </p>
         <div className="mt-4 flex flex-wrap gap-3">
           <a href="/api/export/finance" className="btn">Ledger (CSV)</a>
@@ -469,7 +481,7 @@ export default async function FinancePage({
           <div className="overflow-x-auto">
             <table className="table-wide text-left">
               <thead>
-                <tr className="border-b-2 border-void">
+                <tr className="border-b-2 border-void/40">
                   <th className="th py-2 pr-4">Invoice</th>
                   <th className="th py-2 pr-4">Client</th>
                   <th className="th py-2 pr-4">Was due</th>
@@ -504,15 +516,12 @@ export default async function FinancePage({
       {data.vat.length > 0 && (
         <Section title={`VAT position — ${year}`}>
           <p className="prose-vixart mb-4" style={{ opacity: 0.7 }}>
-            VAT charged on issued invoices, less the VAT contained in costs. A
-            positive figure is roughly what is owed to the tax authority for that
-            month. Read from the figures frozen on each document, never from a
-            live rate — and it is an indication for your accountant, not a return.
+            Roughly the VAT owed each month: a guide for the accountant, not a tax return.
           </p>
           <div className="overflow-x-auto">
             <table className="table-wide text-left">
               <thead>
-                <tr className="border-b-2 border-void">
+                <tr className="border-b-2 border-void/40">
                   <th className="th py-2 pr-4">Month</th>
                   <th className="th py-2 pr-4 text-right">Charged</th>
                   <th className="th py-2 pr-4 text-right">Paid on costs</th>
@@ -546,10 +555,7 @@ export default async function FinancePage({
       {/* --- The monthly checklist ------------------------------------------ */}
       <Section title={`Charges for ${periodLabel}`}>
         <p className="prose-vixart mb-4" style={{ opacity: 0.7 }}>
-          Rent, salaries, internet and the meters. Nothing here is written to the
-          books until you say the money went — a charge falling due is not the
-          same as a charge being paid, and the amount is yours to correct when it
-          is not the usual one.
+          Rent, salaries, internet, utilities. Tick each one once it is actually paid.
         </p>
 
         <ChargeChecklist

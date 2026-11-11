@@ -1,4 +1,5 @@
 import { sql } from 'drizzle-orm';
+import { ListFilter } from '@/components/ListFilter';
 import { auth } from '@/auth';
 import { Empty, PageHeader, Section } from '@/components/ui';
 import { withUser } from '@/db/session';
@@ -83,7 +84,7 @@ export default async function ServicesPage() {
 
   return (
     <>
-      <PageHeader eyebrow="Catalog" title="Services" />
+      <PageHeader title="Services" intro="What VIXART sells, and at what price." />
 
       <div className="grid grid-cols-2 gap-6 border-b border-void/15 pb-6 md:grid-cols-4">
         <div>
@@ -116,12 +117,21 @@ export default async function ServicesPage() {
         </p>
       )}
 
+      {services.length > 0 && (
+        <div className="mt-8">
+          <ListFilter scope="service-list" placeholder="Search services" />
+        </div>
+      )}
+
+      {/* One box for every pillar: a pillar with no match disappears. */}
+      <div id="service-list">
       {PILLARS.map((pillar) => {
         const inPillar = services.filter((s) => s.pillar === pillar.value);
         if (inPillar.length === 0) return null;
 
         return (
-          <Section key={pillar.value} title={pillar.label}>
+          <div key={pillar.value} data-filter-group>
+          <Section title={pillar.label}>
             <ul className="border-t border-void/10">
               {inPillar.map((svc) => {
                 const versions = history.filter((h) => h.service_id === svc.id);
@@ -230,8 +240,10 @@ export default async function ServicesPage() {
               })}
             </ul>
           </Section>
+          </div>
         );
       })}
+      </div>
 
       {services.length === 0 && (
         <div className="mt-8">

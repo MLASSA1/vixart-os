@@ -118,6 +118,8 @@ export const appUser = pgTable(
    * it IS, not what is stored in its password column.
    */
   isServiceAccount: boolean('is_service_account').notNull().default(false),
+  /** The one person who may reverse a payment. Set by migration only (0083). */
+  isOwner: boolean('is_owner').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -156,6 +158,11 @@ export const company = pgTable(
     addressLine: text('address_line'),
     city: text('city'),
     website: text('website'),
+    /** Where to find the client online (0082). Each an http(s) address. */
+    instagramUrl: text('instagram_url'),
+    facebookUrl: text('facebook_url'),
+    mapsUrl: text('maps_url'),
+    bookingUrl: text('booking_url'),
 
     /** Withholds VAT at source (art. 117 bis CGI). */
     retenueSource: boolean('retenue_source').notNull().default(false),
@@ -339,6 +346,9 @@ export const project = pgTable(
     startDate: date('start_date'),
     dueDate: date('due_date'),
     leadId: uuid('lead_id').references(() => appUser.id, { onDelete: 'set null' }),
+    /** One sentence for the client on what happens next (0086). Not derived from tasks. */
+    nextStep: text('next_step'),
+    nextStepSetAt: timestamp('next_step_set_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -636,6 +646,8 @@ export const documentPayment = pgTable(
     method: text('method').notNull().default('virement'),
     paidOn: date('paid_on').notNull().defaultNow(),
     note: text('note'),
+    /** On a reversal: the payment it cancels, for minus its amount (0083). */
+    reversesId: uuid('reverses_id'),
     createdById: uuid('created_by_id')
       .notNull()
       .references(() => appUser.id, { onDelete: 'restrict' }),
@@ -788,6 +800,9 @@ export const attachment = pgTable(
      * whole thing. See 0048.
      */
     durationMs: integer('duration_ms'),
+    /** A project file the client sees in the portal (0086). Changed only through app.share_with_client. */
+    sharedWithClient: boolean('shared_with_client').notNull().default(false),
+    sharedAt: timestamp('shared_at', { withTimezone: true }),
     uploadedById: uuid('uploaded_by_id').references(() => appUser.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -1007,6 +1022,48 @@ export const threadRead = pgTable(
     lastReadAt: timestamp('last_read_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.threadId, t.userId] })],
+);
+
+/** When a client contact last opened their support conversation (0087). */
+export const clientThreadRead = pgTable(
+  'client_thread_read',
+  {
+    contactId: uuid('contact_id')
+      .notNull()
+      .references(() => contact.id, { onDelete: 'cascade' }),
+    threadId: uuid('thread_id')
+      .notNull()
+      .references(() => thread.id, { onDelete: 'cascade' }),
+    lastReadAt: timestamp('last_read_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.contactId, t.threadId] }), index('client_thread_read_thread_idx').on(t.threadId)],
+);
+
+/**
+ * Outbox: one pending email per client contact and conversation, saying the
+ * team has replied (0088). Written by a trigger on message, sent by the sweep.
+ */
+export const clientReplyMail = pgTable(
+  'client_reply_mail',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    contactId: uuid('contact_id')
+      .notNull()
+      .references(() => contact.id, { onDelete: 'cascade' }),
+    threadId: uuid('thread_id')
+      .notNull()
+      .references(() => thread.id, { onDelete: 'cascade' }),
+    replies: integer('replies').notNull().default(1),
+    preview: text('preview').notNull(),
+    authorName: text('author_name'),
+    firstReplyAt: timestamp('first_reply_at', { withTimezone: true }).notNull().defaultNow(),
+    lastReplyAt: timestamp('last_reply_at', { withTimezone: true }).notNull().defaultNow(),
+    emailedAt: timestamp('emailed_at', { withTimezone: true }),
+    skippedAt: timestamp('skipped_at', { withTimezone: true }),
+    emailAttempts: integer('email_attempts').notNull().default(0),
+    emailLastAttemptAt: timestamp('email_last_attempt_at', { withTimezone: true }),
+  },
+  (t) => [index('client_reply_mail_thread_idx').on(t.threadId)],
 );
 
 // ---------------------------------------------------------------------------

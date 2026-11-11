@@ -1,5 +1,6 @@
 'use client';
 
+import { useKeepOnError } from '@/lib/use-keep-on-error';
 import { useActionState, useRef } from 'react';
 import { useFormStatus } from 'react-dom';
 import { ErrorBanner, FormGrid, Select, TextInput } from '@/components/ui';
@@ -35,9 +36,10 @@ export function ScheduleForm({
     },
     EMPTY_STATE,
   );
+  const keepState = useKeepOnError(state);
 
   return (
-    <form ref={formRef} action={formAction} className="card mt-4 px-5 py-4">
+    <form ref={formRef} action={formAction} onSubmit={keepState} className="card mt-4 px-5 py-4">
       <ErrorBanner message={state.error} />
       <FormGrid>
         <TextInput name="title" label="What" required placeholder="Talborjt shoot" />

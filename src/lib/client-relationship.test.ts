@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { summariseBilling, type BillingRow } from './client-relationship';
+import { paymentHabits, summariseBilling, type BillingRow, type HabitRow } from './client-relationship';
 
 /**
  * The three numbers on a client's page.
@@ -19,6 +19,7 @@ import { summariseBilling, type BillingRow } from './client-relationship';
  */
 
 const row = (over: Partial<BillingRow> = {}): BillingRow => ({
+  doc_type: 'facture',
   status: 'emis',
   total_incl_vat: '100000',
   net_to_collect: null,
@@ -48,8 +49,9 @@ describe('what a client has been billed', () => {
   });
 
   it('subtracts what has actually been paid', () => {
+    // Paid the way the database marks it: status and paid_at together (0033).
     const s = summariseBilling([
-      row({ paid_at: '2026-09-01' }),
+      row({ status: 'paye', paid_at: '2026-09-01' }),
       row({ total_incl_vat: '40000' }),
     ]);
     expect(s.billed).toBe(140000n);
@@ -71,7 +73,7 @@ describe('what a client has been billed', () => {
 
   it('treats a paid withheld invoice as settled, not as short', () => {
     const s = summariseBilling([
-      row({ total_incl_vat: '100000', net_to_collect: '90000', paid_at: '2026-09-01' }),
+      row({ total_incl_vat: '100000', net_to_collect: '90000', status: 'paye', paid_at: '2026-09-01' }),
     ]);
     expect(s.outstanding, 'a withheld invoice looks unpaid after it was paid').toBe(0n);
   });
@@ -84,9 +86,102 @@ describe('what a client has been billed', () => {
     expect(s.billed).toBe(1n);
   });
 
+  /*
+   * The three this function used to get wrong, each of which disagreed with
+   * the Quotes & invoices page and each of which would have had somebody
+   * chasing a client for the wrong amount.
+   */
+  it('never counts a quote, issued or not, as money owed', () => {
+    const s = summariseBilling([row(), row({ doc_type: 'devis', total_incl_vat: '999999' })]);
+    expect(s.billed, 'an issued quote is an offer, not a debt').toBe(100000n);
+    expect(s.outstanding).toBe(100000n);
+  });
+
+  it('never adds a credit note to what is owed', () => {
+    const s = summariseBilling([row(), row({ doc_type: 'avoir', total_incl_vat: '30000' })]);
+    expect(s.billed, 'a credit note was added to the debt').toBe(100000n);
+  });
+
+  it('takes an issued credit note off what is owed (Amin, Nov 2026)', () => {
+    const s = summariseBilling([row(), row({ doc_type: 'avoir', total_incl_vat: '30000' })]);
+    expect(s.credited).toBe(30000n);
+    expect(s.outstanding).toBe(70000n);
+    expect(s.collected, 'a credit note is not money received').toBe(0n);
+  });
+
+  it('ignores a draft or cancelled credit note', () => {
+    const s = summariseBilling([
+      row(),
+      row({ doc_type: 'avoir', status: 'brouillon', total_incl_vat: '30000' }),
+      row({ doc_type: 'avoir', status: 'annule', total_incl_vat: '30000' }),
+    ]);
+    expect(s.outstanding).toBe(100000n);
+  });
+
+  it('goes below zero when credit exceeds what is left: the client is in credit', () => {
+    const s = summariseBilling([row({ status: 'paye' }), row({ doc_type: 'avoir', total_incl_vat: '20000' })]);
+    expect(s.outstanding).toBe(-20000n);
+  });
+
+  it('counts a deposit already received on an open invoice', () => {
+    // A client who has paid 50% up front does not still owe the lot.
+    const s = summariseBilling([row({ total_incl_vat: '100000', paid: '50000' })]);
+    expect(s.collected).toBe(50000n);
+    expect(s.outstanding).toBe(50000n);
+  });
+
   it('says nothing about a client with no documents', () => {
     const s = summariseBilling([]);
-    expect(s).toEqual({ billed: 0n, collected: 0n, outstanding: 0n, drafts: 0 });
+    expect(s).toEqual({ billed: 0n, collected: 0n, credited: 0n, outstanding: 0n, drafts: 0 });
+  });
+});
+
+describe('how a client pays, from their invoices', () => {
+  const inv = (over: Partial<HabitRow> = {}): HabitRow => ({
+    doc_type: 'facture', status: 'emis', total_incl_vat: '100000', net_to_collect: null,
+    paid_at: null, paid: '0', issue_date: '2026-09-01', due_date: '2026-09-15',
+    payment_method: 'virement', paid_day: null, ...over,
+  });
+  const today = '2026-11-10';
+
+  it('names the usual method and how many invoices it rests on', () => {
+    const h = paymentHabits([inv(), inv(), inv({ payment_method: 'cheque' })], today);
+    expect(h.usualMethod).toEqual({ method: 'virement', count: 2, of: 3 });
+  });
+
+  it('averages days to pay and days past due over paid invoices only', () => {
+    const h = paymentHabits([
+      inv({ status: 'paye', issue_date: '2026-09-01', due_date: '2026-09-15', paid_day: '2026-09-11' }),
+      inv({ status: 'paye', issue_date: '2026-10-01', due_date: '2026-10-15', paid_day: '2026-10-25' }),
+      inv(), // open: says nothing about how long they take
+    ], today);
+    expect(h.paidCount).toBe(2);
+    expect(h.daysToPay).toBe(17); // 10 and 24 days
+    expect(h.daysLate).toBe(3);   // 4 early and 10 late
+  });
+
+  it('crosses month and year boundaries by calendar day', () => {
+    const h = paymentHabits([inv({ status: 'paye', issue_date: '2025-12-28', due_date: null, paid_day: '2026-01-03' })], today);
+    expect(h.daysToPay).toBe(6);
+    expect(h.daysLate).toBeNull();
+  });
+
+  it('counts what is overdue now, net of anything already received', () => {
+    const h = paymentHabits([
+      inv({ due_date: '2026-11-01', paid: '30000' }),   // overdue, part-paid
+      inv({ due_date: '2026-12-01' }),                  // not due yet
+      inv({ status: 'paye', due_date: '2026-10-01', paid_day: '2026-10-20' }), // paid
+    ], today);
+    expect(h.overdue).toEqual({ count: 1, owed: 70000n });
+  });
+
+  it('ignores quotes, credit notes and drafts', () => {
+    const h = paymentHabits([
+      inv({ doc_type: 'devis', payment_method: 'especes' }),
+      inv({ doc_type: 'avoir', status: 'paye', paid_day: '2026-09-02' }),
+      inv({ status: 'brouillon', due_date: '2026-01-01' }),
+    ], today);
+    expect(h).toEqual({ usualMethod: null, daysToPay: null, daysLate: null, paidCount: 0, overdue: { count: 0, owed: 0n } });
   });
 });
 

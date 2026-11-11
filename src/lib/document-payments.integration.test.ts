@@ -180,16 +180,20 @@ describe.skipIf(!HAS_DB)('advance payments (integration)', () => {
     await expect(pay(d.rows[0]!.id, 10_000n)).rejects.toThrow(/draft/i);
   });
 
-  it('a deleted advance takes its ledger line with it', async () => {
+  it('never deletes a payment, even on an open invoice', async () => {
+    // 0083. It used to be deletable until the invoice settled, and the delete
+    // took its ledger line with it — a payment could vanish without trace.
     const { id } = await issuedInvoice();
     await pay(id, 200_000n);
     const p = await db.query<{ id: string }>(
       `SELECT id FROM document_payment WHERE document_id=$1`, [id],
     );
-    await db.query(`DELETE FROM document_payment WHERE id=$1`, [p.rows[0]!.id]);
+    await expect(
+      db.query(`DELETE FROM document_payment WHERE id=$1`, [p.rows[0]!.id]),
+    ).rejects.toThrow(/never deleted/i);
 
     const entries = await db.query(`SELECT 1 FROM finance_entry WHERE document_id=$1`, [id]);
-    expect(entries.rows).toHaveLength(0);
+    expect(entries.rows, 'the ledger line must survive').toHaveLength(1);
   });
 
   it('locks the payments once the invoice is settled', async () => {
@@ -200,7 +204,7 @@ describe.skipIf(!HAS_DB)('advance payments (integration)', () => {
     );
     await expect(
       db.query(`DELETE FROM document_payment WHERE id=$1`, [p.rows[0]!.id]),
-    ).rejects.toThrow(/settled|credit note/i);
+    ).rejects.toThrow(/never deleted/i);
     await expect(pay(id, 1n)).rejects.toThrow(/already settled/i);
   });
 

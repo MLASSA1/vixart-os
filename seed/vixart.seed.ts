@@ -31,6 +31,14 @@ const TEAM = [
     fullName: 'Amin',
     jobTitle: 'Founder / CEO',
     role: 'admin' as const,
+    /*
+     * The one account that may reverse a payment (0083). Named here because on
+     * a blank database 0083 runs before any account exists and so finds nobody
+     * to choose — a fresh install would otherwise have no owner at all, and no
+     * payment could ever be corrected. The seed runs as bootstrap, which is
+     * the only session the owner guard lets set this.
+     */
+    isOwner: true,
   },
   {
     email: 'yassin@vixart.ma',

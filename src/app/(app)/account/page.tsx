@@ -32,7 +32,7 @@ export default async function AccountPage() {
 
   return (
     <>
-      <PageHeader eyebrow="VIXART OS" title="My account" />
+      <PageHeader title="My account" intro="Your name, photo and password." />
 
       <div className="max-w-md">
         <Field label="Email" value={user.email} />
@@ -53,7 +53,7 @@ export default async function AccountPage() {
       </div>
 
       <section className="mt-12 max-w-xl">
-        <h2 className="label border-b border-void pb-2">My profile</h2>
+        <h2 className="label border-b border-void/40 pb-2">My profile</h2>
         <p className="prose-vixart mt-4" style={{ opacity: 0.68 }}>
           What the team sees when they open you from{' '}
           <Link href="/team" className="underline underline-offset-2">Team</Link>.
@@ -70,7 +70,7 @@ export default async function AccountPage() {
       </section>
 
       <section className="mt-12 max-w-xl">
-        <h2 className="label border-b border-void pb-2">Change password</h2>
+        <h2 className="label border-b border-void/40 pb-2">Change password</h2>
         <p className="prose-vixart mt-4" style={{ opacity: 0.68 }}>
           You will be signed out once it is changed, and will sign in again with the
           new password.

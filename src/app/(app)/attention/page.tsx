@@ -37,7 +37,10 @@ export default async function AttentionPage() {
 
   return (
     <>
-      <PageHeader eyebrow="VIXART OS" title="Needs attention" />
+      <PageHeader
+        title="Needs attention"
+        intro="Everything waiting on you. An item clears itself once it is done."
+      />
 
       {items.length === 0 ? (
         <Empty message="Nothing is waiting on anyone. Everything is up to date." />
@@ -48,7 +51,7 @@ export default async function AttentionPage() {
 
           return (
             <section key={severity} className="mt-10 first:mt-0">
-              <h2 className="border-b border-void pb-2 text-lg font-semibold">
+              <h2 className="border-b border-void/40 pb-2 text-lg font-semibold">
                 {HEADING[severity]}
               </h2>
               <p className="hint mt-1">{BLURB[severity]}</p>
@@ -58,7 +61,7 @@ export default async function AttentionPage() {
                   <li key={item.id}>
                     <Link
                       href={item.href}
-                      className={`block px-4 py-3 hover:bg-void hover:text-pure ${STYLE[severity]}`}
+                      className={`block px-4 py-3 hover:bg-void hover:text-night ${STYLE[severity]}`}
                     >
                       <p className="font-semibold">{item.title}</p>
                       <p className="prose-vixart mt-0.5 text-[15px] opacity-70">
@@ -73,11 +76,6 @@ export default async function AttentionPage() {
         })
       )}
 
-      <p className="prose-vixart mt-12 border-t border-void/10 pt-6 text-[15px]" style={{ opacity: 0.55 }}>
-        This list is worked out fresh every time you open it, not stored. An item
-        disappears when the thing is actually done — there is nothing to dismiss,
-        and nothing here can be out of date.
-      </p>
     </>
   );
 }

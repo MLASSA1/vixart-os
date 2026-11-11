@@ -18,10 +18,11 @@ export default async function SignInPage({
   return (
     <main className="flex min-h-screen">
       {/* The dark half: the brand, and nothing asking to be clicked. */}
-      <section className="hidden flex-1 flex-col justify-between bg-void p-12 text-pure lg:flex">
-        <p className="display flex items-baseline gap-2.5 text-2xl font-bold tracking-tight">
-          VIXART OS
+      <section className="hidden flex-1 flex-col justify-between bg-night p-12 text-pure lg:flex">
+        <p className="flex items-baseline gap-2.5 text-2xl">
+          <span className="wordmark">VIXART</span>
           <span aria-hidden="true" className="inline-block h-3 w-3 rounded-[3px] bg-accent" />
+          <span className="wordmark-suffix">OS</span>
         </p>
         <div>
           <p className="display max-w-md text-4xl leading-tight font-semibold">
@@ -33,16 +34,17 @@ export default async function SignInPage({
             Clients, work, quotes and the books — nothing leaves this machine.
           </p>
         </div>
-        <p className="text-[13px] text-pure/40">SOCIETE VIXART SARL — Agadir</p>
+        <p className="text-[13px] text-pure/55">SOCIETE VIXART SARL — Agadir</p>
       </section>
 
       {/* The paper half: just the door. */}
       <section className="flex flex-1 flex-col justify-center bg-paper px-6 py-16">
         <div className="mx-auto w-full max-w-sm">
           <header className="lg:hidden">
-            <p className="display flex items-baseline gap-2 text-2xl font-bold tracking-tight">
-              VIXART OS
+            <p className="flex items-baseline gap-2 text-2xl">
+              <span className="wordmark">VIXART</span>
               <span aria-hidden="true" className="inline-block h-2.5 w-2.5 rounded-[3px] bg-accent" />
+              <span className="wordmark-suffix">OS</span>
             </p>
             <p className="label mt-1">SOCIETE VIXART SARL — Agadir</p>
           </header>

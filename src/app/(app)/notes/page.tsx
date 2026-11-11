@@ -36,14 +36,10 @@ export default async function NotesPage() {
 
   return (
     <>
-      <PageHeader eyebrow={me.name ?? 'Me'} title="Notes" />
-
-      <p className="prose-vixart" style={{ opacity: 0.7 }}>
-        Yours alone. Nobody else can read these — not a moderator, not an
-        administrator. It is somewhere to think before you are ready to say
-        something; anything the team needs to act on belongs in a channel or a
-        task, where they can see it.
-      </p>
+      <PageHeader
+        title="Notes"
+        intro="Private to you. Nobody else can read them, managers included."
+      />
 
       <Section title="New note">
         <NoteForm action={saveNoteAction} />
@@ -63,7 +59,7 @@ export default async function NotesPage() {
                     <input type="hidden" name="noteId" value={n.id} />
                     <button
                       type="submit"
-                      className="cursor-pointer text-[11.5px] font-medium text-void/45 hover:text-void hover:underline"
+                      className="cursor-pointer text-[11.5px] font-medium text-void/55 hover:text-void hover:underline"
                     >
                       Delete
                     </button>

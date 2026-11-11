@@ -1,5 +1,6 @@
 'use client';
 
+import { useKeepOnError } from '@/lib/use-keep-on-error';
 import { useActionState, useRef } from 'react';
 import { useFormStatus } from 'react-dom';
 import { ErrorBanner } from '@/components/ui';
@@ -46,6 +47,7 @@ export function Attachments({
     },
     EMPTY_STATE,
   );
+  const keepState = useKeepOnError(state);
 
   return (
     <div>
@@ -86,7 +88,7 @@ export function Attachments({
         </ul>
       )}
 
-      <form ref={formRef} action={formAction} className="mt-3">
+      <form ref={formRef} action={formAction} onSubmit={keepState} className="mt-3">
         <ErrorBanner message={state.error} />
         <div className="flex flex-wrap items-end gap-3">
           <label className="block" htmlFor="file">
@@ -97,7 +99,7 @@ export function Attachments({
               type="file"
               required
               accept={allowedTypesForInput()}
-              className="mt-1.5 max-w-full text-[14px] file:mr-3 file:cursor-pointer file:border file:border-void file:bg-pure file:px-3 file:py-1.5 file:text-[13px]"
+              className="mt-1.5 max-w-full text-[14px] file:mr-3 file:cursor-pointer file:border file:border-void file:bg-surface file:px-3 file:py-1.5 file:text-[13px]"
             />
           </label>
           <label className="block flex-1" htmlFor="caption">

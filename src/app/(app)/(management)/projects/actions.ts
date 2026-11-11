@@ -139,3 +139,45 @@ export async function deleteProjectAction(formData: FormData): Promise<void> {
   revalidatePath('/projects');
   redirect('/projects');
 }
+
+// ---------------------------------------------------------------------------
+// What the client sees in the portal (0086)
+// ---------------------------------------------------------------------------
+
+/**
+ * The one sentence the client reads under "What happens next".
+ * Written for them, so it is shown exactly as typed; empty clears it.
+ */
+export async function setNextStepAction(
+  projectId: string,
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const text = String(formData.get('nextStep') ?? '').trim();
+  if (text.length > 300) return { error: 'Keep it to one or two sentences (300 characters at most).' };
+  try {
+    await withUser((tx) =>
+      tx.execute(sql`
+        UPDATE project
+           SET next_step = ${text || null},
+               next_step_set_at = CASE WHEN ${text || null}::text IS NULL THEN NULL ELSE now() END
+         WHERE id = ${projectId}
+      `),
+    );
+  } catch (error) {
+    return { error: describeDbError(error) };
+  }
+  revalidatePath(`/projects/${projectId}`);
+  // No notice: NoticeBanner is the "done, with a note" warning, and the saved
+  // sentence staying in the box is the confirmation.
+  return EMPTY_STATE;
+}
+
+/** Share a project file with the client, or stop sharing it. */
+export async function shareFileAction(formData: FormData): Promise<void> {
+  const attachmentId = String(formData.get('attachmentId') ?? '');
+  const projectId = String(formData.get('projectId') ?? '');
+  const shared = formData.get('shared') === 'true';
+  await withUser((tx) => tx.execute(sql`SELECT app.share_with_client(${attachmentId}::uuid, ${shared})`));
+  revalidatePath(`/projects/${projectId}`);
+}

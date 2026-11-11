@@ -119,18 +119,16 @@ export default async function ClientPortalPage() {
   return (
     <>
       <PageHeader
-        eyebrow="Client portal"
-        title="Who can sign in, and what they see"
+        // Titled as the sidebar names it. It said "Who can sign in, and what
+        // they see", so clicking "Client portal" landed on a different name.
+        title="Client portal"
+        intro={
+          <>
+            Who can sign in at <span className="font-semibold">client.visionxart.cloud</span>.
+            Each client sees only their own projects.
+          </>
+        }
       />
-
-      <p className="prose-vixart" style={{ opacity: 0.68, maxWidth: '68ch' }}>
-        An account lets one person sign in at{' '}
-        <span className="font-semibold">client.visionxart.cloud</span> to see
-        their own projects, read the progress, explore the systems and write to
-        us. They see nothing belonging to any other client, and nothing of the
-        team’s — not the channels, not the money, not the task list the progress
-        was counted from.
-      </p>
 
       <Section title="Open an account">
         <OpenClientSpace

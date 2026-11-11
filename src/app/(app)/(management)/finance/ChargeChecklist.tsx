@@ -1,5 +1,6 @@
 'use client';
 
+import { useKeepOnError } from '@/lib/use-keep-on-error';
 import { useActionState, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { ErrorBanner } from '@/components/ui';
@@ -63,6 +64,7 @@ function PayRow({
   pay: (state: FormState, formData: FormData) => Promise<FormState>;
 }) {
   const [state, formAction] = useActionState(pay, EMPTY_STATE);
+  const keepState = useKeepOnError(state);
   const [open, setOpen] = useState(false);
 
   // A fixed charge is one click. A variable one has nothing sensible to
@@ -73,7 +75,7 @@ function PayRow({
     <div>
       <ErrorBanner message={state.error} />
       {!open && !needsAmount ? (
-        <form action={formAction} className="flex items-center gap-2">
+        <form action={formAction} onSubmit={keepState} className="flex items-center gap-2">
           <input type="hidden" name="chargeId" value={charge.id} />
           <input type="hidden" name="period" value={period} />
           <input type="hidden" name="amount" value={(BigInt(charge.expected) / 100n).toString()} />
@@ -88,7 +90,7 @@ function PayRow({
           </button>
         </form>
       ) : (
-        <form action={formAction} className="flex flex-wrap items-end gap-2">
+        <form action={formAction} onSubmit={keepState} className="flex flex-wrap items-end gap-2">
           <input type="hidden" name="chargeId" value={charge.id} />
           <input type="hidden" name="period" value={period} />
           <label className="block">

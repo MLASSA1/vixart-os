@@ -1,5 +1,6 @@
 'use client';
 
+import { useKeepOnError } from '@/lib/use-keep-on-error';
 import { useActionState, useRef } from 'react';
 import { useFormStatus } from 'react-dom';
 import { ErrorBanner, FormGrid, Select, TextInput } from '@/components/ui';
@@ -68,9 +69,10 @@ export function AddMemberForm({
     },
     EMPTY_TEAM_STATE,
   );
+  const keepState = useKeepOnError(state);
 
   return (
-    <form ref={formRef} action={formAction} className="border border-void/25 p-5">
+    <form ref={formRef} action={formAction} onSubmit={keepState} className="border border-void/25 p-5">
       <PasswordHandover state={state} />
       <ErrorBanner message={state.error} />
       <FormGrid>
@@ -106,8 +108,9 @@ export function EditMemberForm({
   jobTitle: string | null;
 }) {
   const [state, formAction] = useActionState(action, EMPTY_TEAM_STATE);
+  const keepState = useKeepOnError(state);
   return (
-    <form action={formAction} className="mt-3">
+    <form action={formAction} onSubmit={keepState} className="mt-3">
       <ErrorBanner message={state.error} />
       <div className="flex flex-wrap items-end gap-3">
         <label className="block" htmlFor={`name-${fullName}`}>
@@ -130,8 +133,9 @@ export function ResetPasswordForm({
   action: (state: TeamState, formData: FormData) => Promise<TeamState>;
 }) {
   const [state, formAction] = useActionState(action, EMPTY_TEAM_STATE);
+  const keepState = useKeepOnError(state);
   return (
-    <form action={formAction} className="mt-3">
+    <form action={formAction} onSubmit={keepState} className="mt-3">
       <PasswordHandover state={state} />
       <ErrorBanner message={state.error} />
       <button type="submit" className="btn btn-inverse btn-small">

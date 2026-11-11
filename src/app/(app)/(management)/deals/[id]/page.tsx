@@ -116,7 +116,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
   return (
     <>
       <PageHeader
-        eyebrow={record.company_name}
+        intro={record.company_name}
         title={record.title}
         actions={
           <Link href="/deals" className="btn btn-inverse">
@@ -167,7 +167,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
           <div className="overflow-x-auto">
             <table className="table-wide text-left">
               <thead>
-                <tr className="border-b-2 border-void">
+                <tr className="border-b-2 border-void/40">
                   <th className="th py-2 pr-4">Service</th>
                   <th className="th py-2 pr-4 text-right">Unit price</th>
                   <th className="th py-2 pr-4 text-right">Qty</th>
@@ -252,7 +252,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
             <span className="label">VAT {vatRateBp / 100} %</span>
             <span className="code">{formatMAD(totals.totalVat)}</span>
           </div>
-          <div className="flex items-baseline justify-between border-b-2 border-void py-2.5">
+          <div className="flex items-baseline justify-between border-b-2 border-void/40 py-2.5">
             <span className="font-semibold">Total incl. VAT</span>
             <span className="code text-lg font-bold">{formatMAD(totals.totalInclVat)}</span>
           </div>

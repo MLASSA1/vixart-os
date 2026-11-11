@@ -16,7 +16,12 @@ export const dynamic = 'force-dynamic';
  * document keeps — a price on an issued invoice must never move because
  * someone later edited the catalog.
  */
-export default async function NewDocumentPage() {
+export default async function NewDocumentPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ client?: string; type?: string }>;
+}) {
+  const wanted = await searchParams;
   const session = await auth();
   if (session?.user.role !== 'admin') redirect('/dashboard');
 
@@ -76,8 +81,12 @@ export default async function NewDocumentPage() {
 
   return (
     <>
-      <PageHeader eyebrow="Documents" title="New document" />
+      <PageHeader title="New document" />
       <Builder
+        // From a client's page: start with that client chosen. Used only if it
+        // names a client the reader can see and a type that can be drafted here.
+        initialClientId={clients.some((c) => c.id === wanted.client) ? wanted.client : ''}
+        initialDocType={wanted.type === 'facture' ? 'facture' : 'devis'}
         action={buildDocumentAction}
         clients={clients}
         services={services}

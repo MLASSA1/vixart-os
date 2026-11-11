@@ -1,5 +1,6 @@
 'use client';
 
+import { useKeepOnError } from '@/lib/use-keep-on-error';
 import { useActionState, useMemo, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { ErrorBanner } from '@/components/ui';
@@ -94,6 +95,8 @@ export function Builder({
   today,
   defaultVatRateBp,
   withholdingRateBp,
+  initialClientId = '',
+  initialDocType = 'devis',
 }: {
   action: (state: FormState, formData: FormData) => Promise<FormState>;
   clients: readonly ClientOption[];
@@ -101,11 +104,15 @@ export function Builder({
   today: string;
   defaultVatRateBp: number;
   withholdingRateBp: number;
+  /** Preselected from a client's own page, so the client is not chosen twice. */
+  initialClientId?: string;
+  initialDocType?: 'devis' | 'facture';
 }) {
   const [state, formAction] = useActionState(action, EMPTY_STATE);
+  const keepState = useKeepOnError(state);
 
-  const [docType, setDocType] = useState<'devis' | 'facture'>('devis');
-  const [clientId, setClientId] = useState('');
+  const [docType, setDocType] = useState<'devis' | 'facture'>(initialDocType);
+  const [clientId, setClientId] = useState(initialClientId);
   const [lines, setLines] = useState<Line[]>([
     { key: 1, serviceId: '', label: '', unit: 'forfait', price: '', quantity: '1' },
   ]);
@@ -156,7 +163,7 @@ export function Builder({
   const isQuote = docType === 'devis';
 
   return (
-    <form action={formAction}>
+    <form action={formAction} onSubmit={keepState}>
       <ErrorBanner message={state.error} />
 
       {/* ---- what and for whom ------------------------------------------ */}
@@ -367,7 +374,7 @@ export function Builder({
           <label className="mt-5 flex items-start gap-2">
             <input
               type="checkbox"
-              className="mt-1 h-4 w-4 accent-[#6D28D9]"
+              className="mt-1 h-4 w-4 accent-accent"
               checked={exempt}
               onChange={(e) => setExempt(e.target.checked)}
             />
@@ -401,8 +408,8 @@ export function Builder({
         </div>
 
         {/* Live preview. The database has the last word on all of it. */}
-        <div className="rounded-[14px] bg-void p-6 text-pure">
-          <p className="text-[12px] font-bold tracking-[0.09em] text-pure/45 uppercase">Preview</p>
+        <div className="rounded-[14px] border border-void/10 bg-night p-6 text-pure">
+          <p className="text-[12px] font-bold tracking-[0.09em] text-pure/55 uppercase">Preview</p>
           <dl className="mt-3 space-y-2">
             {totals.capped > 0n && (
               <>
@@ -441,7 +448,7 @@ export function Builder({
               </>
             )}
           </dl>
-          <p className="mt-4 text-[13px] text-pure/50">
+          <p className="mt-4 text-[13px] text-pure/55">
             Computed here so you can see it. The figures on the document itself are
             calculated by the database when it is issued.
           </p>
@@ -460,7 +467,7 @@ export function Builder({
             type="checkbox"
             name="issueNow"
             value="yes"
-            className="mt-1 h-4 w-4 accent-[#6D28D9]"
+            className="mt-1 h-4 w-4 accent-accent"
             checked={issueNow}
             onChange={(e) => setIssueNow(e.target.checked)}
           />

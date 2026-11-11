@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { NAV } from './nav';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -164,26 +165,28 @@ describe('the team space and the management door', () => {
   it('puts chat at the top of the sidebar, for everybody', () => {
     // Asked for in those words. It was eighteenth, behind sections most of the
     // team cannot use.
-    const shell = readFileSync(join(APP, 'Shell.tsx'), 'utf8');
-    const nav = shell.slice(shell.indexOf('const NAV'), shell.indexOf('const GROUPS'));
-    const order = [...nav.matchAll(/href: '(\/[a-z-]+)'/g)].map((m) => m[1]!);
-    expect(order[0], `the first nav item is ${order[0]}, not /chat`).toBe('/chat');
+    // The list itself, imported — not text searched for in a source file. The
+    // list moved from Shell.tsx to src/lib/nav.ts, and a guard that searched
+    // the old file would have read an empty string.
+    expect(NAV[0]?.href, `the first nav item is ${NAV[0]?.href}, not /chat`).toBe('/chat');
     // And it must not be gated: chat is everybody's.
-    const chatLine = nav.slice(nav.indexOf("href: '/chat'"));
-    expect(chatLine.slice(0, chatLine.indexOf('\n'))).not.toContain('minRole');
+    expect(NAV[0]?.minRole).toBeUndefined();
   });
 
   it('gates every commercial nav entry as well as its folder', () => {
     // Belt and braces, and it is the belt that a member sees: an ungated entry
     // would render a link that redirects, which reads as the app being broken.
-    const shell = readFileSync(join(APP, 'Shell.tsx'), 'utf8');
-    const nav = shell.slice(shell.indexOf('const NAV'), shell.indexOf('const GROUPS'));
+    //
+    // Tested against the imported list. This guard used to search Shell.tsx
+    // for the list's text; when the list moved to src/lib/nav.ts it read an
+    // empty string, found no ungated entries, and passed while guarding
+    // nothing — which is worse than failing.
+    expect(NAV.length, 'the sidebar list is empty, so this guard checks nothing').toBeGreaterThan(10);
 
     const ungated = COMMERCIAL.filter((name) => {
-      const at = nav.indexOf(`href: '/${name}'`);
-      if (at === -1) return false; // Not in the nav at all is fine.
-      const line = nav.slice(at, nav.indexOf('\n', at));
-      return !line.includes('minRole');
+      const item = NAV.find((i) => i.href === `/${name}`);
+      if (!item) return false; // Not in the nav at all is fine.
+      return !item.minRole;
     });
 
     expect(

@@ -5,6 +5,7 @@ import { auth } from '@/auth';
 import { withUser } from '@/db/session';
 import { markThreadRead } from '@/lib/chat-read';
 import { hasMessagesBefore, listMessages } from '@/lib/chat-queries';
+import { casablancaDay } from '@/lib/format';
 import {
   editMessageAction,
   postMessageAction,
@@ -116,7 +117,7 @@ export default async function ChannelPage({ params }: { params: Promise<{ id: st
       <header className="flex shrink-0 items-center gap-2 border-b border-void/10 bg-surface px-3 py-2.5 sm:gap-3 sm:px-5">
         {/* Phone only: the channel list is a drawer there, not a column. */}
         <ChannelsButton />
-        <span aria-hidden="true" className="text-[19px] leading-none text-void/25">
+        <span aria-hidden="true" className="text-[19px] leading-none text-void/55">
           {isDm ? '@' : isSupport ? '☎' : '#'}
         </span>
         <div className="min-w-0">
@@ -127,7 +128,7 @@ export default async function ChannelPage({ params }: { params: Promise<{ id: st
             {isDm ? (
               'Private — only the two of you can read this.'
             ) : isSupport ? (
-              <span className="font-semibold text-accent-deep">
+              <span className="font-semibold text-accent-ink">
                 The client reads this. Everything here is written to them.
               </span>
             ) : about ? (
@@ -151,6 +152,7 @@ export default async function ChannelPage({ params }: { params: Promise<{ id: st
         mentionable={people.map((p) => ({ id: String(p.id), fullName: String(p.full_name) }))}
         dmWith={isDm ? (record.other_name ?? null) : null}
         hasEarlier={earlier}
+        today={casablancaDay()}
         postAction={postMessageAction.bind(null, id)}
         editAction={editMessageAction.bind(null, id)}
         withdrawAction={withdrawMessageAction.bind(null, id)}

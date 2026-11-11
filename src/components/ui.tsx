@@ -8,6 +8,7 @@
  */
 
 import Link from 'next/link';
+import { Breadcrumb } from './Breadcrumb';
 import type { ReactNode } from 'react';
 
 // ---------------------------------------------------------------------------
@@ -45,20 +46,33 @@ export function Status({ value }: { value: string }) {
 // Page structure
 // ---------------------------------------------------------------------------
 
+/**
+ * The top of every screen answers three questions, in this order:
+ *
+ *   where am I       the trail, from the sidebar's own map (<Breadcrumb/>)
+ *   what is this     the title — the sidebar's label on a list page
+ *   what is it for   `intro`: ONE short line, never a paragraph
+ *
+ * and puts what you can do (`actions`) top right, in the same place on every
+ * screen. The page no longer chooses its own eyebrow: twenty pages had chosen
+ * twenty different ones, none of which said where you were.
+ */
 export function PageHeader({
-  eyebrow,
   title,
+  intro,
   actions,
 }: {
-  eyebrow?: string;
   title: string;
+  /** One line. If it needs a paragraph, the screen needs simplifying instead. */
+  intro?: ReactNode;
   actions?: ReactNode;
 }) {
   return (
     <header className="mb-8 flex flex-wrap items-end justify-between gap-4 pb-1">
-      <div>
-        {eyebrow && <p className="eyebrow">{eyebrow}</p>}
+      <div className="min-w-0">
+        <Breadcrumb />
         <h1 className="mt-1.5 text-3xl font-bold tracking-tight">{title}</h1>
+        {intro && <p className="hint mt-1.5 max-w-[62ch] text-[14px]">{intro}</p>}
       </div>
       {actions && <div className="flex flex-wrap gap-3">{actions}</div>}
     </header>
@@ -68,15 +82,18 @@ export function PageHeader({
 export function Section({
   title,
   action,
+  filterGroup = false,
   children,
 }: {
   title: string;
   action?: ReactNode;
+  /** Hidden by a <ListFilter> above it when none of its rows match. */
+  filterGroup?: boolean;
   children: ReactNode;
 }) {
   return (
-    <section className="card mt-8 px-6 py-5">
-      <div className="flex items-center justify-between gap-4 border-b border-void/10 pb-3">
+    <section className="card mt-8 px-6 py-5" data-filter-group={filterGroup || undefined}>
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-void/10 pb-3">
         <h2 className="text-[15px] font-semibold">{title}</h2>
         {action}
       </div>
@@ -89,7 +106,7 @@ export function Section({
 export function Field({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="flex items-baseline justify-between gap-6 border-b border-void/10 py-2.5">
-      <span className="label shrink-0" style={{ opacity: 0.52 }}>
+      <span className="label shrink-0">
         {label}
       </span>
       <span className="code text-right break-words">{value || '—'}</span>
@@ -100,7 +117,7 @@ export function Field({ label, value }: { label: string; value: ReactNode }) {
 export function Empty({ message, action }: { message: string; action?: ReactNode }) {
   return (
     <div className="rounded-[14px] border border-dashed border-void/25 bg-paper px-6 py-10 text-center">
-      <p className="label" style={{ opacity: 0.52 }}>
+      <p className="label">
         {message}
       </p>
       {action && <div className="mt-4 flex justify-center">{action}</div>}
@@ -176,7 +193,7 @@ function Wrapper({
 }: BaseInput & { children: ReactNode }) {
   return (
     <label className={`block ${fullWidth ? 'sm:col-span-2' : ''}`} htmlFor={name}>
-      <span className="label block" style={{ opacity: 0.68 }}>
+      <span className="label block">
         {label}
         {required && <span aria-hidden="true"> *</span>}
       </span>
@@ -269,7 +286,7 @@ export function Checkbox({
         name={name}
         type="checkbox"
         defaultChecked={checked}
-        className="mt-1 h-4 w-4 shrink-0 accent-[#6D28D9]"
+        className="mt-1 h-4 w-4 shrink-0 accent-accent"
       />
       <span>
         <span className="label block">{label}</span>

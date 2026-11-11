@@ -148,7 +148,7 @@ describe.skipIf(!HAS_DB)('purging a populated probe company', () => {
     // The settled invoice's payment is locked — proving the guard is live.
     await expect(
       db.query(`DELETE FROM document_payment WHERE document_id=$1`, [invoiceId]),
-    ).rejects.toThrow(/settled|credit note/i);
+    ).rejects.toThrow(/never deleted/i);
   });
 
   it('purges the probe and reports one company removed', async () => {

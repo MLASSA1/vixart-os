@@ -532,11 +532,19 @@ const PAYMENT_ERRORS = {
  * the payments cover the net — the ledger line per payment is posted by the
  * same trigger, with the real method and the real date.
  */
-export async function recordPaymentAction(
-  documentId: string,
-  _previous: FormState,
-  formData: FormData,
-): Promise<FormState> {
+/** Every page that shows money from a payment, so none of them goes stale. */
+function revalidateMoney(documentId: string) {
+  revalidatePath(`/documents/${documentId}`);
+  revalidatePath('/documents');
+  revalidatePath('/finance');
+  revalidatePath('/dashboard');
+  // Every client page: the payment is also on the client's own page now.
+  revalidatePath('/companies/[id]', 'page');
+}
+
+async function recordPayment(documentId: string, formData: FormData): Promise<FormState> {
+  if (!documentId) return { error: 'Choose the invoice this payment is for.' };
+
   let amount: bigint;
   try {
     amount = toCentimes(String(formData.get('amount') ?? '').trim());
@@ -564,31 +572,69 @@ export async function recordPaymentAction(
     return { error: describeDbError(error, PAYMENT_ERRORS) };
   }
 
-  revalidatePath(`/documents/${documentId}`);
-  revalidatePath('/documents');
-  revalidatePath('/finance');
-  revalidatePath('/dashboard');
+  revalidateMoney(documentId);
   return EMPTY_STATE;
 }
 
-/**
- * Remove a mistaken payment. Only possible while the invoice is still open —
- * once settled, payments are accounting facts and the trigger refuses. The
- * ledger line it posted goes with it, by cascade.
+/** From the invoice's own page, where the invoice is already known. */
+export async function recordPaymentAction(
+  documentId: string,
+  _previous: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  return recordPayment(documentId, formData);
+}
+
+/** From the client's page, where the invoice is chosen in the form. */
+export async function recordClientPaymentAction(
+  _previous: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  return recordPayment(String(formData.get('documentId') ?? ''), formData);
+}
+
+/*
+ * NO DELETE. `deletePaymentAction` used to be here, and a payment removed with
+ * it took its ledger line with it — gone from the books without trace. Since
+ * 0083 the database refuses every delete; this is what replaces it.
+ *
+ * A REVERSAL: a second payment for exactly minus the first, with a reason,
+ * pointing at it. Both stay on record for good and the balance nets back up.
+ * Only the owner may — and that is enforced by the database
+ * (app.enforce_payment_rules), not by this function or by hiding the button.
  */
-export async function deletePaymentAction(formData: FormData): Promise<void> {
-  const id = String(formData.get('paymentId') ?? '');
-  const documentId = String(formData.get('documentId') ?? '');
-  if (!id) return;
+export async function reversePaymentAction(
+  _previous: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const paymentId = String(formData.get('paymentId') ?? '');
+  const reason = String(formData.get('reason') ?? '').trim();
+  if (!paymentId) return { error: 'No payment was chosen.' };
+  if (!reason) return { error: 'Say why the payment is being reversed.' };
 
-  await withUser(async (tx) => {
-    await tx.delete(documentPayment).where(eq(documentPayment.id, id));
-  });
+  let documentId = '';
+  try {
+    await withUser(async (tx, user) => {
+      const found = await tx.execute<{ document_id: string; amount: string }>(sql`
+        SELECT document_id::text, amount_centimes::text AS amount
+          FROM document_payment WHERE id = ${paymentId}
+      `);
+      const original = found.rows[0];
+      if (!original) throw new Error('That payment does not exist.');
+      documentId = original.document_id;
+      await tx.insert(documentPayment).values({
+        documentId,
+        amountCentimes: -BigInt(original.amount),
+        method: 'virement', // replaced by the original's method in the database
+        note: reason,
+        reversesId: paymentId,
+        createdById: user.id,
+      });
+    });
+  } catch (error) {
+    return { error: describeDbError(error, PAYMENT_ERRORS) };
+  }
 
-  revalidatePath(`/documents/${documentId}`);
-  revalidatePath('/documents');
-  revalidatePath('/finance');
-  // Removing a payment drops its ledger line by cascade, so the money figures
-  // on the dashboard move too.
-  revalidatePath('/dashboard');
+  revalidateMoney(documentId);
+  return { error: null, notice: 'Reversed. The payment and its reversal both stay on record.' };
 }

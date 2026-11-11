@@ -117,7 +117,7 @@ export function VoiceNote({
         >
           <span className="voice-fill" style={{ width: `${progress}%` }} />
         </div>
-        <p className="mt-1 text-[11.5px] tabular-nums text-void/50">
+        <p className="mt-1 text-[11.5px] tabular-nums text-void/55">
           {playing || atMs > 0
             ? `${formatDuration(atMs)}${total ? ` / ${formatDuration(total)}` : ''}`
             : total

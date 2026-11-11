@@ -1,5 +1,6 @@
 'use client';
 
+import { useKeepOnError } from '@/lib/use-keep-on-error';
 import { useActionState, useRef, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { ErrorBanner, FormGrid, TextArea, TextInput } from '@/components/ui';
@@ -31,9 +32,10 @@ export function AddLineForm({
     },
     EMPTY_STATE,
   );
+  const keepState = useKeepOnError(state);
 
   return (
-    <form ref={formRef} action={formAction} className="mt-4 border border-void/25 p-5">
+    <form ref={formRef} action={formAction} onSubmit={keepState} className="mt-4 border border-void/25 p-5">
       <ErrorBanner message={state.error} />
 
       <label className="mb-4 flex items-center gap-2">
@@ -41,7 +43,7 @@ export function AddLineForm({
           type="checkbox"
           checked={free}
           onChange={(e) => setFree(e.target.checked)}
-          className="h-4 w-4 accent-[#6D28D9]"
+          className="h-4 w-4 accent-accent"
         />
         <span className="label">Free line — something not in the catalog</span>
       </label>
@@ -100,9 +102,10 @@ export function DraftSettingsForm({
 }) {
   const [vat, setVat] = useState(values.vatRateBp);
   const [state, formAction] = useActionState(action, EMPTY_STATE);
+  const keepState = useKeepOnError(state);
 
   return (
-    <form action={formAction} className="mt-4 border border-void/25 p-5">
+    <form action={formAction} onSubmit={keepState} className="mt-4 border border-void/25 p-5">
       <ErrorBanner message={state.error} />
       <FormGrid>
         <TextInput name="subject" label="Subject" defaultValue={values.subject} />

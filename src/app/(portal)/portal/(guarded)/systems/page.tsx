@@ -35,7 +35,7 @@ export default async function SystemsPage() {
       </h1>
       <p className="vix-lead mt-6">
         The same catalogue as visionxart.com. If any of it is useful to you, say
-        so under “Talk to us” and we will put a quote together.
+        so under “Messages” and we will put a quote together.
       </p>
 
       {FAMILIES.filter((f) => byFamily.has(f.name)).map((family, familyIndex) => {

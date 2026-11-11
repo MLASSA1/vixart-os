@@ -7,103 +7,7 @@ import { signOutAction } from './actions';
 import { homeFor } from '@/lib/home';
 import { QuickJump } from '@/components/QuickJump';
 
-interface NavItem {
-  href: string;
-  label: string;
-  group?: string;
-  minRole?: 'admin' | 'moderator';
-}
-
-/**
- * Navigation only ever lists what exists. Modules arrive with their step —
- * no greyed-out entries pointing at screens that are not built.
- */
-const NAV: NavItem[] = [
-  /*
-   * Chat first, for everybody, always. Amin's instruction in those words, and
-   * it is the right one: this is the thing the team opens twenty times a day,
-   * and it was eighteenth in the list behind sections most of them cannot use.
-   */
-  { href: '/chat', label: 'Chat' },
-  { href: '/inbox', label: 'Inbox' },
-  { href: '/attention', label: 'Needs attention' },
-  { href: '/my-work', label: 'My work' },
-
-  /*
-   * THE TEAM SPACE.
-   *
-   * What everybody has. Asked for as "move all to team space zone that have
-   * tasks schedule prep notes and all features for them" — so this group is the
-   * whole of the application for six of the eight people here, and it holds
-   * their work and nothing about the company's commerce.
-   */
-  { href: '/tasks', label: 'Tasks', group: 'Team space' },
-  // A person's own week. Moderators can also see the team's, tasks only.
-  { href: '/schedule', label: 'Schedule', group: 'Team space' },
-  // Where work is thought about before it is assigned. Belongs to whoever is
-  // doing the thinking.
-  { href: '/prep', label: 'Prep', group: 'Team space' },
-  // Private to each person. No moderator or admin view exists, by design.
-  { href: '/notes', label: 'Notes', group: 'Team space' },
-  { href: '/equipment', label: 'Equipment', group: 'Team space' },
-  { href: '/team', label: 'Team', group: 'Team space' },
-
-  /*
-   * MANAGEMENT ONLY — Amin and Mohamed Amine.
-   *
-   * `minRole: 'moderator'` is admin-or-moderator, which is exactly those two
-   * and has been since 0006. Everything below this line is the company's
-   * commercial business: who the clients are, what is being sold, what it costs
-   * and what has been billed.
-   *
-   * The nav is not what closes them. Every one of these pages lives inside the
-   * `(management)` route group, whose layout sends a member to their own work —
-   * so a typed url and a stale bookmark get the same answer as a hidden link.
-   */
-  { href: '/dashboard', label: 'Dashboard', minRole: 'moderator' },
-
-  /*
-   * THREE NAMES THAT WERE ONE NAME.
-   *
-   * These read "Clients", "Leads" and "All clients" — and the first and third
-   * are plainly the same word, so the only way to learn which was which was to
-   * open both. They are in fact three points on one pipeline, so they are now
-   * named and ordered as one: somebody you are chasing, somebody who pays you,
-   * and the file drawer holding every record either way.
-   *
-   * "Directory" rather than "All clients" because the page lists companies
-   * that are not clients at all — a lead that went cold is still in it. It is
-   * also the word the dashboard already uses for the same set.
-   */
-  { href: '/leads', label: 'Leads', group: 'Relationships', minRole: 'moderator' },
-  { href: '/clients', label: 'Clients', group: 'Relationships', minRole: 'moderator' },
-  { href: '/companies', label: 'Directory', group: 'Relationships', minRole: 'moderator' },
-
-  { href: '/projects', label: 'Projects', group: 'Commerce', minRole: 'moderator' },
-  { href: '/deals', label: 'Deals', group: 'Commerce', minRole: 'moderator' },
-  // The monthly contracts. Beside Deals because it is where a deal goes when it
-  // stops being a one-off.
-  { href: '/retainers', label: 'Retainers', group: 'Commerce', minRole: 'moderator' },
-  // The price list. Not on Amin's list, and moved anyway: leaving every
-  // service's price in MAD one click from a member while Finance is closed
-  // would be a boundary that only looks like one.
-  { href: '/services', label: 'Services', group: 'Commerce', minRole: 'moderator' },
-  { href: '/documents', label: 'Quotes & invoices', group: 'Commerce', minRole: 'admin' },
-  { href: '/finance', label: 'Finance', group: 'Commerce', minRole: 'admin' },
-
-  { href: '/client-portal', label: 'Client portal', group: 'Agency', minRole: 'moderator' },
-  { href: '/system', label: 'System', group: 'Agency', minRole: 'admin' },
-];
-
-
-/** Nav order, grouped. Modules appear as they are built — nothing dead here. */
-const GROUPS = [undefined, 'Team space', 'Relationships', 'Commerce', 'Agency'] as const;
-
-function visible(item: NavItem, role: 'admin' | 'moderator' | 'member') {
-  if (item.minRole === 'admin') return role === 'admin';
-  if (item.minRole === 'moderator') return role === 'admin' || role === 'moderator';
-  return true;
-}
+import { GROUPS, NAV, visible } from '@/lib/nav';
 
 /**
  * The sidebar is the one dark surface in the app — warm ink against the paper
@@ -175,16 +79,17 @@ export function Shell({
     */
     <div className={roomy ? 'flex h-[100dvh] overflow-hidden md:h-screen' : 'flex min-h-screen'}>
       {/* Sidebar — fixed, scrolls independently of the content. */}
-      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col bg-void text-pure md:flex">
+      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col bg-night text-pure md:flex">
         <div className="px-6 pt-7 pb-6">
           <Link href={home} className="block">
-            <span className="display flex items-baseline gap-2 text-xl font-bold tracking-tight">
-              VIXART OS
+            <span className="flex items-baseline gap-2 text-xl">
+              <span className="wordmark">VIXART</span>
               {/* The brand tick: the accent's first of two appearances. */}
               <span aria-hidden="true" className="inline-block h-2.5 w-2.5 rounded-[3px] bg-accent" />
+              <span className="wordmark-suffix">OS</span>
             </span>
           </Link>
-          <p className="mt-1 text-[12.5px] font-medium text-pure/45">
+          <p className="mt-1 text-[12.5px] font-medium text-pure/55">
             SOCIETE VIXART SARL — Agadir
           </p>
         </div>
@@ -197,7 +102,7 @@ export function Shell({
             return (
               <div key={group ?? 'main'} className="mb-4">
                 {group && (
-                  <p className="px-3 pt-3 pb-1.5 text-[11px] font-bold tracking-[0.1em] text-pure/35 uppercase">
+                  <p className="px-3 pt-3 pb-1.5 text-[11px] font-bold tracking-[0.1em] text-pure/55 uppercase">
                     {group}
                   </p>
                 )}
@@ -212,25 +117,21 @@ export function Shell({
                       /* Where you are: the accent's second appearance. */
                       className={`mb-0.5 flex items-center justify-between rounded-lg px-3 py-2 text-[14.5px] transition-colors ${
                         active
-                          ? 'bg-accent font-semibold text-pure'
+                          ? 'bg-accent/20 font-semibold text-accent-ink'
                           : 'text-pure/80 hover:bg-pure/10 hover:text-pure'
                       }`}
                     >
                       {item.label}
                       {item.href === '/inbox' && unread > 0 && (
                         <span
-                          className={`ml-2 inline-block min-w-[1.4rem] rounded-full px-1.5 py-px text-center text-[12px] font-bold ${
-                            active ? 'bg-pure text-accent-deep' : 'bg-accent text-pure'
-                          }`}
+                          className="ml-2 inline-block min-w-[1.4rem] rounded-full bg-accent px-1.5 py-px text-center text-[12px] font-bold text-pure"
                         >
                           {unread}
                         </span>
                       )}
                       {item.href === '/attention' && urgent > 0 && (
                         <span
-                          className={`ml-2 inline-block min-w-[1.4rem] rounded-full px-1.5 py-px text-center text-[12px] font-bold ${
-                            active ? 'bg-pure text-accent-deep' : 'bg-accent text-pure'
-                          }`}
+                          className="ml-2 inline-block min-w-[1.4rem] rounded-full bg-accent px-1.5 py-px text-center text-[12px] font-bold text-pure"
                         >
                           {urgent}
                         </span>
@@ -247,7 +148,7 @@ export function Shell({
         <div className="px-4 pt-2 pb-5">
           <div className="rounded-xl bg-pure/[0.07] px-4 py-4">
             <p className="leading-tight font-semibold">{user.name}</p>
-            <p className="mt-0.5 text-[12.5px] text-pure/50">
+            <p className="mt-0.5 text-[12.5px] text-pure/55">
               {user.role === 'admin'
                 ? 'Management'
                 : user.role === 'moderator'
@@ -275,8 +176,8 @@ export function Shell({
       </aside>
 
       {/* --- Phone: a title bar, and a drawer behind it ---------------------- */}
-      <div className="fixed inset-x-0 top-0 z-30 flex h-14 items-center justify-between border-b border-pure/10 bg-void px-3 text-pure md:hidden">
-        <Link href={home} className="display px-1 text-[17px] font-bold whitespace-nowrap">
+      <div className="fixed inset-x-0 top-0 z-30 flex h-14 items-center justify-between border-b border-pure/10 bg-night px-3 text-pure md:hidden">
+        <Link href={home} className="wordmark px-1 text-[17px] whitespace-nowrap">
           VIXART
           <span aria-hidden="true" className="ml-1 inline-block h-2 w-2 rounded-[2px] bg-accent" />
         </Link>
@@ -330,7 +231,7 @@ export function Shell({
       </div>
 
       {menuOpen && (
-        <div className="fixed inset-0 top-14 z-30 flex flex-col bg-void text-pure md:hidden">
+        <div className="fixed inset-0 top-14 z-30 flex flex-col bg-night text-pure md:hidden">
           <nav className="flex-1 overflow-y-auto px-3 py-3">
             {/*
               The same box in the drawer. There is no ⌘K on a phone, but the
@@ -347,7 +248,7 @@ export function Shell({
                     // Not the `.label` utility: it sets an ink colour, which is
                     // invisible on this dark surface. Same treatment as the
                     // sidebar's group headings above.
-                    <p className="px-3 pt-3 pb-1.5 text-[11px] font-bold tracking-[0.1em] text-pure/35 uppercase">
+                    <p className="px-3 pt-3 pb-1.5 text-[11px] font-bold tracking-[0.1em] text-pure/55 uppercase">
                       {group}
                     </p>
                   )}
@@ -359,7 +260,7 @@ export function Shell({
                         key={item.href}
                         href={item.href}
                         className={`flex items-center justify-between rounded-md px-3 py-3 text-[15px] ${
-                          active ? 'bg-accent font-semibold text-pure' : 'text-pure/80'
+                          active ? 'bg-accent/20 font-semibold text-accent-ink' : 'text-pure/80'
                         }`}
                       >
                         <span>{item.label}</span>

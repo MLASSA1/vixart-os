@@ -143,7 +143,7 @@ export function QuickJump({ items }: { items: JumpItem[] }) {
             button, and advertising a shortcut that cannot be typed there is
             how an interface teaches somebody not to trust what it says.
           */
-          className="hidden text-[11.5px] tracking-wide text-pure/35 md:inline"
+          className="hidden text-[11.5px] tracking-wide text-pure/55 md:inline"
         >
           ⌘K
         </span>
@@ -151,7 +151,7 @@ export function QuickJump({ items }: { items: JumpItem[] }) {
 
       {open && (
         <div
-          className="fixed inset-0 z-50 flex items-start justify-center bg-void/55 px-4 pt-[12vh]"
+          className="fixed inset-0 z-50 flex items-start justify-center bg-night/75 px-4 pt-[12vh]"
           onClick={() => setOpen(false)}
         >
           <div
@@ -214,7 +214,7 @@ export function QuickJump({ items }: { items: JumpItem[] }) {
                     <span className={index === cursor ? 'font-semibold' : ''}>{item.label}</span>
                     <span
                       className={`text-[12px] ${
-                        index === cursor ? 'text-pure/70' : 'text-void/40'
+                        index === cursor ? 'text-pure/90' : 'text-void/55'
                       }`}
                     >
                       {item.group ?? 'Main'}

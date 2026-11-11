@@ -21,8 +21,8 @@ export default async function LeadsPage({
   return (
     <>
       <PageHeader
-        eyebrow="Not yet won"
         title="Leads"
+        intro="Companies you are talking to that have not signed yet."
         actions={<ButtonLink href="/companies/new">New lead</ButtonLink>}
       />
       <SearchBar action="/leads" defaultValue={q} placeholder="Search leads" />

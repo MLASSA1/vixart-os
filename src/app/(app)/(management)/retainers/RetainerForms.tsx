@@ -1,5 +1,6 @@
 'use client';
 
+import { useKeepOnError } from '@/lib/use-keep-on-error';
 import { useActionState, useRef, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { ErrorBanner } from '@/components/ui';
@@ -34,9 +35,10 @@ export function NewRetainerForm({
     },
     EMPTY_STATE,
   );
+  const keepState = useKeepOnError(state);
 
   return (
-    <form ref={formRef} action={formAction} className="rounded-xl border border-void/15 p-5">
+    <form ref={formRef} action={formAction} onSubmit={keepState} className="rounded-xl border border-void/15 p-5">
       <ErrorBanner message={state.error} />
 
       <div className="grid gap-4 sm:grid-cols-12">
@@ -97,7 +99,7 @@ export function NewRetainerForm({
             name="autoRenew"
             value="yes"
             defaultChecked
-            className="mt-1 h-4 w-4 accent-[#6D28D9]"
+            className="mt-1 h-4 w-4 accent-accent"
           />
           <span>
             <span className="label block">Renews itself</span>
@@ -144,6 +146,7 @@ export function EndRetainerForm({
 }) {
   const [open, setOpen] = useState(false);
   const [state, formAction] = useActionState(action, EMPTY_STATE);
+  const keepState = useKeepOnError(state);
 
   if (!open) {
     return (
@@ -158,7 +161,7 @@ export function EndRetainerForm({
   }
 
   return (
-    <form action={formAction} className="mt-3 w-full rounded-xl border border-void/20 p-4">
+    <form action={formAction} onSubmit={keepState} className="mt-3 w-full rounded-xl border border-void/20 p-4">
       <ErrorBanner message={state.error} />
       <input type="hidden" name="retainerId" value={retainerId} />
 

@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { ListFilter } from '@/components/ListFilter';
 import { redirect } from 'next/navigation';
 import { sql } from 'drizzle-orm';
 import { auth } from '@/auth';
@@ -8,6 +9,7 @@ import {
   DOCUMENT_STATUS_LABELS, DOCUMENT_TYPE_LABELS, INVOICE_PAYMENT_METHOD_FR,
 } from '@/lib/labels';
 import { formatMAD } from '@/lib/money';
+import { summariseBilling } from '@/lib/client-relationship';
 import { formatDate } from '@/lib/format';
 import { NewDocumentForm } from './NewDocumentForm';
 import { createDocumentAction } from './actions';
@@ -74,27 +76,23 @@ export default async function DocumentsPage() {
   const quotes = rows.filter((r) => r.doc_type === 'devis');
   const invoices = rows.filter((r) => r.doc_type === 'facture');
   const unpaid = invoices.filter((r) => r.status === 'emis');
-  // What is genuinely still out: net minus advances already received.
-  const outstanding = unpaid.reduce<bigint>(
-    (a, r) => a + (BigInt(r.net_to_collect) - BigInt(r.paid)),
-    0n,
-  );
-  // Collected = money that actually arrived: settled invoices in full, plus
-  // advances already received on invoices still open.
-  const collected = invoices.reduce<bigint>((a, r) => {
-    if (r.status === 'paye') return a + BigInt(r.net_to_collect);
-    if (r.status === 'emis') return a + BigInt(r.paid);
-    return a;
-  }, 0n);
+  /*
+   * Outstanding and collected come from the SAME function the client's own
+   * page uses. They used to be worked out twice — here correctly, and there
+   * counting quotes and credit notes as debt and ignoring deposits — so a
+   * client's page and this one could show different amounts for the same
+   * money. One definition, in src/lib/client-relationship.ts.
+   */
+  const { outstanding, collected } = summariseBilling(rows);
 
-  const table = (list: Row[], emptyMessage: string) =>
+  const table = (list: Row[], emptyMessage: string, id: string) =>
     list.length === 0 ? (
       <Empty message={emptyMessage} />
     ) : (
-      <div className="overflow-x-auto">
+      <div id={id} className="overflow-x-auto">
         <table className="table-wide text-left">
           <thead>
-            <tr className="border-b-2 border-void">
+            <tr className="border-b-2 border-void/40">
               <th className="th py-2 pr-4">Number</th>
               <th className="th py-2 pr-4">Client</th>
               <th className="th py-2 pr-4">Status</th>
@@ -160,8 +158,8 @@ export default async function DocumentsPage() {
   return (
     <>
       <PageHeader
-        eyebrow="Billing"
         title="Quotes &amp; invoices"
+        intro="Every quote and invoice, and what is still unpaid."
         actions={<ButtonLink href="/documents/new">New document</ButtonLink>}
       />
 
@@ -174,19 +172,37 @@ export default async function DocumentsPage() {
           <p className="label">Invoices</p>
           <p className="kpi mt-1">{invoices.length}</p>
         </div>
-        <div>
+        {/*
+          The two amounts take a full row each on a phone. An amount is one
+          unbreakable token ("36 000,00 DH" uses non-breaking spaces), so in a
+          half-width column it ran 23px into its neighbour and the screen read
+          "36 000,00 DH0,00 DH" — two figures fused into one wrong number. The
+          counts above are short and still share a row.
+        */}
+        <div className="col-span-2 md:col-span-1">
           <p className="label">Outstanding</p>
-          <p className="kpi mt-1">{formatMAD(outstanding)}</p>
+          {/* Credit notes are already taken off (summariseBilling). */}
+          <p className="kpi kpi-money mt-1">{formatMAD(outstanding < 0n ? 0n : outstanding)}</p>
           <p className="hint mt-1">{unpaid.length} awaiting payment</p>
         </div>
-        <div>
+        <div className="col-span-2 md:col-span-1">
           <p className="label">Collected</p>
-          <p className="kpi mt-1">{formatMAD(collected)}</p>
+          <p className="kpi kpi-money mt-1">{formatMAD(collected)}</p>
         </div>
       </div>
 
-      <Section title={`Invoices — ${invoices.length}`}>{table(invoices, 'No invoice yet')}</Section>
-      <Section title={`Quotes — ${quotes.length}`}>{table(quotes, 'No quote yet')}</Section>
+      <Section
+        title={`Invoices — ${invoices.length}`}
+        action={invoices.length > 0 && <ListFilter scope="invoice-list" placeholder="Search invoices" />}
+      >
+        {table(invoices, 'No invoice yet', 'invoice-list')}
+      </Section>
+      <Section
+        title={`Quotes — ${quotes.length}`}
+        action={quotes.length > 0 && <ListFilter scope="quote-list" placeholder="Search quotes" />}
+      >
+        {table(quotes, 'No quote yet', 'quote-list')}
+      </Section>
 
       <Section title="New document">
         <NewDocumentForm

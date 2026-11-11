@@ -13,7 +13,8 @@ import { addCommentAction, deleteCommentAction } from '../../../comments-actions
 import { formatDate } from '@/lib/format';
 import { TaskForm } from '@/app/(app)/tasks/TaskForm';
 import { createTaskAction } from '@/app/(app)/tasks/actions';
-import { deleteProjectAction, setProjectArchivedAction } from '../actions';
+import { deleteProjectAction, setNextStepAction, setProjectArchivedAction } from '../actions';
+import { ClientView } from './ClientView';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,6 +31,8 @@ interface ProjectRow {
   start_date: string | null;
   due_date: string | null;
   archived_at: string | null;
+  /** The sentence the client reads under "What happens next" (0086). */
+  next_step: string | null;
   /** Messages in this project's channel. Nonzero means delete is refused. */
   message_count: number;
 }
@@ -49,7 +52,7 @@ export default async function ProjectPage({
       SELECT p.id, p.name, p.description, p.status, p.project_type, p.company_id,
              c.name AS company_name, u.full_name AS lead_name,
              p.start_date::text AS start_date, p.due_date::text AS due_date,
-             p.archived_at::text AS archived_at,
+             p.archived_at::text AS archived_at, p.next_step,
              -- Asked here so the page can say WHY delete will be refused,
              -- rather than offering it and letting the database explain.
              (SELECT count(*)::int FROM message m JOIN thread t2 ON t2.id = m.thread_id
@@ -121,7 +124,7 @@ export default async function ProjectPage({
 
   return (
     <>
-      <PageHeader eyebrow={record.company_name} title={record.name} />
+      <PageHeader intro={record.company_name} title={record.name} />
 
       <div className="grid grid-cols-1 gap-x-10 md:grid-cols-2">
         <div>
@@ -217,6 +220,17 @@ export default async function ProjectPage({
           </ul>
         </Section>
       )}
+      {canModerate && (
+        <Section title="What the client sees">
+          <ClientView
+            projectId={id}
+            nextStep={record.next_step}
+            files={files.map((f) => ({ id: f.id, name: f.originalName, shared: f.sharedWithClient }))}
+            save={setNextStepAction.bind(null, id)}
+          />
+        </Section>
+      )}
+
       {/* Briefs, storyboards, delivered cuts — the working files for this job. */}
       <Section title={`Files — ${files.length}`}>
         <Attachments
@@ -252,9 +266,7 @@ export default async function ProjectPage({
           ) : (
             <>
               <p className="prose-vixart" style={{ opacity: 0.68 }}>
-                Archiving keeps everything and takes the project out of every picker.
-                That is almost always what you want on a delivered job: what was said
-                and what was made stay where they are.
+                Archiving keeps everything but hides the project from every picker.
               </p>
               <form action={setProjectArchivedAction} className="mt-4">
                 <input type="hidden" name="projectId" value={record.id} />
@@ -283,7 +295,7 @@ export default async function ProjectPage({
               <input type="hidden" name="projectId" value={record.id} />
               <input type="hidden" name="expected" value={record.name} />
               <label className="block" htmlFor="confirmation">
-                <span className="label block" style={{ opacity: 0.68 }}>
+                <span className="label block">
                   Type “{record.name}” to confirm
                 </span>
                 <input
@@ -291,7 +303,7 @@ export default async function ProjectPage({
                   name="confirmation"
                   required
                   autoComplete="off"
-                  className="mt-1.5 w-72 border border-void bg-pure px-3 py-2.5 text-[15px] focus:border-[3px] focus:px-[10px] focus:py-[8px] focus:outline-none"
+                  className="mt-1.5 w-72 border border-void/30 bg-surface px-3 py-2.5 text-[15px] focus:border-[3px] focus:px-[10px] focus:py-[8px] focus:outline-none"
                 />
               </label>
               <button type="submit" className="btn">

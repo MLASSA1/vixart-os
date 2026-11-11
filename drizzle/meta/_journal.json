@@ -575,6 +575,55 @@
       "when": 1791818736811,
       "tag": "0081_where_a_client_pays",
       "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "7",
+      "when": 1794333295449,
+      "tag": "0082_where_to_find_a_client_online",
+      "breakpoints": true
+    },
+    {
+      "idx": 83,
+      "version": "7",
+      "when": 1794335181096,
+      "tag": "0083_payments_are_never_deleted",
+      "breakpoints": true
+    },
+    {
+      "idx": 84,
+      "version": "7",
+      "when": 1794345338599,
+      "tag": "0084_the_data_keeps_its_shape",
+      "breakpoints": true
+    },
+    {
+      "idx": 85,
+      "version": "7",
+      "when": 1794345398599,
+      "tag": "0085_a_client_sees_what_they_were_sent",
+      "breakpoints": true
+    },
+    {
+      "idx": 86,
+      "version": "7",
+      "when": 1794345458599,
+      "tag": "0086_what_a_client_is_shown_of_a_project",
+      "breakpoints": true
+    },
+    {
+      "idx": 87,
+      "version": "7",
+      "when": 1794345518599,
+      "tag": "0087_a_client_knows_what_is_new",
+      "breakpoints": true
+    },
+    {
+      "idx": 88,
+      "version": "7",
+      "when": 1794345578599,
+      "tag": "0088_a_client_hears_back",
+      "breakpoints": true
     }
   ]
 }

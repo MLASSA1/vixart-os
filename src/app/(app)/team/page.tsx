@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { ListFilter } from '@/components/ListFilter';
 import { sql } from 'drizzle-orm';
 import { auth } from '@/auth';
 import { PageHeader, Section } from '@/components/ui';
@@ -106,7 +107,7 @@ export default async function TeamPage() {
 
   return (
     <>
-      <PageHeader eyebrow="The agency" title="Team" />
+      <PageHeader title="Team" intro="Everyone on the team, and what each of them can see." />
 
       <div className="grid grid-cols-2 gap-6 border-b border-void/15 pb-6 md:grid-cols-4">
         <div>
@@ -148,8 +149,11 @@ export default async function TeamPage() {
         </div>
       </div>
 
-      <Section title={`Accounts — ${members.length}`}>
-        <ul className="border-t border-void/10">
+      <Section
+        title={`Accounts — ${members.length}`}
+        action={<ListFilter scope="team-list" placeholder="Search people" />}
+      >
+        <ul id="team-list" className="border-t border-void/10">
           {members.map((m) => {
             const isMe = m.id === me;
             const lastAdmin = m.role === 'admin' && m.is_active && admins.length === 1;
@@ -331,13 +335,13 @@ export default async function TeamPage() {
         </Section>
       )}
 
-      <p className="prose-vixart mt-10 text-[15px]" style={{ opacity: 0.55 }}>
-        Administrators see Finance, invoices and service prices. Moderators see
-        the clients, the projects and the whole board, and are told when work is
-        finished. The team sees their own work, the schedule and the team space —
-        not clients, projects, leads or anything with a price on it. The boundary
-        is enforced by PostgreSQL row level security, not by hiding menu entries.
-      </p>
+      {/* What each role can see, because it decides which role to give somebody.
+          How it is enforced (row level security) is for the code, not the page. */}
+      <dl className="mt-10 grid max-w-[62ch] gap-y-1.5 text-[14px]">
+        <div className="flex gap-3"><dt className="w-28 shrink-0 font-semibold">Administrator</dt><dd className="hint text-[14px]">Everything, including money and prices.</dd></div>
+        <div className="flex gap-3"><dt className="w-28 shrink-0 font-semibold">Moderator</dt><dd className="hint text-[14px]">Clients, projects and the whole board.</dd></div>
+        <div className="flex gap-3"><dt className="w-28 shrink-0 font-semibold">Team</dt><dd className="hint text-[14px]">Their own work and the team space.</dd></div>
+      </dl>
     </>
   );
 }

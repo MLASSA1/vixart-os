@@ -148,7 +148,7 @@ export default async function SchedulePage({
 
   return (
     <>
-      <PageHeader eyebrow={teamView ? 'Capacity' : (me.name ?? 'Me')} title="Schedule" />
+      <PageHeader title="Schedule" intro="Who is doing what, day by day." />
 
       <div className="flex flex-wrap items-center gap-2 border-b border-void/15 pb-4">
         {!teamView &&
@@ -183,7 +183,7 @@ export default async function SchedulePage({
                 <tr>
                   <th className="th border-b border-void/15 py-2 text-left">Person</th>
                   {weekDays(anchor).map((d) => (
-                    <th key={d} className={`th border-b border-void/15 py-2 text-left ${isWeekend(d) ? 'opacity-45' : ''}`}>
+                    <th key={d} className={`th border-b border-void/15 py-2 text-left ${isWeekend(d) ? 'opacity-70' : ''}`}>
                       {dayLabel(d)}
                     </th>
                   ))}
@@ -226,8 +226,8 @@ export default async function SchedulePage({
                 return (
                   <div key={d}
                        className={`${view === 'month' ? 'min-h-24 bg-surface p-1.5' : 'card px-4 py-3'} ${
-                         outside ? 'opacity-40' : ''} ${isWeekend(d) ? 'bg-void/[0.02]' : ''}`}>
-                    <p className={`label ${isToday ? 'text-accent font-bold' : ''}`}>
+                         outside ? 'opacity-60' : ''} ${isWeekend(d) ? 'bg-void/[0.02]' : ''}`}>
+                    <p className={`label ${isToday ? 'text-accent-ink font-bold' : ''}`}>
                       {view === 'month' ? dayNumber(d) : dayLabel(d)}
                       {isToday && view !== 'month' && ' · today'}
                     </p>
@@ -276,7 +276,7 @@ export default async function SchedulePage({
                                       ? `Removes the whole entry, ${dayLabel(e.starts_on)} to ${dayLabel(last)}`
                                       : 'Removes this entry'
                                   }
-                                  className="cursor-pointer text-[11.5px] text-void/40 hover:text-void hover:underline">
+                                  className="cursor-pointer text-[11.5px] text-void/55 hover:text-void hover:underline">
                                   {spans ? 'Remove all' : 'Remove'}
                                 </button>
                               </form>

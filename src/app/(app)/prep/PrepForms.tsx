@@ -1,5 +1,6 @@
 'use client';
 
+import { useKeepOnError } from '@/lib/use-keep-on-error';
 import { useActionState, useRef } from 'react';
 import { useFormStatus } from 'react-dom';
 import { ErrorBanner } from '@/components/ui';
@@ -31,9 +32,10 @@ export function NewPrepForm({
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const [state, formAction] = useActionState(action, EMPTY_STATE);
+  const keepState = useKeepOnError(state);
 
   return (
-    <form ref={formRef} action={formAction} className="rounded-xl border border-void/15 p-5">
+    <form ref={formRef} action={formAction} onSubmit={keepState} className="rounded-xl border border-void/15 p-5">
       <ErrorBanner message={state.error} />
 
       <div className="grid gap-4 sm:grid-cols-12">
@@ -94,9 +96,10 @@ export function EditPrepForm({
   current: { title: string; kind: string; body: string; projectId: string };
 }) {
   const [state, formAction] = useActionState(action, EMPTY_STATE);
+  const keepState = useKeepOnError(state);
 
   return (
-    <form action={formAction}>
+    <form action={formAction} onSubmit={keepState}>
       <ErrorBanner message={state.error} />
 
       <div className="grid gap-4 sm:grid-cols-12">

@@ -1,4 +1,5 @@
 import { sql } from 'drizzle-orm';
+import { ListFilter } from '@/components/ListFilter';
 import { auth } from '@/auth';
 import { Empty, PageHeader, Section } from '@/components/ui';
 import { TaskRow, type TaskItem } from '@/components/TaskRow';
@@ -215,13 +216,14 @@ export default async function TasksPage() {
 
   return (
     <>
-      <PageHeader eyebrow="Work" title="Tasks" />
-
-      <p className="prose-vixart" style={{ opacity: 0.7 }}>
-        {canModerate
-          ? 'Everybody\u2019s work, grouped by who is carrying it. Whoever a task is assigned to moves it along and says when it is finished — you and Mohamed Amine are told when that happens.'
-          : 'Your work, and anything you have asked somebody else for. You move your own tasks along and say when they are finished; Amin and Mohamed Amine are told.'}
-      </p>
+      <PageHeader
+        title="Tasks"
+        intro={
+          canModerate
+            ? 'Everyone\u2019s work, grouped by who is doing it.'
+            : 'Your work, and what you have asked others for.'
+        }
+      />
 
       {truncated && (
         <p className="tone-warn mt-4 rounded-[10px] px-4 py-3 text-[14px]">
@@ -251,9 +253,15 @@ export default async function TasksPage() {
         </details>
       </Section>
 
+      {/* One search for every pile below; a pile with no match disappears. */}
+      <div className="mt-8">
+        <ListFilter scope="task-list" placeholder="Search tasks, people or projects" />
+      </div>
+
+      <div id="task-list">
       {/* ---- nobody's, and therefore first ------------------------------- */}
       {unowned.length > 0 && (
-        <Section title={`Nobody is doing these — ${unowned.length}`}>
+        <Section filterGroup title={`Nobody is doing these — ${unowned.length}`}>
           <p className="hint mb-3">
             Raised and never given to anybody. Nothing happens until somebody is
             named.
@@ -263,7 +271,7 @@ export default async function TasksPage() {
       )}
 
       {/* ---- your own work, in three piles -------------------------------- */}
-      <Section title={`Your work — ${mine.fresh.length + mine.doing.length} open`}>
+      <Section filterGroup title={`Your work — ${mine.fresh.length + mine.doing.length} open`}>
         {mine.fresh.length === 0 && mine.doing.length === 0 && mineDone.length === 0 ? (
           <Empty message="Nothing assigned to you." />
         ) : (
@@ -306,7 +314,7 @@ export default async function TasksPage() {
 
       {/* ---- what a member asked somebody else for ----------------------- */}
       {!canModerate && others.length > 0 && (
-        <Section title={`You asked for — ${others.length}`}>
+        <Section filterGroup title={`You asked for — ${others.length}`}>
           <p className="hint mb-3">
             Work you raised for somebody else. You cannot move it — they do — and
             you are told when it is finished.
@@ -317,7 +325,7 @@ export default async function TasksPage() {
 
       {/* ---- the board, by person ---------------------------------------- */}
       {byPerson.length > 0 && (
-        <Section title={`The team\u2019s work — ${others.length} open`}>
+        <Section filterGroup title={`The team\u2019s work — ${others.length} open`}>
           <p className="hint mb-4">
             One block each, busiest first. Collapse anybody you are not looking
             at. Only you and Mohamed Amine see this.
@@ -364,6 +372,7 @@ export default async function TasksPage() {
       */}
       {othersDone.length > 0 && (
         <Section
+          filterGroup
           title={
             canModerate
               ? `Finished by the team — ${othersDone.length}`
@@ -380,6 +389,7 @@ export default async function TasksPage() {
           </details>
         </Section>
       )}
+      </div>
     </>
   );
 }

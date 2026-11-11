@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { ListFilter } from '@/components/ListFilter';
 import { sql } from 'drizzle-orm';
 import { auth } from '@/auth';
 import { Empty, PageHeader, Section } from '@/components/ui';
@@ -69,16 +70,19 @@ export default async function ProjectsPage() {
 
   return (
     <>
-      <PageHeader eyebrow="Delivery" title="Projects" />
+      <PageHeader title="Projects" intro="The work being delivered, client by client." />
 
-      <Section title={`All projects — ${rows.length}`}>
+      <Section
+        title={`All projects — ${rows.length}`}
+        action={rows.length > 0 && <ListFilter scope="project-list" placeholder="Search projects" />}
+      >
         {rows.length === 0 ? (
           <Empty message="No project yet" />
         ) : (
-          <div className="overflow-x-auto">
+          <div id="project-list" className="overflow-x-auto">
             <table className="table-wide text-left">
               <thead>
-                <tr className="border-b-2 border-void">
+                <tr className="border-b-2 border-void/40">
                   <th className="th py-2 pr-4">Project</th>
                   <th className="th py-2 pr-4">Status</th>
                   <th className="th py-2 pr-4">Lead</th>

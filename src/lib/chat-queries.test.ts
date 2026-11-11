@@ -20,9 +20,9 @@ import { join } from 'node:path';
 
 const SOURCE = readFileSync(join(process.cwd(), 'src/lib/chat-queries.ts'), 'utf8');
 
-/** Field names from `export interface X { … }`, minus the index signature. */
+/** Field names from `interface X { … }` (exported or not), minus the index signature. */
 function declaredFields(name: string): string[] {
-  const start = SOURCE.indexOf(`export interface ${name} {`);
+  const start = SOURCE.indexOf(`interface ${name} {`);
   if (start === -1) throw new Error(`no interface ${name}`);
   const body = SOURCE.slice(start, SOURCE.indexOf('\n}', start));
   return [...body.matchAll(/^\s{2}([a-z_][a-z0-9_]*)\??:/gim)]
@@ -61,10 +61,17 @@ function queryOf(fn: string): string {
 }
 
 describe('chat row types match their queries', () => {
-  it('returns every field MessageRow declares', () => {
+  /*
+   * MessageRowFromDb, not MessageRow: the database's promise lives on the type
+   * that describes what the database returns. MessageRow extends it with
+   * `time_label` and `day_key`, which are made in TypeScript on purpose (the
+   * server's clock, not the browser's — see src/lib/format.ts) and which no
+   * SELECT should be expected to produce.
+   */
+  it('returns every field MessageRowFromDb declares', () => {
     const selected = selectedNames(queryOf('listMessages'));
-    const missing = declaredFields('MessageRow').filter((f) => !selected.has(f));
-    expect(missing, `MessageRow declares ${missing.join(', ')}, which the query never selects`)
+    const missing = declaredFields('MessageRowFromDb').filter((f) => !selected.has(f));
+    expect(missing, `MessageRowFromDb declares ${missing.join(', ')}, which the query never selects`)
       .toEqual([]);
   });
 

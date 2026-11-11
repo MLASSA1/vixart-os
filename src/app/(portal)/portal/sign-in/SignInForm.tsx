@@ -1,5 +1,6 @@
 'use client';
 
+import { useKeepOnError } from '@/lib/use-keep-on-error';
 import { useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { clientSignInAction, type SignInState } from './actions';
@@ -17,9 +18,10 @@ const INITIAL: SignInState = { error: null };
 
 export function ClientSignInForm() {
   const [state, formAction] = useActionState(clientSignInAction, INITIAL);
+  const keepState = useKeepOnError(state);
 
   return (
-    <form action={formAction} className="mt-7 space-y-5">
+    <form action={formAction} onSubmit={keepState} className="mt-7 space-y-5">
       {state.error && (
         <div role="alert" className="vix-alert">
           <p className="vix-meta">Sign-in refused</p>

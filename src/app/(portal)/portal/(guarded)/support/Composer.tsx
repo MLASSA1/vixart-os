@@ -1,5 +1,6 @@
 'use client';
 
+import { useKeepOnError } from '@/lib/use-keep-on-error';
 import { useActionState, useEffect, useRef, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { EMPTY_STATE } from '@/lib/form-state';
@@ -17,6 +18,7 @@ function SendButton({ disabled }: { disabled: boolean }) {
 
 export function SupportComposer() {
   const [state, formAction] = useActionState(sendSupportMessageAction, EMPTY_STATE);
+  const keepState = useKeepOnError(state);
   const form = useRef<HTMLFormElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
@@ -46,7 +48,7 @@ export function SupportComposer() {
   }
 
   return (
-    <form ref={form} action={formAction} className="vix-rule mt-10 border-t pt-8">
+    <form ref={form} action={formAction} onSubmit={keepState} className="vix-rule mt-10 border-t pt-8">
       {state.error && (
         <p role="alert" className="vix-alert mb-5">{state.error}</p>
       )}

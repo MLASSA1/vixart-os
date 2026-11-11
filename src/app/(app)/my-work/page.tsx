@@ -126,7 +126,7 @@ export default async function MyWorkPage() {
 
   return (
     <>
-      <PageHeader eyebrow={me.name ?? 'Team'} title="My work" />
+      <PageHeader title="My work" intro="Everything assigned to you, soonest first." />
 
       <div className="grid grid-cols-2 gap-6 border-b border-void/15 pb-6 md:grid-cols-4">
         <div>

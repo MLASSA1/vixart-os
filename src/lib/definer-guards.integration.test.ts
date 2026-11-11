@@ -91,6 +91,24 @@ const EXEMPT = new Set([
   // the owner removing their own, and by then the owner no longer exists. Its
   // only input is OLD.id — the row the database itself just removed.
   'forget_profile_images_for',
+  // Returns one timestamp — when anyone on the team last opened the CALLER's
+  // own support conversation (0087). No argument, so nothing to aim it at;
+  // scoped by current_client_company(), which is NULL for any session that is
+  // not a live client, and then it returns NULL. A definer because the
+  // alternative is a client grant on thread_read, which holds every staff
+  // member's reading of every internal conversation.
+  'support_seen_by_team_at',
+  // Fired AFTER INSERT on message (0088); queues "the team replied" emails for
+  // the thread's own company's client contacts. No caller to check and no
+  // argument to aim: its only input is NEW, a row RLS has already admitted.
+  // A definer because the outbox accepts no writes from any application role.
+  'queue_client_reply_mail',
+  // Read and write one flag on the CALLER's own client_account, WHERE
+  // contact_id = the session's contact — the same guard as
+  // set_own_client_password above, for the same reason: the client role has
+  // no grant on client_account and must not be given one.
+  'own_reply_emails',
+  'set_own_reply_emails',
 ]);
 
 describe.skipIf(!HAS_DB)('SECURITY DEFINER functions guard their callers', () => {

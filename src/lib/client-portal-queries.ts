@@ -45,6 +45,10 @@ export interface PortalProject {
    * a lie. One of them is simply not what the bar means.
    */
   by_hand: boolean;
+  /** One sentence for the client on what happens next (0086). */
+  next_step: string | null;
+  /** Files shared with the client on this project (0086). */
+  delivered_files: number;
 }
 
 /**
@@ -64,6 +68,10 @@ export async function listPortalProjects(tx: Tx): Promise<PortalProject[]> {
     SELECT p.id, p.name, p.status, p.description,
            p.start_date::text AS start_date,
            p.due_date::text   AS due_date,
+           p.next_step,
+           (SELECT count(*)::int FROM attachment a
+             WHERE a.entity_type = 'project' AND a.entity_id = p.id
+               AND a.shared_with_client) AS delivered_files,
            pr.done, pr.total, pr.percent, pr.by_hand
       FROM project p
       -- LATERAL rather than calling the function twice in the select list,
@@ -209,4 +217,164 @@ export async function listPortalServices(tx: Tx): Promise<PortalService[]> {
      ORDER BY pillar, lower(name)
   `);
   return result.rows;
+}
+
+// ---------------------------------------------------------------------------
+// Invoices, quotes and payments (0085)
+//
+// The client role reads only its own company's ISSUED documents, and only the
+// columns printed on them. A query here naming a column outside that grant
+// fails rather than returning it — so these lists are written column by
+// column, never `d.*`.
+// ---------------------------------------------------------------------------
+
+export interface PortalDocument {
+  [k: string]: unknown;
+  id: string;
+  doc_type: 'facture' | 'devis' | 'avoir';
+  status: 'emis' | 'paye';
+  number: string;
+  subject: string | null;
+  issue_date: string | null;
+  due_date: string | null;
+  total_incl_vat: string;
+  net_to_collect: string | null;
+  /** Everything received on it, reversals netted. Centimes. */
+  paid: string;
+  /** The account printed on it, frozen at issue (0081). */
+  issuer_bank_name: string | null;
+  issuer_bank_rib: string | null;
+  issuer_bank_iban: string | null;
+  issuer_bank_swift: string | null;
+}
+
+export async function listPortalDocuments(tx: Tx): Promise<PortalDocument[]> {
+  const result = await tx.execute<PortalDocument>(sql`
+    SELECT d.id, d.doc_type, d.status, d.number, d.subject,
+           d.issue_date::text, d.due_date::text,
+           d.total_incl_vat::text, d.net_to_collect::text,
+           d.issuer_bank_name, d.issuer_bank_rib, d.issuer_bank_iban, d.issuer_bank_swift,
+           coalesce((SELECT sum(p.amount_centimes) FROM document_payment p
+                      WHERE p.document_id = d.id), 0)::text AS paid
+      FROM document d
+     ORDER BY d.issue_date DESC NULLS LAST, d.number DESC
+  `);
+  return result.rows;
+}
+
+export interface PortalPayment {
+  [k: string]: unknown;
+  id: string;
+  document_id: string;
+  number: string;
+  /** Negative on a reversal. */
+  amount_centimes: string;
+  method: string;
+  paid_on: string;
+  is_reversal: boolean;
+  reversed: boolean;
+}
+
+/**
+ * Every payment on their invoices, newest first. A reversed payment stays
+ * listed beside its reversal, the same as on our side; the reason we wrote
+ * for reversing it is not readable by this role and is not shown.
+ */
+export async function listPortalPayments(tx: Tx): Promise<PortalPayment[]> {
+  const result = await tx.execute<PortalPayment>(sql`
+    SELECT p.id, p.document_id, d.number, p.amount_centimes::text,
+           p.method, p.paid_on::text,
+           (p.reverses_id IS NOT NULL) AS is_reversal,
+           EXISTS (SELECT 1 FROM document_payment r WHERE r.reverses_id = p.id) AS reversed
+      FROM document_payment p
+      JOIN document d ON d.id = p.document_id
+     ORDER BY p.paid_on DESC, p.created_at DESC
+  `);
+  return result.rows;
+}
+
+// ---------------------------------------------------------------------------
+// One project (0086)
+// ---------------------------------------------------------------------------
+
+export interface PortalProjectDetail extends PortalProject {
+  project_type: string;
+  next_step: string | null;
+  next_step_set_at: string | null;
+}
+
+export async function findPortalProject(tx: Tx, id: string): Promise<PortalProjectDetail | null> {
+  const result = await tx.execute<PortalProjectDetail>(sql`
+    SELECT p.id, p.name, p.status, p.description, p.project_type,
+           p.start_date::text AS start_date,
+           p.due_date::text   AS due_date,
+           p.next_step, p.next_step_set_at::text, 0 AS delivered_files,
+           pr.done, pr.total, pr.percent, pr.by_hand
+      FROM project p
+      LEFT JOIN LATERAL app.project_progress(p.id) pr ON true
+     WHERE p.id = ${id}
+  `);
+  return result.rows[0] ?? null;
+}
+
+export interface PortalDeliveredFile {
+  [k: string]: unknown;
+  id: string;
+  original_name: string;
+  mime_type: string;
+  size_bytes: string;
+  caption: string | null;
+  shared_at: string;
+}
+
+/** Files we chose to share on this project. Nothing else on it is readable. */
+export async function listDeliveredFiles(tx: Tx, projectId: string): Promise<PortalDeliveredFile[]> {
+  const result = await tx.execute<PortalDeliveredFile>(sql`
+    SELECT a.id, a.original_name, a.mime_type, a.size_bytes::text, a.caption,
+           a.shared_at::text
+      FROM attachment a
+     WHERE a.entity_type = 'project' AND a.entity_id = ${projectId}
+       AND a.shared_with_client
+     ORDER BY a.shared_at DESC
+  `);
+  return result.rows;
+}
+
+// ---------------------------------------------------------------------------
+// What is new in the conversation (0087)
+// ---------------------------------------------------------------------------
+
+export interface PortalInbox {
+  [k: string]: unknown;
+  /** Replies from the team since this contact last opened the conversation. */
+  unread: number;
+  /** When this contact last opened it, before this visit. */
+  last_read_at: string | null;
+  /** When anybody on the team last opened it. */
+  seen_by_team_at: string | null;
+}
+
+export async function readPortalInbox(tx: Tx): Promise<PortalInbox> {
+  const result = await tx.execute<PortalInbox>(sql`
+    SELECT
+      (SELECT count(*)::int FROM message m
+        WHERE m.author_contact_id IS NULL AND m.withdrawn_at IS NULL
+          AND m.created_at > coalesce(
+                (SELECT r.last_read_at FROM client_thread_read r
+                  WHERE r.contact_id = app.current_client_contact()
+                    AND r.thread_id = m.thread_id), '-infinity')) AS unread,
+      (SELECT max(r.last_read_at)::text FROM client_thread_read r
+        WHERE r.contact_id = app.current_client_contact()) AS last_read_at,
+      app.support_seen_by_team_at()::text AS seen_by_team_at
+  `);
+  return result.rows[0] ?? { unread: 0, last_read_at: null, seen_by_team_at: null };
+}
+
+/** Opening the conversation counts as reading it. */
+export async function markSupportRead(tx: Tx, threadId: string): Promise<void> {
+  await tx.execute(sql`
+    INSERT INTO client_thread_read (contact_id, thread_id, last_read_at)
+    VALUES (app.current_client_contact(), ${threadId}, now())
+    ON CONFLICT (contact_id, thread_id) DO UPDATE SET last_read_at = now()
+  `);
 }

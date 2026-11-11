@@ -1,5 +1,6 @@
 'use client';
 
+import { useKeepOnError } from '@/lib/use-keep-on-error';
 import { useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { EMPTY_STATE } from '@/lib/form-state';
@@ -21,6 +22,8 @@ interface Account {
   must_change_password: boolean;
   last_sign_in_at: string | null;
   initial_password_expires_at: string | null;
+  /** "10/11/2026", made by the server. Never formatted in the browser. */
+  last_sign_in_label: string | null;
 }
 
 function Submit({ label, busy }: { label: string; busy: string }) {
@@ -50,7 +53,9 @@ export function ClientAccess({
   accounts: Account[];
 }) {
   const [openState, openAction] = useActionState(openClientAccountAction, EMPTY_STATE);
+  const keepOpenState = useKeepOnError(openState);
   const [reissueState, reissueAction] = useActionState(reissueClientPasswordAction, EMPTY_STATE);
+  const keepReissueState = useKeepOnError(reissueState);
 
   const byContact = new Map(accounts.map((a) => [a.contact_id, a]));
   const withoutAccount = contacts.filter((c) => !byContact.has(c.id));
@@ -58,9 +63,7 @@ export function ClientAccess({
   return (
     <>
       <p className="prose-vixart" style={{ opacity: 0.68 }}>
-        A client account lets this person sign in to see their own projects and
-        write to us. They see nothing belonging to any other client — not the
-        team’s channels, not the other work on our books.
+        Lets this person sign in, see their own projects and write to you. Nothing else.
       </p>
 
       {(openState.error || reissueState.error) && (
@@ -86,13 +89,13 @@ export function ClientAccess({
                         ? 'Closed'
                         : account.must_change_password
                           ? 'Invited, not signed in yet'
-                          : account.last_sign_in_at
-                            ? `Last signed in ${new Date(account.last_sign_in_at).toLocaleDateString('en-GB')}`
+                          : account.last_sign_in_label
+                            ? `Last signed in ${account.last_sign_in_label}`
                             : 'Active'}
                     </p>
                   </div>
 
-                  <form action={reissueAction}>
+                  <form action={reissueAction} onSubmit={keepReissueState}>
                     <input type="hidden" name="contactId" value={person.id} />
                     <Submit label="Send a new password" busy="Sending…" />
                   </form>
@@ -112,9 +115,9 @@ export function ClientAccess({
       )}
 
       {withoutAccount.length > 0 ? (
-        <form action={openAction} className="mt-6 flex flex-wrap items-end gap-3">
+        <form action={openAction} onSubmit={keepOpenState} className="mt-6 flex flex-wrap items-end gap-3">
           <label className="block" htmlFor="contactId">
-            <span className="label block" style={{ opacity: 0.68 }}>Open an account for</span>
+            <span className="label block">Open an account for</span>
             <select id="contactId" name="contactId" required className="input mt-1.5 w-64">
               <option value="">Choose a contact…</option>
               {withoutAccount.map((c) => (

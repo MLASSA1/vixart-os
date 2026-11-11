@@ -1,9 +1,11 @@
 'use client';
 
+import { useKeepOnError } from '@/lib/use-keep-on-error';
 import { useActionState, useRef } from 'react';
 import { useFormStatus } from 'react-dom';
 import { ErrorBanner } from '@/components/ui';
 import { EMPTY_STATE, type FormState } from '@/lib/form-state';
+import { PaymentList, type PaymentListRow } from '@/components/PaymentList';
 
 /**
  * Money received against this invoice.
@@ -13,21 +15,8 @@ import { EMPTY_STATE, type FormState } from '@/lib/form-state';
  * when the payments cover it, and from that moment the payments are locked.
  */
 
-export interface PaymentRow {
-  id: string;
-  amount: string;      // centimes, stringified
-  method: string;
-  paidOn: string;
-  note: string | null;
-}
-
-const METHOD_LABELS: Record<string, string> = {
-  virement: 'Bank transfer',
-  especes: 'Cash',
-  cheque: 'Cheque',
-  carte: 'Card',
-  autre: 'Other',
-};
+/** Every payment and reversal on this invoice — none is ever removed (0083). */
+export type PaymentRow = PaymentListRow;
 
 function formatMAD(centimes: bigint): string {
   const negative = centimes < 0n;
@@ -53,7 +42,8 @@ export function Payments({
   settled,
   today,
   record,
-  remove,
+  reverse,
+  canReverse,
 }: {
   documentId: string;
   /** Advance agreed on the deal, centimes as a string. '0' if none. */
@@ -65,7 +55,9 @@ export function Payments({
   settled: boolean;
   today: string;
   record: (state: FormState, formData: FormData) => Promise<FormState>;
-  remove: (formData: FormData) => Promise<void>;
+  reverse: (state: FormState, formData: FormData) => Promise<FormState>;
+  /** The owner only. The database refuses anybody else regardless. */
+  canReverse: boolean;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const [state, formAction] = useActionState(
@@ -76,6 +68,7 @@ export function Payments({
     },
     EMPTY_STATE,
   );
+  const keepState = useKeepOnError(state);
 
   const netC = BigInt(net);
   const paid = payments.reduce((acc, p) => acc + BigInt(p.amount), 0n);
@@ -113,37 +106,19 @@ export function Payments({
       </div>
 
       {payments.length > 0 && (
-        <ul className="mt-5 divide-y divide-void/10">
-          {payments.map((p) => (
-            <li key={p.id} className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 py-2.5">
-              <div>
-                <span className="code font-semibold">{formatMAD(BigInt(p.amount))}</span>
-                <span className="hint"> · {METHOD_LABELS[p.method] ?? p.method} · {p.paidOn}</span>
-                {p.note && <span className="hint"> — {p.note}</span>}
-              </div>
-              {!settled && (
-                <form action={remove}>
-                  <input type="hidden" name="paymentId" value={p.id} />
-                  {/* The action revalidates /documents/<id>; without this it
-                      revalidated /documents/ and the bar above went stale. */}
-                  <input type="hidden" name="documentId" value={documentId} />
-                  <button type="submit" className="hint cursor-pointer underline underline-offset-4">
-                    Remove
-                  </button>
-                </form>
-              )}
-            </li>
-          ))}
-        </ul>
+        <div className="mt-5">
+          <PaymentList rows={payments} canReverse={canReverse} reverseAction={reverse} />
+        </div>
       )}
 
       {settled ? (
         <p className="hint mt-4">
-          Payments on a settled invoice are locked. If something is wrong here, the
-          correction is a credit note — same as any other change to an issued invoice.
+          Settled in full. Payments are never removed: if one bounced or was recorded by
+          mistake, {canReverse ? 'reverse it above' : 'the owner can reverse it'} and the invoice
+          reopens for the balance. A change to the invoice itself is a credit note.
         </p>
       ) : (
-        <form ref={formRef} action={formAction} className="mt-5 border-t border-void/10 pt-5">
+        <form ref={formRef} action={formAction} onSubmit={keepState} className="mt-5 border-t border-void/10 pt-5">
           <ErrorBanner message={state.error} />
           <div className="flex flex-wrap items-end gap-3">
             <label className="block">

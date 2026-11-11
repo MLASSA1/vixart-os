@@ -1,5 +1,6 @@
 'use client';
 
+import { useKeepOnError } from '@/lib/use-keep-on-error';
 import { useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { signInAction, type SignInState } from './actions';
@@ -17,9 +18,10 @@ const INITIAL: SignInState = { error: null };
 
 export function SignInForm() {
   const [state, formAction] = useActionState(signInAction, INITIAL);
+  const keepState = useKeepOnError(state);
 
   return (
-    <form action={formAction} className="mt-6 space-y-5">
+    <form action={formAction} onSubmit={keepState} className="mt-6 space-y-5">
       {state.error && (
         <div
           role="alert"
@@ -31,7 +33,7 @@ export function SignInForm() {
       )}
 
       <label className="block" htmlFor="email">
-        <span className="label block" style={{ opacity: 0.68 }}>
+        <span className="label block">
           Email address
         </span>
         <input
@@ -46,7 +48,7 @@ export function SignInForm() {
       </label>
 
       <label className="block" htmlFor="password">
-        <span className="label block" style={{ opacity: 0.68 }}>
+        <span className="label block">
           Password
         </span>
         <input

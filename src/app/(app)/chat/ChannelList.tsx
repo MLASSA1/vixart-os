@@ -124,7 +124,7 @@ export function ChannelList({
             type="button"
             onClick={() => setOpening((o) => !o)}
             aria-expanded={opening}
-            className="cursor-pointer rounded-md px-1.5 text-[18px] leading-none text-void/45 hover:bg-void/10 hover:text-void"
+            className="cursor-pointer rounded-md px-1.5 text-[18px] leading-none text-void/55 hover:bg-void/10 hover:text-void"
             title="New channel"
           >
             +
@@ -145,7 +145,7 @@ export function ChannelList({
           return (
             <div key={kind} className="mb-3">
               {label && (
-                <p className="px-2.5 pt-3 pb-1 text-[11px] font-bold tracking-[0.1em] text-void/40 uppercase">
+                <p className="px-2.5 pt-3 pb-1 text-[11px] font-bold tracking-[0.1em] text-void/55 uppercase">
                   {label}
                 </p>
               )}
@@ -165,7 +165,7 @@ export function ChannelList({
                           : 'text-void/70 hover:bg-void/[0.06]'
                     }`}
                   >
-                    <span aria-hidden="true" className={active ? 'text-pure/60' : 'text-void/30'}>
+                    <span aria-hidden="true" className={active ? 'text-pure/90' : 'text-void/55'}>
                       #
                     </span>
                     <span className="min-w-0 flex-1 truncate">{c.title}</span>
@@ -190,7 +190,7 @@ export function ChannelList({
           is the list; the thread is opened by clicking it.
         */}
         <div className="mt-2 border-t border-void/10 pt-3">
-          <p className="px-2.5 pb-1 text-[11px] font-bold tracking-[0.1em] text-void/40 uppercase">
+          <p className="px-2.5 pb-1 text-[11px] font-bold tracking-[0.1em] text-void/55 uppercase">
             Private
           </p>
 

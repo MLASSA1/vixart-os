@@ -309,12 +309,12 @@ export default async function DashboardPage() {
 
   return (
     <>
-      <PageHeader eyebrow={`Signed in as ${me.name}`} title="Dashboard" />
+      <PageHeader title="Dashboard" />
 
       {/* --- 1. What needs you ------------------------------------------------ */}
       {attention.length > 0 ? (
         <section className="card tone-warn px-5 py-4">
-          <p className="label" style={{ opacity: 0.8 }}>
+          <p className="label">
             Needs you
           </p>
           <ul className="mt-2 flex flex-col gap-y-2">
@@ -337,8 +337,23 @@ export default async function DashboardPage() {
 
       {/* --- 2. Money, with one figure leading -------------------------------- */}
       {seesMoney && (
-        <section className="card mt-4 px-5 py-5 sm:px-6">
-          <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
+        <section className="@container card mt-4 px-5 py-5 sm:px-6">
+          {/*
+            `@container`: the layout below is decided by THIS CARD's width,
+            not the window's. They differ by the sidebar (256px), which appears
+            at 768px and makes the card narrower exactly when a viewport
+            breakpoint thinks there is more room. Three supporting figures need
+            about 609px side by side at a seven-digit amount; at 768px the card
+            has about 430, and they ran 165px off the screen.
+          */}
+          {/*
+            `flex-wrap`, so the trio drops BELOW the hero when the two do not
+            fit side by side. Without it the trio (which must not shrink — its
+            figures are unbreakable) took the whole row at a seven-digit amount
+            and squeezed the hero to zero width on a tablet. Wrapping gives each
+            the room its figures need instead of letting one crush the other.
+          */}
+          <div className="flex flex-col gap-6 @2xl:flex-row @2xl:flex-wrap @2xl:items-end @2xl:justify-between">
             <div className="min-w-0">
               <p className="label">{hero.label}</p>
               <p className={`kpi-hero mt-1 ${fig(hero.zero)}`}>{hero.value}</p>
@@ -357,7 +372,7 @@ export default async function DashboardPage() {
               number. Below `sm` each becomes a label-left/figure-right row with
               the full width of the card to sit in.
             */}
-            <dl className="grid shrink-0 grid-cols-1 gap-y-0 sm:grid-cols-3 sm:gap-x-8">
+            <dl className="grid shrink-0 grid-cols-1 gap-y-0 @2xl:grid-cols-3 @2xl:gap-x-8">
               {[
                 { label: 'Pipeline', value: formatMAD(money.open_value), zero: money.open_value === 0n },
                 { label: 'Weighted', value: formatMAD(money.weighted), zero: money.weighted === 0n },
@@ -365,10 +380,10 @@ export default async function DashboardPage() {
               ].map((s) => (
                 <div
                   key={s.label}
-                  className="flex items-baseline justify-between gap-4 border-t border-void/10 py-1.5 sm:block sm:border-0 sm:py-0"
+                  className="flex items-baseline justify-between gap-4 border-t border-void/10 py-1.5 @2xl:block @2xl:border-0 @2xl:py-0"
                 >
                   <dt className="label text-[12px]">{s.label}</dt>
-                  <dd className={`kpi-sm sm:mt-0.5 ${fig(s.zero)}`}>{s.value}</dd>
+                  <dd className={`kpi-sm @2xl:mt-0.5 ${fig(s.zero)}`}>{s.value}</dd>
                 </div>
               ))}
             </dl>
@@ -411,19 +426,19 @@ export default async function DashboardPage() {
             */}
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <div className="card px-4 py-3">
-                <p className="label" style={{ opacity: 0.55 }}>Won</p>
+                <p className="label">Won</p>
                 <p className="mt-1 text-[19px] font-bold tabular-nums">
                   {formatMAD(BigInt(Math.round(wonTotal)) * 100n)}
                 </p>
               </div>
               <div className="card px-4 py-3">
-                <p className="label" style={{ opacity: 0.55 }}>Invoiced</p>
+                <p className="label">Invoiced</p>
                 <p className="mt-1 text-[19px] font-bold tabular-nums">
                   {formatMAD(BigInt(Math.round(billedTotal)) * 100n)}
                 </p>
               </div>
               <div className={`card px-4 py-3 ${wonTotal - billedTotal > 0 ? 'tone-warn' : ''}`}>
-                <p className="label" style={{ opacity: 0.55 }}>Won but not invoiced</p>
+                <p className="label">Won but not invoiced</p>
                 <p className="mt-1 text-[19px] font-bold tabular-nums">
                   {formatMAD(BigInt(Math.round(Math.max(0, wonTotal - billedTotal))) * 100n)}
                 </p>
@@ -538,10 +553,6 @@ export default async function DashboardPage() {
 
       <Section title="Team activity">
         <ActivityFeed items={activity} />
-        <p className="hint mt-3">
-          Recorded by the database itself when something changes, not by the screen
-          that changed it — so nothing can be done without leaving a trace.
-        </p>
       </Section>
 
       <Section title="Directory">

@@ -3,42 +3,64 @@
 /* =============================================================================
    VIXART OS — interface styles.
 
-   THEME (revised): "Studio dusk".
+   THEME: "Night studio" (November 2026; replaces "Studio dusk").
 
-   The first theme was two colours by decree — Void Black on Pure White, state
-   carried only by weight and border. Correct discipline, cold result. This
-   revision keeps the discipline and warms the material:
+   Chosen by Amin from three drawn directions. Dark throughout, closer to how a
+   production studio's own tools look, and to the client portal and
+   visionxart.com, which were already black. The internal tool keeps its
+   violet; the public face keeps none.
 
-     paper    #F6F4EF   warm bone — the page itself, never pure white
-     surface  #FFFFFF   white — cards sitting on the paper
-     ink      #17140F   warm near-black — text, and the sidebar's ground
-     accent   #6D28D9   the brand violet — VIXART's own colour, back on duty
+     night    #0C0B0A   the deepest surface: sidebar, phone bar, drawer
+     paper    #121110   the page
+     surface  #1B1917   cards sitting on the page
+     ink      #F4F1EA   text — warm off-white, never pure white on near-black
+     accent   #7C3AED   violet as a FILL, behind white text
+     accent-ink #B9A6FB violet as TEXT or a line on the dark ground
 
-   The accent is spent, not sprayed: primary buttons, the active nav item,
-   focus, selection, one eyebrow line per page. If everything is violet,
-   nothing is.
+   WHY THE VIOLET IS TWO TOKENS NOW. On paper one violet did both jobs. On a
+   dark ground no single violet can: a fill dark enough to carry white text
+   (5.7:1) is too dim to read as text itself (3.3:1 on the page). So `accent`
+   is for what white sits on — buttons, the active nav item, selection — and
+   `accent-ink` is for violet that is read: eyebrows, links, the focus ring,
+   status text on a violet tint.
 
-   Status may now carry hue — muted, editorial tints, not traffic lights:
-   green for money that arrived, red only for something needing action.
+   THE TOKEN NAMES DID NOT MOVE, and that is what made this a theme change
+   rather than a rewrite of 1,850 class attributes. `void` was always the
+   role "ink" and `pure` the role "white", so `border-void/10` is still a
+   hairline at a tenth of the ink — which is now correctly a light hairline on
+   a dark card. Only the places that used `void` as a solid DARK SURFACE (the
+   sidebar) or as an inversion (alert boxes, hover flips) needed touching:
+   chrome moved to `night`, inversions became light-on-dark's reverse.
 
-   TYPOGRAPHY: Inter for reading, Space Grotesk for headings and big figures,
-   IBM Plex Mono only where numbers must align or codes get copied.
+   EVERY PAIRING WAS COMPUTED, not judged by eye — scratchpad tool, WCAG 2:
+   body 15.5:1, .label 6.7:1, .hint 5.5:1, white on violet 5.7:1, each status
+   colour on its own tint 5.8–7.7:1, a muted zero 3.3:1 (it is allowed to be
+   quiet, not to be invisible).
 
-   Paper documents (the PDF) keep the original black-and-white law. An invoice
-   is not a place to be creative.
+   Paper documents (the PDF) keep the original black-and-white law and their
+   own colours in src/lib/pdf. An invoice is not a place to be creative, and
+   it prints on white paper whatever the screen looks like.
    ============================================================================= */
 
 @theme {
   /* `void` and `pure` keep their names: every page already speaks them. */
-  --color-void: #17140f;
+  --color-void: #f4f1ea;
   --color-pure: #ffffff;
-  --color-paper: #f6f4ef;
-  --color-surface: #ffffff;
-  --color-accent: #6d28d9;
-  --color-accent-deep: #5b21b6;
-  --color-ok: #1a7a4c;
-  --color-warn: #a16207;
-  --color-danger: #c13b2a;
+  --color-night: #0c0b0a;
+  --color-paper: #121110;
+  --color-surface: #1b1917;
+  --color-accent: #7c3aed;
+  --color-accent-ink: #b9a6fb;
+  --color-accent-press: #6d28d9;
+  /* Chart marks: the brand violet lifted to 4.1:1 on a card. The button fill
+     manages only 3.1:1 there, which passes the rule for graphics and fails
+     the glance a chart is read at. */
+  --color-chart: #8b5cf6;
+  /* Brighter than on paper: a tint on near-black needs a lighter base to
+     leave readable text behind it. */
+  --color-ok: #3fb884;
+  --color-warn: #e0a43a;
+  --color-danger: #ef6f5e;
 
   --font-sans: var(--font-interface), system-ui, sans-serif;
   --font-mono: var(--font-figures), ui-monospace, monospace;
@@ -48,8 +70,11 @@
   --radius-ctl: 9px;
 }
 
+/* Native controls — date pickers, select menus, scrollbars, autofill — draw
+   themselves dark only when told. Without this a <select> opens a white menu
+   over a black page. */
 :root {
-  color-scheme: light;
+  color-scheme: dark;
 }
 
 html,
@@ -66,6 +91,28 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+/*
+ * The company's own logotype face, taken from visionxart.com. Until Night
+ * studio it appeared only in the client portal; the internal app now wears it
+ * too, because the two halves are finally the same colour and the name should
+ * be the same shape on both. One word, never a sentence.
+ */
+.wordmark {
+  font-family: var(--font-wordmark), var(--font-head), sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+/* "OS" after the wordmark: the tool's name, kept small so the company's
+   stays the thing you read. */
+.wordmark-suffix {
+  font-family: var(--font-mono);
+  font-size: 0.55em;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  opacity: 0.45;
+}
+
 /* Headings get the display face. */
 h1,
 h2,
@@ -76,17 +123,19 @@ h3,
 }
 
 /* --- Surfaces --------------------------------------------------------------
-   A card is white on the bone paper: hairline border, soft lift. Sections use
-   this, so the whole app sits in these panels.
+   A card is one step lighter than the page, with a hairline and a faint top
+   highlight. On dark, a drop shadow alone cannot lift anything — there is no
+   lighter ground for it to fall on — so the lift comes from the surface being
+   lighter and from a 1px inset catch-light along the top edge.
    -------------------------------------------------------------------------- */
 
 .card {
   background-color: var(--color-surface);
-  border: 1px solid color-mix(in srgb, var(--color-void) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-void) 8%, transparent);
   border-radius: var(--radius-card);
   box-shadow:
-    0 1px 2px rgb(23 20 15 / 0.04),
-    0 10px 28px -18px rgb(23 20 15 / 0.18);
+    inset 0 1px 0 rgb(255 255 255 / 0.035),
+    0 14px 32px -22px rgb(0 0 0 / 0.7);
 }
 
 /* --- Labels and metadata --------------------------------------------------- */
@@ -135,7 +184,8 @@ h3,
   font-weight: 700;
   letter-spacing: 0.09em;
   text-transform: uppercase;
-  color: var(--color-accent);
+  /* Read, not filled behind: the text violet. 8.9:1 on the page. */
+  color: var(--color-accent-ink);
 }
 
 /* --- Figures ---------------------------------------------------------------- */
@@ -163,6 +213,34 @@ h3,
 }
 
 /*
+ * A figure in a grid cell is sized by THE CELL, never the window.
+ *
+ * `.kpi` is clamped against the viewport, which is right for the page and
+ * wrong for a column: on a phone the same 28px figure sat in a 152px cell on
+ * Deals and a 114px one inside a Finance card. An amount is one unbreakable
+ * token — "36 000,00 DH" is written with non-breaking spaces — so it cannot
+ * wrap, and ran into the next cell until two figures read as one number.
+ *
+ * Measured in the figure face: the widest plausible amount, "1 236 500,00
+ * DH", is 7.66 times its own font size, a negative one a little more. So a
+ * figure may never be larger than 12% of its cell (12cqi), which fits a
+ * seven-digit negative amount in any cell at any screen size.
+ *
+ * AMOUNTS ONLY, marked `.kpi-money`. A cap sized for "-1 236 500,00 DH" also
+ * shrank a one-digit count beside it to 18px on a phone, so the count looked
+ * less important than the amount next to it. Counts are never long enough to
+ * overflow. Every amount rendered as a `.kpi` must carry `kpi-money`, and
+ * src/lib/kpi-money.test.ts fails the build when one does not.
+ */
+:where(.grid) > :has(> .kpi-money) {
+  container-type: inline-size;
+}
+
+:where(.grid) > :has(> .kpi-money) > .kpi-money {
+  font-size: min(clamp(1.75rem, 3vw, 2.35rem), 12cqi);
+}
+
+/*
  * Three sizes of figure, because nine figures at one size is a list, not a
  * dashboard. The eye needs to be told what to read first.
  *
@@ -183,6 +261,15 @@ h3,
   letter-spacing: -0.025em;
   font-variant-numeric: tabular-nums;
   line-height: 1.05;
+  color: var(--color-pure);
+  /* The one glow in the system, on the one figure per screen that earns it.
+     A zero turns it off (below) — a glowing 0,00 DH would be a celebration
+     of nothing. */
+  text-shadow: 0 0 42px color-mix(in srgb, var(--color-accent) 32%, transparent);
+}
+
+.kpi-hero.is-zero {
+  text-shadow: none;
 }
 
 .kpi-sm {
@@ -201,7 +288,10 @@ h3,
  * typeface as the number that matters.
  */
 .is-zero {
-  color: color-mix(in srgb, var(--color-void) 38%, transparent);
+  /* 52%, not the 38% it was drawn at: the audit measured 3.3:1, and at
+     weight 600 a 22px figure is not "large text", so the bar is 4.5:1. Every
+     dark surface here needs 48-49% ink to clear it. */
+  color: color-mix(in srgb, var(--color-void) 52%, transparent);
   font-weight: 600;
 }
 
@@ -234,7 +324,7 @@ h3,
 
 .tone-accent {
   background-color: color-mix(in srgb, var(--color-accent) 12%, transparent);
-  color: var(--color-accent-deep);
+  color: var(--color-accent-ink);
   border: 1px solid color-mix(in srgb, var(--color-accent) 34%, transparent);
 }
 
@@ -257,7 +347,9 @@ h3,
 /* --- Focus and selection: the accent's job ---------------------------------- */
 
 :where(a, button, input, select, textarea, [tabindex]):focus-visible {
-  outline: 2px solid var(--color-accent);
+  /* The text violet, not the fill: a ring has to be seen against the page,
+     and the fill only reaches 3.3:1 there. */
+  outline: 2px solid var(--color-accent-ink);
   outline-offset: 2px;
 }
 
@@ -290,8 +382,8 @@ h3,
 }
 
 .btn:hover {
-  background-color: var(--color-accent-deep);
-  border-color: var(--color-accent-deep);
+  background-color: var(--color-accent-press);
+  border-color: var(--color-accent-press);
 }
 
 .btn:active {
@@ -304,10 +396,13 @@ h3,
   color: var(--color-void);
 }
 
+/* The hover inverts, as it always did: on paper that meant ink fill and white
+   text, so on dark it means a light fill and night text. Keeping `pure` here
+   would have drawn white on off-white. */
 .btn-inverse:hover {
   background-color: var(--color-void);
   border-color: var(--color-void);
-  color: var(--color-pure);
+  color: var(--color-night);
 }
 
 .btn-small {
@@ -384,7 +479,7 @@ h3,
   font-size: 14.5px;
   line-height: 1.45;
   overflow-wrap: anywhere;
-  box-shadow: 0 1px 1px rgb(23 20 15 / 0.05);
+  box-shadow: 0 1px 1px rgb(0 0 0 / 0.35);
 }
 
 /* Somebody else: white, hairline, anchored left. */
@@ -411,7 +506,8 @@ h3,
   font-variant-numeric: tabular-nums;
   line-height: 1;
   white-space: nowrap;
-  color: color-mix(in srgb, var(--color-void) 42%, transparent);
+  /* 55%: at 42% a timestamp measured 3.2-3.6:1 on both bubble colours. */
+  color: color-mix(in srgb, var(--color-void) 55%, transparent);
 }
 
 /* The day marker, floating over the conversation as it scrolls past. */
@@ -427,7 +523,7 @@ h3,
   font-size: 12px;
   font-weight: 600;
   color: color-mix(in srgb, var(--color-void) 58%, transparent);
-  box-shadow: 0 1px 2px rgb(23 20 15 / 0.05);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.35);
 }
 
 /* The composer bar: one rounded field with the controls inside it, not a form
@@ -477,7 +573,7 @@ h3,
   transition: background-color 120ms ease, transform 80ms ease;
 }
 
-.composer-send:hover:not(:disabled) { background-color: var(--color-accent-deep); }
+.composer-send:hover:not(:disabled) { background-color: var(--color-accent-press); }
 .composer-send:active:not(:disabled) { transform: scale(0.94); }
 .composer-send:disabled { opacity: 0.4; cursor: not-allowed; }
 
@@ -489,7 +585,7 @@ h3,
   height: 32px;
   flex-shrink: 0;
   border-radius: 999px;
-  color: color-mix(in srgb, var(--color-void) 48%, transparent);
+  color: color-mix(in srgb, var(--color-void) 58%, transparent);
   cursor: pointer;
   transition: background-color 120ms ease, color 120ms ease;
 }

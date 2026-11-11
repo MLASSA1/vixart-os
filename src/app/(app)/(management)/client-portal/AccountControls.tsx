@@ -1,5 +1,6 @@
 'use client';
 
+import { useKeepOnError } from '@/lib/use-keep-on-error';
 import { useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { EMPTY_STATE } from '@/lib/form-state';
@@ -25,9 +26,10 @@ function Pending({ label, busy }: { label: string; busy: string }) {
  */
 export function ReissueForm({ contactId }: { contactId: string }) {
   const [state, formAction] = useActionState(reissueClientPasswordAction, EMPTY_STATE);
+  const keepState = useKeepOnError(state);
 
   return (
-    <form action={formAction} className="inline">
+    <form action={formAction} onSubmit={keepState} className="inline">
       <input type="hidden" name="contactId" value={contactId} />
       <Pending label="Email a new password" busy="Sending…" />
       {state.error && (

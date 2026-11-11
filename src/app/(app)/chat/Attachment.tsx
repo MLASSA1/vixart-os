@@ -225,7 +225,7 @@ function FileRow({
         </span>
         <span className="min-w-0">
           <span className="block truncate text-[13.5px] font-semibold">{label}</span>
-          <span className="block text-[11.5px] text-void/50">
+          <span className="block text-[11.5px] text-void/55">
             {sizeBytes === null ? '' : formatBytes(sizeBytes)}
             {opens ? ' — opens in a new tab' : ''}
           </span>

@@ -1,4 +1,5 @@
 import { sql } from 'drizzle-orm';
+import { ListFilter } from '@/components/ListFilter';
 import { auth } from '@/auth';
 import { Empty, PageHeader, Section } from '@/components/ui';
 import { withUser } from '@/db/session';
@@ -68,7 +69,7 @@ export default async function EquipmentPage() {
 
   return (
     <>
-      <PageHeader eyebrow="The agency" title="Equipment" />
+      <PageHeader title="Equipment" intro="The agency’s gear, and who has it right now." />
 
       <div className="grid grid-cols-2 gap-6 border-b border-void/15 pb-6 md:grid-cols-4">
         <div>
@@ -87,20 +88,23 @@ export default async function EquipmentPage() {
         {canSeeCost && (
           <div>
             <p className="label">Registered value</p>
-            <p className="kpi mt-1">{formatMAD(value)}</p>
+            <p className="kpi kpi-money mt-1">{formatMAD(value)}</p>
             <p className="hint mt-1">purchase cost, kit still in service</p>
           </div>
         )}
       </div>
 
-      <Section title={`Register — ${items.length}`}>
+      <Section
+        title={`Register — ${items.length}`}
+        action={items.length > 0 && <ListFilter scope="equipment-list" placeholder="Search equipment" />}
+      >
         {items.length === 0 ? (
           <Empty message="Nothing registered yet — add the cameras, laptops and mics below" />
         ) : (
-          <div className="overflow-x-auto">
+          <div id="equipment-list" className="overflow-x-auto">
             <table className="table-wide text-left">
               <thead>
-                <tr className="border-b-2 border-void">
+                <tr className="border-b-2 border-void/40">
                   <th className="th py-2 pr-4">Item</th>
                   <th className="th py-2 pr-4">Category</th>
                   <th className="th py-2 pr-4">Where</th>

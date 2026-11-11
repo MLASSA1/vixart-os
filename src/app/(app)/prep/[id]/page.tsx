@@ -81,7 +81,7 @@ export default async function PrepDetailPage({
   return (
     <>
       <PageHeader
-        eyebrow={PREP_KIND_LABELS[record.kind] ?? record.kind}
+        intro={PREP_KIND_LABELS[record.kind] ?? record.kind}
         title={record.title}
         actions={<ButtonLink href="/prep" inverse>Back</ButtonLink>}
       />

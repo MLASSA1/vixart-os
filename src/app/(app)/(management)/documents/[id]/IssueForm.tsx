@@ -1,5 +1,6 @@
 'use client';
 
+import { useKeepOnError } from '@/lib/use-keep-on-error';
 import { useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { ErrorBanner } from '@/components/ui';
@@ -40,13 +41,14 @@ export function IssueForm({
   clientName: string;
 }) {
   const [state, formAction] = useActionState(action, EMPTY_STATE);
+  const keepState = useKeepOnError(state);
   const isInvoice = docType !== 'devis';
   const offerWaiver = isInvoice && needsIceWaiver;
 
   return (
     <>
       <ErrorBanner message={state.error} />
-      <form action={formAction} className="mt-4 flex flex-wrap items-end gap-3">
+      <form action={formAction} onSubmit={keepState} className="mt-4 flex flex-wrap items-end gap-3">
         <input type="hidden" name="documentId" value={documentId} />
 
         {isInvoice && (

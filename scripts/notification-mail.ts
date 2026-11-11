@@ -33,6 +33,7 @@
  */
 
 import { sweepNotificationMail } from '../src/lib/notification-mail';
+import { sweepClientReplyMail } from '../src/lib/client-reply-mail';
 import { mailerConfigured } from '../src/lib/mailer';
 
 const EVERY_MS = 60_000;
@@ -41,6 +42,11 @@ async function once(): Promise<void> {
   const { sent, failed } = await sweepNotificationMail();
   if (sent > 0 || failed > 0) {
     console.log(`[notification-mail] sent ${sent}, failed ${failed}`);
+  }
+  // Clients told that the team replied (0088). Its own outbox, same loop.
+  const replies = await sweepClientReplyMail();
+  if (replies.sent > 0 || replies.failed > 0) {
+    console.log(`[client-reply-mail] sent ${replies.sent}, failed ${replies.failed}, skipped ${replies.skipped}`);
   }
 }
 

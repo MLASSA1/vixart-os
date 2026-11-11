@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { ListFilter } from '@/components/ListFilter';
 import Link from 'next/link';
 import { sql } from 'drizzle-orm';
 import { auth } from '@/auth';
@@ -72,36 +73,39 @@ export default async function DealsPage() {
 
   return (
     <>
-      <PageHeader eyebrow="Opportunities" title="Deals" />
+      <PageHeader title="Deals" intro="What is being sold, and how likely each sale is." />
 
-      <div className="grid grid-cols-2 gap-6 border-b border-void/15 pb-6 md:grid-cols-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 border-b border-void/15 pb-6 md:grid-cols-4">
         <div>
           <p className="label">Open</p>
           <p className="kpi mt-1">{open.length}</p>
         </div>
         <div>
           <p className="label">Open value</p>
-          <p className="kpi mt-1">{formatMAD(openValue)}</p>
+          <p className="kpi kpi-money mt-1">{formatMAD(openValue)}</p>
         </div>
         <div>
           <p className="label">Weighted forecast</p>
-          <p className="kpi mt-1">{formatMAD(weighted)}</p>
+          <p className="kpi kpi-money mt-1">{formatMAD(weighted)}</p>
           <p className="hint mt-1">Each deal at its own confidence.</p>
         </div>
         <div>
           <p className="label">Won</p>
-          <p className="kpi mt-1">{formatMAD(wonValue)}</p>
+          <p className="kpi kpi-money mt-1">{formatMAD(wonValue)}</p>
         </div>
       </div>
 
-      <Section title={`Pipeline — ${rows.length}`}>
+      <Section
+        title={`Pipeline — ${rows.length}`}
+        action={rows.length > 0 && <ListFilter scope="deal-list" placeholder="Search deals" />}
+      >
         {rows.length === 0 ? (
           <Empty message="No opportunity recorded yet" />
         ) : (
-          <div className="overflow-x-auto">
+          <div id="deal-list" className="overflow-x-auto">
             <table className="table-wide text-left">
               <thead>
-                <tr className="border-b-2 border-void">
+                <tr className="border-b-2 border-void/40">
                   <th className="th py-2 pr-4">Opportunity</th>
                   <th className="th py-2 pr-4">Stage</th>
                   <th className="th py-2 pr-4 text-right">Value</th>

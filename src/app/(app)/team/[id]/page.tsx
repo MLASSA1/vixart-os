@@ -70,7 +70,6 @@ export default async function PersonPage({
   return (
     <>
       <PageHeader
-        eyebrow="Team"
         title={person.full_name}
         actions={
           mine ? (
@@ -125,7 +124,7 @@ export default async function PersonPage({
             {person.bio}
           </p>
         ) : (
-          <p className="mt-6 text-[15px]" style={{ opacity: 0.5 }}>
+          <p className="mt-6 text-[15px]" style={{ opacity: 0.55 }}>
             {mine
               ? 'You have not written anything about yourself yet.'
               : `${person.full_name.split(' ')[0]} has not written anything here yet.`}

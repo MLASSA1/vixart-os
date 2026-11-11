@@ -1,5 +1,6 @@
 'use client';
 
+import { useKeepOnError } from '@/lib/use-keep-on-error';
 import { useActionState, useRef } from 'react';
 import { useFormStatus } from 'react-dom';
 import { ErrorBanner } from '@/components/ui';
@@ -49,6 +50,7 @@ export function Comments({
     },
     EMPTY_STATE,
   );
+  const keepState = useKeepOnError(state);
 
   return (
     <div>
@@ -79,7 +81,7 @@ export function Comments({
         </ul>
       )}
 
-      <form ref={formRef} action={formAction} className="mt-4">
+      <form ref={formRef} action={formAction} onSubmit={keepState} className="mt-4">
         <ErrorBanner message={state.error} />
         <label className="block" htmlFor="body">
           <span className="label block">Add a comment</span>

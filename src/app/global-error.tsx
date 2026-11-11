@@ -5,6 +5,12 @@
  * normal error boundary cannot render. It replaces <html> entirely, so it
  * cannot rely on the app's fonts or stylesheet — the styles here are inline on
  * purpose, and kept to the two brand colours.
+ *
+ * Night studio (Nov 2026): the same two colours, the other way round. A crash
+ * page that flashed white in a dark application would read as a different
+ * system having taken over — exactly the wrong signal when nothing is lost.
+ * Values are copied from globals.css by hand, since that file is the thing
+ * that may not have loaded.
  */
 export default function GlobalError({
   error,
@@ -17,8 +23,9 @@ export default function GlobalError({
     <html lang="en">
       <body
         style={{
-          backgroundColor: '#FFFFFF',
-          color: '#0B0B0F',
+          backgroundColor: '#121110',
+          color: '#F4F1EA',
+          colorScheme: 'dark',
           fontFamily: 'system-ui, sans-serif',
           fontSize: 15,
           lineHeight: 1.55,
@@ -44,7 +51,7 @@ export default function GlobalError({
               fontWeight: 700,
               margin: '0.5rem 0 1.25rem',
               paddingBottom: '1.25rem',
-              borderBottom: '2px solid #0B0B0F',
+              borderBottom: '2px solid #F4F1EA',
             }}
           >
             The application failed to start
@@ -66,8 +73,8 @@ export default function GlobalError({
               letterSpacing: '0.04em',
               fontSize: 15,
               padding: '0.625rem 1.125rem',
-              border: '1px solid #0B0B0F',
-              backgroundColor: '#0B0B0F',
+              border: '1px solid #7C3AED',
+              backgroundColor: '#7C3AED',
               color: '#FFFFFF',
               cursor: 'pointer',
             }}
@@ -84,7 +91,7 @@ export default function GlobalError({
                 opacity: 0.52,
                 marginTop: '2.5rem',
                 paddingTop: '1.25rem',
-                borderTop: '1px solid rgba(11,11,15,0.1)',
+                borderTop: '1px solid rgba(244,241,234,0.12)',
               }}
             >
               Reference {error.digest}

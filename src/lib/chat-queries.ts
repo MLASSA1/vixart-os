@@ -14,6 +14,7 @@
 
 import { sql } from 'drizzle-orm';
 import type { Tx } from '@/db/session';
+import { casablancaDay, formatClock } from '@/lib/format';
 
 export interface ChannelRow {
   [k: string]: unknown;
@@ -25,7 +26,8 @@ export interface ChannelRow {
   last_at: string | null;
 }
 
-export interface MessageRow {
+/** A message as the database returns it. */
+interface MessageRowFromDb {
   [k: string]: unknown;
   id: string;
   /**
@@ -56,6 +58,19 @@ export interface MessageRow {
   file_size: string | null;
   file_mime: string | null;
   file_duration_ms: number | null;
+}
+
+export interface MessageRow extends MessageRowFromDb {
+  /**
+   * "11:22" and "2026-11-10", formatted HERE, on the server.
+   *
+   * The browser used to work these out from `created_at` and got a different
+   * answer whenever its time zone data disagreed with the server's about
+   * Morocco — which in 2026 it did, by an hour. A message carries its own
+   * labels so there is exactly one clock. See the note in src/lib/format.ts.
+   */
+  time_label: string;
+  day_key: string;
 }
 
 /** Every channel this person can open, with what they have not read. */
@@ -207,7 +222,9 @@ export async function listMessages(
   const before = options?.before ?? null;
   const limit = Math.min(options?.limit ?? MESSAGE_PAGE, POLL_MAX);
 
-  const result = await tx.execute<MessageRow>(sql`
+  // The database does not send the two labels; they are added below, so the
+  // raw row is typed as what actually arrives.
+  const result = await tx.execute<MessageRowFromDb>(sql`
     WITH page AS (
       SELECT m.id, m.author_id, m.author_contact_id, m.author_name, m.body,
              m.created_at, m.edited_at,
@@ -254,7 +271,11 @@ export async function listMessages(
         ON a.entity_type = 'message' AND a.entity_id = p.id
      ORDER BY p.created_at
   `);
-  return result.rows;
+  return result.rows.map((row) => ({
+    ...row,
+    time_label: formatClock(row.created_at),
+    day_key: casablancaDay(row.created_at),
+  }));
 }
 
 /** Whether anything sits above the page on screen — drives "load earlier". */

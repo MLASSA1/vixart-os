@@ -138,7 +138,7 @@ export default async function SystemPage() {
 
   return (
     <>
-      <PageHeader eyebrow="Management only" title="System" />
+      <PageHeader title="System" intro="Company details, the bank account on invoices, and the app’s safeguards." />
 
       {/*
         First, because it is the only thing on this page you can change, and
@@ -147,11 +147,7 @@ export default async function SystemPage() {
       */}
       <Section title="Where a client pays">
         <p className="prose-vixart" style={{ opacity: 0.68 }}>
-          Printed near the bottom of every quote and invoice, under “Coordonnées
-          bancaires”, so a client who has just agreed a quote can pay the deposit
-          from it. Change them here and every document issued from then on
-          carries the new account; anything already issued keeps the one it was
-          issued with.
+          Printed on every quote and invoice. A change applies to new documents only.
         </p>
         {!payment?.rib && !payment?.iban && (
           <p className="tone-warn mt-3 rounded-[10px] px-4 py-3 text-[14px]">
@@ -180,7 +176,7 @@ export default async function SystemPage() {
 
       <div className="grid grid-cols-1 gap-x-10 md:grid-cols-2">
         <div>
-          <h2 className="label border-b border-void pb-2">Engine</h2>
+          <h2 className="label border-b border-void/40 pb-2">Engine</h2>
           <div className="mt-2">
             <Field label="PostgreSQL" value={engine?.version} />
             <Field label="Database" value={engine?.database} />
@@ -191,7 +187,7 @@ export default async function SystemPage() {
         </div>
 
         <div className="mt-10 md:mt-0">
-          <h2 className="label border-b border-void pb-2">Records</h2>
+          <h2 className="label border-b border-void/40 pb-2">Records</h2>
           <div className="mt-2">
             <Field label="Clients" value={counters?.clients} />
             <Field label="Contacts" value={counters?.contacts} />
@@ -208,16 +204,11 @@ export default async function SystemPage() {
           <Field label="Active policies" value={counters?.policies} />
           <Field label="Clients visible to you" value={String(visibleToMe)} />
         </div>
-        <p className="prose-vixart mt-4" style={{ opacity: 0.68 }}>
-          FORCE means the policies apply even to the table owner. A
-          misconfiguration that ran the application under the wrong role could not
-          silently open the boundary.
-        </p>
       </Section>
 
       <Section title="Guards">
         {disabled.length > 0 ? (
-          <div className="border-2 border-void bg-void px-4 py-3 text-pure">
+          <div className="border-2 border-void bg-void px-4 py-3 text-night">
             <p className="font-semibold">
               {disabled.length} guard{disabled.length === 1 ? ' is' : 's are'} switched off
             </p>
@@ -236,7 +227,7 @@ export default async function SystemPage() {
         <div className="mt-4 overflow-x-auto">
           <table className="table-wide text-left">
             <thead>
-              <tr className="border-b-2 border-void">
+              <tr className="border-b-2 border-void/40">
                 <th className="th py-2 pr-4">Table</th>
                 <th className="th py-2 pr-4">Guard</th>
                 <th className="th py-2">State</th>
@@ -271,7 +262,7 @@ export default async function SystemPage() {
         <div className="overflow-x-auto">
           <table className="table-wide text-left">
             <thead>
-              <tr className="border-b-2 border-void">
+              <tr className="border-b-2 border-void/40">
                 <th className="label py-2.5 pr-4">Key</th>
                 <th className="label py-2.5 pr-4">Rate</th>
                 <th className="label py-2.5 pr-4">In force from</th>

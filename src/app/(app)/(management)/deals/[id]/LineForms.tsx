@@ -1,5 +1,6 @@
 'use client';
 
+import { useKeepOnError } from '@/lib/use-keep-on-error';
 import { useActionState, useState, useRef } from 'react';
 import { useFormStatus } from 'react-dom';
 import { ErrorBanner } from '@/components/ui';
@@ -30,9 +31,10 @@ export function AddLineForm({
     },
     EMPTY_STATE,
   );
+  const keepState = useKeepOnError(state);
 
   return (
-    <form ref={formRef} action={formAction} className="mt-4">
+    <form ref={formRef} action={formAction} onSubmit={keepState} className="mt-4">
       <ErrorBanner message={state.error} />
       <div className="flex flex-wrap items-end gap-3">
         <label className="block min-w-64 flex-1" htmlFor="serviceId">
@@ -76,9 +78,10 @@ export function DiscountForm({
   current: string;
 }) {
   const [state, formAction] = useActionState(action, EMPTY_STATE);
+  const keepState = useKeepOnError(state);
 
   return (
-    <form action={formAction} className="mt-3">
+    <form action={formAction} onSubmit={keepState} className="mt-3">
       <ErrorBanner message={state.error} />
       <div className="flex flex-wrap items-end gap-3">
         <label className="block" htmlFor="discount">
@@ -119,6 +122,7 @@ export function AdvanceForm({
   totalCentimes: string;
 }) {
   const [state, formAction] = useActionState(action, EMPTY_STATE);
+  const keepState = useKeepOnError(state);
   const [value, setValue] = useState(current);
 
   const total = BigInt(totalCentimes);
@@ -130,7 +134,7 @@ export function AdvanceForm({
   }
 
   return (
-    <form action={formAction} className="mt-6 border-t border-void/10 pt-5">
+    <form action={formAction} onSubmit={keepState} className="mt-6 border-t border-void/10 pt-5">
       <ErrorBanner message={state.error} />
       <p className="label">Advance to start</p>
       <p className="hint mt-0.5 mb-3">

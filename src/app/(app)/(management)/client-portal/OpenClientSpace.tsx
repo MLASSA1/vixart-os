@@ -1,5 +1,6 @@
 'use client';
 
+import { useKeepOnError } from '@/lib/use-keep-on-error';
 import { useActionState, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { ErrorBanner, FormGrid, NoticeBanner, TextInput } from '@/components/ui';
@@ -29,6 +30,7 @@ export function OpenClientSpace({
   companies: ReadonlyArray<{ id: string; name: string }>;
 }) {
   const [state, formAction] = useActionState(openClientSpaceAction, EMPTY_STATE);
+  const keepState = useKeepOnError(state);
 
   /*
    * An existing client, or a new one.
@@ -42,7 +44,7 @@ export function OpenClientSpace({
   const isNew = companyId === '';
 
   return (
-    <form action={formAction}>
+    <form action={formAction} onSubmit={keepState}>
       <ErrorBanner message={state.error} />
       <NoticeBanner message={state.notice} />
 

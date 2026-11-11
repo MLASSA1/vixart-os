@@ -1,5 +1,6 @@
 'use client';
 
+import { useKeepOnError } from '@/lib/use-keep-on-error';
 import { useActionState, useRef } from 'react';
 import { useFormStatus } from 'react-dom';
 import { ErrorBanner, FormGrid, Select, TextArea, TextInput } from '@/components/ui';
@@ -48,9 +49,10 @@ export function TaskForm({
     },
     EMPTY_STATE,
   );
+  const keepState = useKeepOnError(state);
 
   return (
-    <form ref={formRef} action={formAction} className="mt-4 border border-void/25 p-5">
+    <form ref={formRef} action={formAction} onSubmit={keepState} className="mt-4 border border-void/25 p-5">
       <ErrorBanner message={state.error} />
       {parentId && <input type="hidden" name="parentId" value={parentId} />}
       <FormGrid>

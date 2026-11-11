@@ -102,7 +102,7 @@ export function ChatShell({
             type="button"
             aria-label="Close channels"
             onClick={() => setOpen(false)}
-            className="fixed inset-x-0 top-14 bottom-0 z-10 bg-void/40 md:hidden"
+            className="fixed inset-x-0 top-14 bottom-0 z-10 bg-night/60 md:hidden"
           />
         )}
 

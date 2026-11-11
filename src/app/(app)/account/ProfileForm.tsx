@@ -1,5 +1,6 @@
 'use client';
 
+import { useKeepOnError } from '@/lib/use-keep-on-error';
 import { useActionState, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { ErrorBanner, NoticeBanner } from '@/components/ui';
@@ -43,6 +44,7 @@ export function ProfileForm({
   personId: string;
 }) {
   const [state, formAction] = useActionState(saveMyProfileAction, EMPTY_STATE);
+  const keepState = useKeepOnError(state);
 
   const [chosenAvatar, setChosenAvatar] = useState<string | null>(null);
   const [chosenBanner, setChosenBanner] = useState<string | null>(null);
@@ -64,7 +66,7 @@ export function ProfileForm({
   const bannerSrc = `/api/avatar/${personId}?banner=1&v=${version}`;
 
   return (
-    <form action={formAction}>
+    <form action={formAction} onSubmit={keepState}>
       <ErrorBanner message={state.error} />
       <NoticeBanner message={state.notice} />
 
@@ -108,7 +110,7 @@ export function ProfileForm({
             value="1"
             checked={dropBanner}
             onChange={(e) => setDropBanner(e.currentTarget.checked)}
-            className="h-4 w-4 accent-[#6D28D9]"
+            className="h-4 w-4 accent-accent"
           />
           Remove my banner
         </label>
@@ -135,7 +137,12 @@ export function ProfileForm({
             type="file"
             name="avatar"
             accept="image/jpeg,image/png,image/webp,image/gif"
-            className="block text-[13.5px]"
+            // min-w-0 flex-1: a native file picker has an intrinsic width that
+            // does not shrink, and as a flex item beside the photo it may not go
+            // below that width unless told it can. At 375px it pushed the whole
+            // page 35px sideways. (max-w-full does not help: the ROW is the
+            // thing that was too wide, not the input against its parent.)
+            className="block min-w-0 flex-1 text-[13.5px]"
             onChange={(e) => {
               const f = e.currentTarget.files?.[0];
               setChosenAvatar(f ? URL.createObjectURL(f) : null);
@@ -152,7 +159,7 @@ export function ProfileForm({
             value="1"
             checked={dropAvatar}
             onChange={(e) => setDropAvatar(e.currentTarget.checked)}
-            className="h-4 w-4 accent-[#6D28D9]"
+            className="h-4 w-4 accent-accent"
           />
           Remove my picture
         </label>
@@ -192,7 +199,7 @@ export function ProfileForm({
           onChange={(e) => setCount(e.currentTarget.value.length)}
           className="input mt-2 resize-y"
         />
-        <span className="mt-1 block text-right text-[12.5px] tabular-nums" style={{ opacity: 0.5 }}>
+        <span className="mt-1 block text-right text-[12.5px] tabular-nums" style={{ opacity: 0.55 }}>
           {count} / {MAX_BIO}
         </span>
       </label>

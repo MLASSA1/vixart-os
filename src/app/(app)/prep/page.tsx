@@ -98,13 +98,10 @@ export default async function PrepPage() {
 
   return (
     <>
-      <PageHeader eyebrow="Before the camera" title="Prep" />
-
-      <p className="prose-vixart" style={{ opacity: 0.7 }}>
-        Where each of us gathers what a video needs before it is shot. Your drafts
-        are yours alone — nobody on the team, management included, can read one
-        until you mark it ready. Once you do, everyone can.
-      </p>
+      <PageHeader
+        title="Prep"
+        intro="What a shoot needs, gathered before the day. Drafts stay private until you mark them ready."
+      />
 
       <Section title={`Mine — ${mine.length}`}>
         {mine.length === 0 ? (

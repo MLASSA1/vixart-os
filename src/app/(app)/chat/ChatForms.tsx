@@ -1,5 +1,6 @@
 'use client';
 
+import { useKeepOnError } from '@/lib/use-keep-on-error';
 import { useActionState, useCallback, useEffect, useRef, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { ErrorBanner, NoticeBanner } from '@/components/ui';
@@ -58,11 +59,12 @@ export function NewChannelForm({
     if (!result.error) onDone();
     return result;
   }, EMPTY_STATE);
+  const keepState = useKeepOnError(state);
 
   const chosen = targets.find((t) => t.id === target);
 
   return (
-    <form action={formAction} className="rounded-xl border border-void/15 bg-surface p-3">
+    <form action={formAction} onSubmit={keepState} className="rounded-xl border border-void/15 bg-surface p-3">
       <ErrorBanner message={state.error} />
 
       <label className="block">
@@ -246,6 +248,7 @@ export function Composer({
     }
     return result;
   }, EMPTY_STATE);
+  const keepState = useKeepOnError(state);
 
   // A dropped file is put into the real input, so it travels with the form like
   // any other and the server sees no difference between dragging and browsing.
@@ -302,7 +305,7 @@ export function Composer({
   }
 
   return (
-    <form ref={formRef} action={formAction}>
+    <form ref={formRef} action={formAction} onSubmit={keepState}>
       <ErrorBanner message={state.error} />
       <NoticeBanner message={state.notice} />
 
@@ -614,12 +617,13 @@ export function EditMessageForm({
 }) {
   const [open, setOpen] = useState(false);
   const [state, formAction] = useActionState(action, EMPTY_STATE);
+  const keepState = useKeepOnError(state);
 
   if (!open) {
     return (
       <button
         type="button"
-        className="cursor-pointer text-[11.5px] font-medium text-void/45 hover:text-void hover:underline"
+        className="cursor-pointer text-[11.5px] font-medium text-void/55 hover:text-void hover:underline"
         onClick={() => setOpen(true)}
       >
         Edit
@@ -628,7 +632,7 @@ export function EditMessageForm({
   }
 
   return (
-    <form action={formAction} className="mt-1 w-[min(60ch,78vw)]">
+    <form action={formAction} onSubmit={keepState} className="mt-1 w-[min(60ch,78vw)]">
       <ErrorBanner message={state.error} />
       <input type="hidden" name="messageId" value={messageId} />
       <textarea

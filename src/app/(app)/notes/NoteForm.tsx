@@ -1,5 +1,6 @@
 'use client';
 
+import { useKeepOnError } from '@/lib/use-keep-on-error';
 import { useActionState, useRef } from 'react';
 import { useFormStatus } from 'react-dom';
 import { ErrorBanner } from '@/components/ui';
@@ -22,9 +23,10 @@ export function NoteForm({
     },
     EMPTY_STATE,
   );
+  const keepState = useKeepOnError(state);
 
   return (
-    <form ref={formRef} action={formAction} className={note ? '' : 'card px-5 py-4'}>
+    <form ref={formRef} action={formAction} onSubmit={keepState} className={note ? '' : 'card px-5 py-4'}>
       <ErrorBanner message={state.error} />
       {note && <input type="hidden" name="noteId" value={note.id} />}
       <input

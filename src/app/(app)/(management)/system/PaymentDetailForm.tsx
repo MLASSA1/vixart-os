@@ -1,5 +1,6 @@
 'use client';
 
+import { useKeepOnError } from '@/lib/use-keep-on-error';
 import { useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { ErrorBanner, FormGrid, NoticeBanner, TextInput } from '@/components/ui';
@@ -31,9 +32,10 @@ export function PaymentDetailForm({
   current: { bankName: string; rib: string; iban: string; swift: string };
 }) {
   const [state, formAction] = useActionState(action, EMPTY_STATE);
+  const keepState = useKeepOnError(state);
 
   return (
-    <form action={formAction} className="card mt-4 px-5 py-4">
+    <form action={formAction} onSubmit={keepState} className="card mt-4 px-5 py-4">
       <ErrorBanner message={state.error} />
       <NoticeBanner message={state.notice} />
       <FormGrid>

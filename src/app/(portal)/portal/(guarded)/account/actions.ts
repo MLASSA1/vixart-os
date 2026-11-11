@@ -72,3 +72,19 @@ export async function setClientPasswordAction(
   await signOut({ redirectTo: '/portal/sign-in?changed=1' });
   return EMPTY_STATE;
 }
+
+/**
+ * Whether we email this client when the team replies (0088). Their own
+ * account only: the function writes WHERE contact_id = the session's contact.
+ */
+export async function setReplyEmailsAction(formData: FormData): Promise<void> {
+  let session;
+  try {
+    session = await requireClientSession();
+  } catch {
+    return;
+  }
+  const on = formData.get('on') === 'true';
+  await withClient(session.user.id, (tx) => tx.execute(sql`SELECT app.set_own_reply_emails(${on})`));
+  revalidatePath('/portal/account');
+}

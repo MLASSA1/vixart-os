@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { ListFilter } from '@/components/ListFilter';
 import { sql } from 'drizzle-orm';
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
@@ -173,8 +174,8 @@ export default async function RetainersPage() {
   return (
     <>
       <PageHeader
-        eyebrow="Monthly contracts"
         title="Retainers"
+        intro="Monthly contracts, and what they bring in."
         actions={
           <form action={draftRetainerInvoicesAction}>
             <button type="submit" className="btn btn-inverse btn-small">
@@ -184,15 +185,15 @@ export default async function RetainersPage() {
         }
       />
 
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:grid-cols-4">
         <div className="card px-5 py-4">
           <p className="label">Monthly recurring revenue</p>
-          <p className="kpi mt-1">{formatMAD(mrr)}</p>
+          <p className="kpi kpi-money mt-1">{formatMAD(mrr)}</p>
           <p className="hint mt-1">{active.length} active contract{active.length === 1 ? '' : 's'}</p>
         </div>
         <div className="card px-5 py-4">
           <p className="label">Committed</p>
-          <p className="kpi mt-1">{formatMAD(committedValue)}</p>
+          <p className="kpi kpi-money mt-1">{formatMAD(committedValue)}</p>
           <p className="hint mt-1">
             {committed.length} inside their term
           </p>
@@ -204,16 +205,19 @@ export default async function RetainersPage() {
         </div>
         <div className="card px-5 py-4">
           <p className="label">Annualised</p>
-          <p className="kpi mt-1">{formatMAD(mrr * 12n)}</p>
+          <p className="kpi kpi-money mt-1">{formatMAD(mrr * 12n)}</p>
           <p className="hint mt-1">At today&apos;s rate</p>
         </div>
       </div>
 
-      <Section title={`Contracts — ${rows.length}`}>
+      <Section
+        title={`Contracts — ${rows.length}`}
+        action={rows.length > 0 && <ListFilter scope="retainer-list" placeholder="Search contracts" />}
+      >
         {rows.length === 0 ? (
           <Empty message="No retainers yet. The first one is below." />
         ) : (
-          <ul className="grid gap-3">{rows.map(card)}</ul>
+          <ul id="retainer-list" className="grid gap-3">{rows.map(card)}</ul>
         )}
       </Section>
 

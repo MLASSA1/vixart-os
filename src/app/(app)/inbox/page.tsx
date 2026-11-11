@@ -80,8 +80,14 @@ export default async function InboxPage() {
   return (
     <>
       <PageHeader
-        eyebrow={me.name ?? 'You'}
         title="Inbox"
+        /*
+          One line, and it still names what is emailed. It used to say nothing
+          was emailed, which stopped being true the day the mailer shipped — and
+          a sentence telling people they will NOT be emailed, on the page listing
+          what they are emailed about, is the reason somebody stops checking.
+        */
+        intro="What is waiting for you. New tasks, finished work, messages and client notes are also emailed."
         actions={
           unread.length > 0 ? (
             <form action={markAllReadAction}>
@@ -92,22 +98,6 @@ export default async function InboxPage() {
           ) : undefined
         }
       />
-
-      {/*
-        This used to say "nothing here is sent anywhere — no email, no message,
-        no notification off this machine", which was true when it was written and
-        stopped being true the day the mailer shipped. A sentence telling people
-        they will NOT be emailed, on the page listing the things they are emailed
-        about, is worse than no sentence: it is the reason somebody stops checking
-        their mail for work.
-      */}
-      <p className="prose-vixart" style={{ opacity: 0.7 }}>
-        Work handed to you, your name in a conversation, your own work past its
-        date, and anything waiting on your sign-off. Four of these also reach you
-        by email — a task assigned to you, a task you raised being finished, a
-        message from a colleague, and a client writing in — so you do not have to
-        be looking at this page. Everything else waits here.
-      </p>
 
       <Section title={unread.length > 0 ? `Unread — ${unread.length}` : 'Nothing unread'}>
         {unread.length === 0 ? (

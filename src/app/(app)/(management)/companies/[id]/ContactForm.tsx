@@ -1,5 +1,6 @@
 'use client';
 
+import { useKeepOnError } from '@/lib/use-keep-on-error';
 import { useActionState, useRef } from 'react';
 import { useFormStatus } from 'react-dom';
 import { Checkbox, ErrorBanner, FormGrid, TextInput } from '@/components/ui';
@@ -37,9 +38,10 @@ export function ContactForm({
     },
     EMPTY_STATE,
   );
+  const keepState = useKeepOnError(state);
 
   return (
-    <form ref={formRef} action={formAction} className="mt-4">
+    <form ref={formRef} action={formAction} onSubmit={keepState} className="mt-4">
       <ErrorBanner message={state.error} />
       <FormGrid>
         <TextInput

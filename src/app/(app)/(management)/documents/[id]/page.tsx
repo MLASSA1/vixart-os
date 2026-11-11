@@ -19,7 +19,7 @@ import { Payments, type PaymentRow } from './Payments';
 import {
   addDocumentLineAction,
   deleteDraftAction,
-  deletePaymentAction,
+  reversePaymentAction,
   issueDocumentAction,
   recordPaymentAction,
   removeDocumentLineAction,
@@ -93,22 +93,34 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
                         ORDER BY p.effective_from DESC LIMIT 1), 0)::text AS price
         FROM service s WHERE s.is_active ORDER BY s.pillar, lower(s.name)
     `);
+    // Every payment and every reversal, for good (0083), with who recorded it
+    // and — on a payment that was reversed — when.
     const payments = await tx.execute<{
       [k: string]: unknown;
       id: string; amount: string; method: string; paid_on: string; note: string | null;
+      reverses_id: string | null; reversed_on: string | null; recorded_by: string | null;
     }>(sql`
-      SELECT id, amount_centimes::text AS amount, method, paid_on::text, note
-        FROM document_payment WHERE document_id = ${id}
-       ORDER BY paid_on, created_at
+      SELECT p.id::text, p.amount_centimes::text AS amount, p.method, p.paid_on::text, p.note,
+             p.reverses_id::text,
+             (SELECT r.paid_on::text FROM document_payment r WHERE r.reverses_id = p.id) AS reversed_on,
+             u.full_name AS recorded_by
+        FROM document_payment p
+        LEFT JOIN app_user u ON u.id = p.created_by_id
+       WHERE p.document_id = ${id}
+       ORDER BY p.paid_on, p.created_at
     `);
+    const owner = await tx.execute<{ owner: boolean }>(sql`SELECT app.is_owner() AS owner`);
 
-    return { record, lines: lines.rows, services: services.rows, payments: payments.rows };
+    return {
+      record, lines: lines.rows, services: services.rows, payments: payments.rows,
+      canReverse: Boolean(owner.rows[0]?.owner),
+    };
   });
 
   const files = await listAttachments('document', id);
 
   if (!data) notFound();
-  const { record, lines, services, payments } = data;
+  const { record, lines, services, payments, canReverse } = data;
   const isDraft = record.status === 'brouillon';
 
   // A draft recomputes live; an issued document shows the frozen figures.
@@ -145,7 +157,7 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
   return (
     <>
       <PageHeader
-        eyebrow={`${DOCUMENT_TYPE_LABELS[record.doc_type]} · ${DOCUMENT_STATUS_LABELS[record.status]}`}
+        intro={`${DOCUMENT_TYPE_LABELS[record.doc_type]} · ${DOCUMENT_STATUS_LABELS[record.status]}`}
         title={record.number ?? 'Draft'}
         actions={
           <>
@@ -267,7 +279,7 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
           <div className="overflow-x-auto">
             <table className="table-wide text-left">
               <thead>
-                <tr className="border-b-2 border-void">
+                <tr className="border-b-2 border-void/40">
                   <th className="th py-2 pr-4">Description</th>
                   <th className="th py-2 pr-4 text-right">Unit price</th>
                   <th className="th py-2 pr-4 text-right">Qty</th>
@@ -344,7 +356,7 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
             <span className="label">VAT {record.vat_rate_bp / 100} %</span>
             <span className="code">{formatMAD(totals.vat)}</span>
           </div>
-          <div className="flex items-baseline justify-between border-b-2 border-void py-2.5">
+          <div className="flex items-baseline justify-between border-b-2 border-void/40 py-2.5">
             <span className="font-semibold">Total incl. VAT</span>
             <span className="code text-lg font-bold">{formatMAD(totals.incl)}</span>
           </div>
@@ -356,7 +368,7 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
                 </span>
                 <span className="code">− {formatMAD(totals.withheld)}</span>
               </div>
-              <div className="flex items-baseline justify-between border-b-2 border-void py-2.5">
+              <div className="flex items-baseline justify-between border-b-2 border-void/40 py-2.5">
                 <span className="font-semibold">Net to collect</span>
                 <span className="code text-lg font-bold">{formatMAD(net)}</span>
               </div>
@@ -386,12 +398,16 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
                 id: String(p.id),
                 amount: String(p.amount),
                 method: String(p.method),
-                paidOn: String(p.paid_on),
+                paidOn: formatDate(String(p.paid_on)),
                 note: (p.note as string) ?? null,
+                recordedBy: p.recorded_by,
+                reversesId: p.reverses_id,
+                reversedOn: p.reversed_on ? formatDate(p.reversed_on) : null,
               }),
             )}
             record={recordPaymentAction.bind(null, record.id)}
-            remove={deletePaymentAction}
+            reverse={reversePaymentAction}
+            canReverse={canReverse}
           />
         </Section>
       )}
@@ -451,12 +467,8 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
       ) : (
         <Section title="Status">
           <p className="prose-vixart" style={{ opacity: 0.7 }}>
-            {record.number} is issued. The database refuses any change to its
-            figures — the totals, the client&apos;s ICE, the account it asks to be
-            paid into — and correcting one of those means issuing a credit note.
-            How it is settled is not a figure: a client who said transfer can turn
-            up with a cheque, so that one stays changeable, and every change is
-            recorded against the document.
+            {record.number} is issued, so its figures are locked; to correct one, issue a
+            credit note. Only the payment method can still change, and every change is recorded.
           </p>
           {record.status === 'emis' && record.doc_type === 'facture' && (
             <div className="mt-4 flex flex-wrap gap-3">

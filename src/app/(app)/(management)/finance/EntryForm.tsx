@@ -1,5 +1,6 @@
 'use client';
 
+import { useKeepOnError } from '@/lib/use-keep-on-error';
 import { useActionState, useRef, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { ErrorBanner, FormGrid, TextInput } from '@/components/ui';
@@ -34,11 +35,12 @@ export function EntryForm({
     },
     EMPTY_STATE,
   );
+  const keepState = useKeepOnError(state);
 
   const categories = direction === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
 
   return (
-    <form ref={formRef} action={formAction} className="border border-void/25 p-5">
+    <form ref={formRef} action={formAction} onSubmit={keepState} className="border border-void/25 p-5">
       <ErrorBanner message={state.error} />
 
       {/* Direction first: it changes which categories make sense. */}

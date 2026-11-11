@@ -28,7 +28,7 @@ export default async function EditClientPage({
 
   return (
     <>
-      <PageHeader eyebrow={record.name} title="Edit record" />
+      <PageHeader intro={record.name} title="Edit record" />
       <CompanyForm
         action={action}
         record={record}

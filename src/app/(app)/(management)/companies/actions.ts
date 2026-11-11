@@ -34,6 +34,18 @@ const taxIdSchema = optionalText.refine((v) => v === null || /^\d{6,9}$/.test(v)
   message: 'The tax ID (IF) must be 6 to 9 digits.',
 });
 
+/**
+ * A link, made to open. People paste "instagram.com/vixart" or
+ * "www.facebook.com/x" far more often than a full address, so a missing scheme
+ * is added rather than refused; anything that still is not an http(s) address
+ * is turned back with a sentence. The database holds the same rule (0082).
+ */
+const optionalLink = optionalText
+  .transform((v) => (v && !/^https?:\/\//i.test(v) ? `https://${v}` : v))
+  .refine((v) => v === null || (/^https?:\/\/[^\s/$.?#][^\s]*$/i.test(v) && v.length <= 2000), {
+    message: 'That does not look like a web address. Paste the link from the browser.',
+  });
+
 const clientSchema = z.object({
   name: z.string().trim().min(1, 'The name is required.'),
   legalName: optionalText,
@@ -44,11 +56,38 @@ const clientSchema = z.object({
   addressLine: optionalText,
   city: optionalText,
   website: optionalText,
+  instagramUrl: optionalLink,
+  facebookUrl: optionalLink,
+  mapsUrl: optionalLink,
+  bookingUrl: optionalLink,
   retenueSource: z.boolean(),
   isIndividual: z.boolean(),
   engagementSummary: optionalText,
   notes: optionalText,
 });
+
+/**
+ * Another client already holding this ICE, if any.
+ *
+ * An ICE identifies one company in law, so two records carrying it means a
+ * duplicate client — the same business entered twice, with its invoices split
+ * between them. Checked here, on save, with the other company named, rather
+ * than as a unique index: the test suite's probe companies share fixture ICEs
+ * by design (see 0084).
+ */
+async function iceTakenBy(
+  tx: Parameters<Parameters<typeof withUser>[0]>[0],
+  ice: string | null,
+  exceptId: string | null,
+): Promise<string | null> {
+  if (!ice) return null;
+  const found = await tx.execute<{ name: string }>(sql`
+    SELECT name FROM company
+     WHERE ice = ${ice} AND (${exceptId}::uuid IS NULL OR id <> ${exceptId}::uuid)
+     LIMIT 1
+  `);
+  return found.rows[0]?.name ?? null;
+}
 
 function readCompanyForm(formData: FormData) {
   return clientSchema.safeParse({
@@ -61,6 +100,10 @@ function readCompanyForm(formData: FormData) {
     addressLine: formData.get('addressLine') ?? '',
     city: formData.get('city') ?? '',
     website: formData.get('website') ?? '',
+    instagramUrl: formData.get('instagramUrl') ?? '',
+    facebookUrl: formData.get('facebookUrl') ?? '',
+    mapsUrl: formData.get('mapsUrl') ?? '',
+    bookingUrl: formData.get('bookingUrl') ?? '',
     retenueSource: formData.get('retenueSource') === 'on',
     isIndividual: formData.get('isIndividual') === 'on',
     engagementSummary: formData.get('engagementSummary') ?? '',
@@ -113,6 +156,8 @@ export async function createCompanyAction(
   let newId: string;
   try {
     newId = await withUser(async (tx) => {
+      const twin = await iceTakenBy(tx, parsed.data.ice, null);
+      if (twin) throw new Error(`Another client already has this ICE: ${twin}. Open that record instead of adding a second one.`);
       const [row] = await tx.insert(company).values(parsed.data).returning({ id: company.id });
       if (!row) throw new Error('Record could not be created.');
       return row.id;
@@ -137,6 +182,8 @@ export async function updateCompanyAction(
 
   try {
     await withUser(async (tx) => {
+      const twin = await iceTakenBy(tx, parsed.data.ice, companyId);
+      if (twin) throw new Error(`Another client already has this ICE: ${twin}.`);
       await tx.update(company).set(parsed.data).where(eq(company.id, companyId));
     });
   } catch (error) {
@@ -175,7 +222,11 @@ export async function deleteCompanyAction(formData: FormData): Promise<void> {
 const contactSchema = z.object({
   fullName: z.string().trim().min(1, 'The name is required.'),
   roleTitle: optionalText,
-  email: optionalText,
+  // The same lenient shape the database holds (0084): stops a phone number
+  // landing in the email column, without second-guessing real addresses.
+  email: optionalText.refine((v) => v === null || /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v), {
+    message: 'That is not an email address.',
+  }),
   phone: optionalText,
   whatsapp: optionalText,
   isPrimary: z.boolean(),

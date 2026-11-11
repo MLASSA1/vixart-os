@@ -21,8 +21,8 @@ export default async function ClientsPage({
   return (
     <>
       <PageHeader
-        eyebrow="Active business"
         title="Clients"
+        intro="Companies that are paying you now."
         actions={<ButtonLink href="/companies/new">New record</ButtonLink>}
       />
       <SearchBar action="/clients" defaultValue={q} placeholder="Search clients" />

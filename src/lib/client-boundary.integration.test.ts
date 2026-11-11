@@ -156,7 +156,7 @@ describe.skipIf(!HAS_DB)('the client boundary (integration)', () => {
     // The internal business, one table at a time. A grant is checked BEFORE a
     // policy, so these fail even if somebody later writes a careless policy.
     const forbidden = [
-      'app_user', 'task', 'activity', 'document', 'document_line', 'interaction',
+      'app_user', 'task', 'activity', 'interaction',
       'equipment', 'notification', 'deal', 'retainer', 'prep', 'effort_log',
       'comment', 'schedule_entry', 'private_note', 'client_account',
       'thread_read', 'login_attempt',
@@ -171,6 +171,11 @@ describe.skipIf(!HAS_DB)('the client boundary (integration)', () => {
      * onto a message they wrote themselves.
      *
      * If that describe block is ever deleted, this comment is the trail back.
+     *
+     * `document` and `document_line` came off in 0085, for the same kind of
+     * reason: a client now sees their own issued invoices and quotes. The grant
+     * is column by column and the rows are their company's issued documents
+     * only — pinned in client-billing.integration.test.ts.
      */
 
     const reachable: string[] = [];

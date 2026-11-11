@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useActionState } from 'react';
+import { useKeepOnError } from '@/lib/use-keep-on-error';
 import { useFormStatus } from 'react-dom';
 import {
   Checkbox,
@@ -36,13 +37,14 @@ export function CompanyForm({
   cancelHref: string;
 }) {
   const [state, formAction] = useActionState(action, EMPTY_STATE);
+  const keepState = useKeepOnError(state);
 
   return (
-    <form action={formAction}>
+    <form action={formAction} onSubmit={keepState}>
       <ErrorBanner message={state.error} />
 
       <fieldset className="mb-10">
-        <legend className="label mb-4 w-full border-b border-void pb-2">Identity</legend>
+        <legend className="label mb-4 w-full border-b border-void/40 pb-2">Identity</legend>
         <FormGrid>
           <TextInput
             name="name"
@@ -83,8 +85,22 @@ export function CompanyForm({
         </FormGrid>
       </fieldset>
 
+      {/* Where to find them online (0082). Pasting "instagram.com/x" is fine:
+          the address is completed on save. */}
       <fieldset className="mb-10">
-        <legend className="label mb-4 w-full border-b border-void pb-2">
+        <legend className="label mb-4 w-full border-b border-void/40 pb-2">
+          Online
+        </legend>
+        <FormGrid>
+          <TextInput name="instagramUrl" label="Instagram" placeholder="instagram.com/…" defaultValue={record?.instagramUrl} />
+          <TextInput name="facebookUrl" label="Facebook" placeholder="facebook.com/…" defaultValue={record?.facebookUrl} />
+          <TextInput name="mapsUrl" label="Google Maps" placeholder="Paste the map link" defaultValue={record?.mapsUrl} />
+          <TextInput name="bookingUrl" label="Booking or ordering page" placeholder="https://" defaultValue={record?.bookingUrl} />
+        </FormGrid>
+      </fieldset>
+
+      <fieldset className="mb-10">
+        <legend className="label mb-4 w-full border-b border-void/40 pb-2">
           Legal identifiers
         </legend>
         <p className="prose-vixart mb-4 text-[15px]" style={{ opacity: 0.52 }}>
@@ -129,7 +145,7 @@ export function CompanyForm({
       </fieldset>
 
       <fieldset className="mb-10">
-        <legend className="label mb-4 w-full border-b border-void pb-2">Engagement</legend>
+        <legend className="label mb-4 w-full border-b border-void/40 pb-2">Engagement</legend>
         <FormGrid>
           <TextArea
             name="engagementSummary"

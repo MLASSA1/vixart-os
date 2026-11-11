@@ -5,7 +5,8 @@ import { MESSAGE_PAGE, type MessageRow } from '@/lib/chat-queries';
 import { subscribeToChat } from '@/lib/chat-stream-client';
 import type { FormState } from '@/lib/form-state';
 import { Attachment } from './Attachment';
-import { Avatar, clockTime, dayLabel, hueFor, MentionText } from './ChatBits';
+import { Avatar, hueFor, MentionText } from './ChatBits';
+import { dayHeading } from '@/lib/format';
 import { Composer, EditMessageForm } from './ChatForms';
 
 /**
@@ -54,7 +55,10 @@ function authorKey(m: MessageRow): string {
 
 function sameGroup(a: MessageRow | undefined, b: MessageRow): boolean {
   if (!a || authorKey(a) !== authorKey(b)) return false;
-  if (new Date(a.created_at).toDateString() !== new Date(b.created_at).toDateString()) return false;
+  // The server's day, not the device's: a run split at the device's midnight
+  // would render a different structure than the server did, which is a
+  // hydration mismatch of its own.
+  if (a.day_key !== b.day_key) return false;
   return new Date(b.created_at).getTime() - new Date(a.created_at).getTime() < GROUP_WINDOW_MS;
 }
 
@@ -65,6 +69,7 @@ export function MessagePane({
   mentionable,
   dmWith,
   hasEarlier,
+  today: initialToday,
   postAction,
   editAction,
   withdrawAction,
@@ -77,11 +82,19 @@ export function MessagePane({
   dmWith: string | null;
   /** Whether the channel goes further up than the page we were given. */
   hasEarlier: boolean;
+  /**
+   * The server's Casablanca day, "2026-11-10". Never `new Date()` here: the
+   * browser does no date arithmetic in this pane, because a device with stale
+   * time zone data disagrees with the server about Morocco (see
+   * src/lib/format.ts). Each poll brings a fresh one.
+   */
+  today: string;
   postAction: (state: FormState, formData: FormData) => Promise<FormState>;
   editAction: (state: FormState, formData: FormData) => Promise<FormState>;
   withdrawAction: (formData: FormData) => Promise<void>;
 }) {
   const [messages, setMessages] = useState(initial);
+  const [today, setToday] = useState(initialToday);
   /** Whether announcements are arriving. Decides the fallback interval only. */
   const [streaming, setStreaming] = useState(false);
   /** More above what is on screen, and whether we are fetching it. */
@@ -97,7 +110,8 @@ export function MessagePane({
   useEffect(() => {
     setMessages(initial);
     setEarlier(hasEarlier);
-  }, [initial, hasEarlier]);
+    setToday(initialToday);
+  }, [initial, hasEarlier, initialToday]);
 
   /**
    * The page above the one on screen.
@@ -121,7 +135,8 @@ export function MessagePane({
         { cache: 'no-store' },
       );
       if (!response.ok) return;
-      const data = (await response.json()) as { messages: MessageRow[] };
+      const data = (await response.json()) as { messages: MessageRow[]; today?: string };
+      if (data.today) setToday(data.today);
       if (data.messages.length === 0) {
         setEarlier(false);
         return;
@@ -163,7 +178,10 @@ export function MessagePane({
       }`;
       const response = await fetch(url, { cache: 'no-store' });
       if (!response.ok) return;
-      const data = (await response.json()) as { messages: MessageRow[] };
+      const data = (await response.json()) as { messages: MessageRow[]; today?: string };
+      // Before the early return: a quiet channel left open past midnight still
+      // needs "Today" to become "Yesterday".
+      if (data.today) setToday(data.today);
       if (data.messages.length === 0) return;
 
       setMessages((current) => {
@@ -244,7 +262,7 @@ export function MessagePane({
     >
       {dragging && (
         <div className="pointer-events-none absolute inset-3 z-20 flex items-center justify-center rounded-2xl border-2 border-dashed border-accent bg-accent/[0.07]">
-          <p className="text-accent-deep font-semibold">Drop to attach</p>
+          <p className="text-accent-ink font-semibold">Drop to attach</p>
         </div>
       )}
 
@@ -274,7 +292,7 @@ export function MessagePane({
         )}
 
         {messages.map((m, i) => {
-          const day = dayLabel(m.created_at);
+          const day = dayHeading(m.day_key, today);
           const newDay = day !== lastDay;
           lastDay = day;
           const mine = m.author_id === meId;
@@ -316,7 +334,12 @@ export function MessagePane({
                     {!grouped && !sided && (
                       <p
                         className="mb-0.5 text-[13px] font-bold"
-                        style={{ color: `hsl(${hueFor(authorKey(m))} 46% 38%)` }}
+                        // A LIGHT tint of the person's hue, for a dark bubble. The
+                        // old 38% lightness was drawn for white bubbles and fell to
+                        // 1.7:1 on dark for anyone whose hue lands on blue. At 72%
+                        // the worst of all 360 hues is 6.1:1, and each person keeps
+                        // their own colour.
+                        style={{ color: `hsl(${hueFor(authorKey(m))} 55% 72%)` }}
                       >
                         {m.author_name}
                       </p>
@@ -361,7 +384,7 @@ export function MessagePane({
                       {m.edited_at && !m.withdrawn_at && (
                         <span className="mr-1 italic">edited</span>
                       )}
-                      {clockTime(m.created_at)}
+                      {m.time_label}
                     </span>
                   </div>
 
@@ -378,7 +401,7 @@ export function MessagePane({
                         <input type="hidden" name="messageId" value={m.id} />
                         <button
                           type="submit"
-                          className="cursor-pointer text-[11.5px] font-medium text-void/45 hover:text-void hover:underline"
+                          className="cursor-pointer text-[11.5px] font-medium text-void/55 hover:text-void hover:underline"
                         >
                           Delete
                         </button>
